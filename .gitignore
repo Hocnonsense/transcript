@@ -1,0 +1,14 @@
+!.gitignore
+
+!LICENSE
+!pyproject.toml
+!*release-please-config.json
+!*.py
+
+!src/
+!tests/
+!.github/
+!.github/*
+!.github/*/*.yml
+
+!examples/*
