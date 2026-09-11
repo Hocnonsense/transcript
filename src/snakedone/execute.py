@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .canon import display, text
+from .output import RecordedOutput, document_directory
 
 if TYPE_CHECKING:
     from .parse import AstDocument, DocExpression
@@ -35,6 +36,12 @@ def evaluate(record: DocExpression, namespace: dict[str, Any], filename: str):
                 namespace,
             )
             if value is not None:
+                if (
+                    isinstance(value, RecordedOutput)
+                    and stream.tell()
+                    and not stream.getvalue().endswith("\n")
+                ):
+                    stream.write("\n")
                 stream.write(display(value))
     captured = stream.getvalue()
     # if value is None and not captured and expression is not None:
@@ -114,12 +121,14 @@ def execute(document: AstDocument, path: Path):
 
     old_main = sys.modules.get("__main__")
     old_path, old_argv = sys.path, sys.argv
+    directory_token = document_directory.set(path.resolve().parent)
     try:
         sys.modules["__main__"] = module
         sys.path = [str(path.parent), *old_path]
         sys.argv = [str(path)]
         exec(compile(tree, str(path), "exec", dont_inherit=True), namespace)
     finally:
+        document_directory.reset(directory_token)
         if old_main is not None:
             sys.modules["__main__"] = old_main
         else:
