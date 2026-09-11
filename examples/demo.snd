@@ -18,11 +18,11 @@ class MiniTable:
 
     index = RangeIndex()
 
-    def __init__(self, label: str, value: int) -> None:
+    def __init__(self, label: str, value: int):
         self.label = label
         self.value = value
 
-    def to_csv(self, *, index: bool, lineterminator: str) -> str:
+    def to_csv(self, *, index: bool, lineterminator: str):
         stream = io.StringIO()
         writer = csv.writer(stream, lineterminator=lineterminator)
         writer.writerow(([""] if index else []) + ["label", "value"])
@@ -30,10 +30,10 @@ class MiniTable:
         return stream.getvalue()
 
 
-def png_data_uri(red: int) -> str:
+def png_data_uri(red: int):
     """Encode a deterministic one-pixel RGB PNG using only the stdlib."""
 
-    def chunk(kind: bytes, payload: bytes) -> bytes:
+    def chunk(kind: bytes, payload: bytes):
         body = kind + payload
         return (
             struct.pack(">I", len(payload)) + body + struct.pack(">I", zlib.crc32(body))
@@ -52,7 +52,7 @@ data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-
 message = f"Sample: {data['label']}"
 table = MiniTable(data["label"], data["value"])
 image_source = {"red": data["red"], "green": 64, "blue": 128}
-picture = png_data_uri(image_source["red"])
+picture = f"![]({png_data_uri(image_source['red'])})"
 
 """
 The following records archive a string, a table, and an inline image.
@@ -78,7 +78,7 @@ This tiny image is encoded directly from its RGB source data.
 >>> image_source
 {'red': 32, 'green': 64, 'blue': 128}
 >>> print(picture)
-data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQcGgAAAFkAOHHE8n2AAAAAElFTkSuQmCC
+![](data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQcGgAAAFkAOHHE8n2AAAAAElFTkSuQmCC)
 """
 
 """

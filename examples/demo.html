@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy"
+ content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;
+ script-src 'sha256-912bNpYSojVrWNU5I+ZJ3Bw1OY5abreEZ55vvUSfByc='; base-uri 'none'; form-action 'none'">
+<title>demo</title>
+<style>
+pre { line-height: 125%; }
+td.linenos .normal { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: inherit; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+:is(.doc-code, .script-code) .hll { background-color: #ffffcc }
+:is(.doc-code, .script-code) { background: #f8f8f8; }
+:is(.doc-code, .script-code) .c { color: #3D7B7B; font-style: italic } /* Comment */
+:is(.doc-code, .script-code) .err { border: 1px solid #F00 } /* Error */
+:is(.doc-code, .script-code) .k { color: #008000; font-weight: bold } /* Keyword */
+:is(.doc-code, .script-code) .o { color: #666 } /* Operator */
+:is(.doc-code, .script-code) .ch { color: #3D7B7B; font-style: italic } /* Comment.Hashbang */
+:is(.doc-code, .script-code) .cm { color: #3D7B7B; font-style: italic } /* Comment.Multiline */
+:is(.doc-code, .script-code) .cp { color: #9C6500 } /* Comment.Preproc */
+:is(.doc-code, .script-code) .cpf { color: #3D7B7B; font-style: italic } /* Comment.PreprocFile */
+:is(.doc-code, .script-code) .c1 { color: #3D7B7B; font-style: italic } /* Comment.Single */
+:is(.doc-code, .script-code) .cs { color: #3D7B7B; font-style: italic } /* Comment.Special */
+:is(.doc-code, .script-code) .gd { color: #A00000 } /* Generic.Deleted */
+:is(.doc-code, .script-code) .ge { font-style: italic } /* Generic.Emph */
+:is(.doc-code, .script-code) .ges { font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+:is(.doc-code, .script-code) .gr { color: #E40000 } /* Generic.Error */
+:is(.doc-code, .script-code) .gh { color: #000080; font-weight: bold } /* Generic.Heading */
+:is(.doc-code, .script-code) .gi { color: #008400 } /* Generic.Inserted */
+:is(.doc-code, .script-code) .go { color: #717171 } /* Generic.Output */
+:is(.doc-code, .script-code) .gp { color: #000080; font-weight: bold } /* Generic.Prompt */
+:is(.doc-code, .script-code) .gs { font-weight: bold } /* Generic.Strong */
+:is(.doc-code, .script-code) .gu { color: #800080; font-weight: bold } /* Generic.Subheading */
+:is(.doc-code, .script-code) .gt { color: #04D } /* Generic.Traceback */
+:is(.doc-code, .script-code) .kc { color: #008000; font-weight: bold } /* Keyword.Constant */
+:is(.doc-code, .script-code) .kd { color: #008000; font-weight: bold } /* Keyword.Declaration */
+:is(.doc-code, .script-code) .kn { color: #008000; font-weight: bold } /* Keyword.Namespace */
+:is(.doc-code, .script-code) .kp { color: #008000 } /* Keyword.Pseudo */
+:is(.doc-code, .script-code) .kr { color: #008000; font-weight: bold } /* Keyword.Reserved */
+:is(.doc-code, .script-code) .kt { color: #B00040 } /* Keyword.Type */
+:is(.doc-code, .script-code) .m { color: #666 } /* Literal.Number */
+:is(.doc-code, .script-code) .s { color: #BA2121 } /* Literal.String */
+:is(.doc-code, .script-code) .na { color: #687822 } /* Name.Attribute */
+:is(.doc-code, .script-code) .nb { color: #008000 } /* Name.Builtin */
+:is(.doc-code, .script-code) .nc { color: #00F; font-weight: bold } /* Name.Class */
+:is(.doc-code, .script-code) .no { color: #800 } /* Name.Constant */
+:is(.doc-code, .script-code) .nd { color: #A2F } /* Name.Decorator */
+:is(.doc-code, .script-code) .ni { color: #717171; font-weight: bold } /* Name.Entity */
+:is(.doc-code, .script-code) .ne { color: #CB3F38; font-weight: bold } /* Name.Exception */
+:is(.doc-code, .script-code) .nf { color: #00F } /* Name.Function */
+:is(.doc-code, .script-code) .nl { color: #767600 } /* Name.Label */
+:is(.doc-code, .script-code) .nn { color: #00F; font-weight: bold } /* Name.Namespace */
+:is(.doc-code, .script-code) .nt { color: #008000; font-weight: bold } /* Name.Tag */
+:is(.doc-code, .script-code) .nv { color: #19177C } /* Name.Variable */
+:is(.doc-code, .script-code) .ow { color: #A2F; font-weight: bold } /* Operator.Word */
+:is(.doc-code, .script-code) .w { color: #BBB } /* Text.Whitespace */
+:is(.doc-code, .script-code) .mb { color: #666 } /* Literal.Number.Bin */
+:is(.doc-code, .script-code) .mf { color: #666 } /* Literal.Number.Float */
+:is(.doc-code, .script-code) .mh { color: #666 } /* Literal.Number.Hex */
+:is(.doc-code, .script-code) .mi { color: #666 } /* Literal.Number.Integer */
+:is(.doc-code, .script-code) .mo { color: #666 } /* Literal.Number.Oct */
+:is(.doc-code, .script-code) .sa { color: #BA2121 } /* Literal.String.Affix */
+:is(.doc-code, .script-code) .sb { color: #BA2121 } /* Literal.String.Backtick */
+:is(.doc-code, .script-code) .sc { color: #BA2121 } /* Literal.String.Char */
+:is(.doc-code, .script-code) .dl { color: #BA2121 } /* Literal.String.Delimiter */
+:is(.doc-code, .script-code) .sd { color: #BA2121; font-style: italic } /* Literal.String.Doc */
+:is(.doc-code, .script-code) .s2 { color: #BA2121 } /* Literal.String.Double */
+:is(.doc-code, .script-code) .se { color: #AA5D1F; font-weight: bold } /* Literal.String.Escape */
+:is(.doc-code, .script-code) .sh { color: #BA2121 } /* Literal.String.Heredoc */
+:is(.doc-code, .script-code) .si { color: #A45A77; font-weight: bold } /* Literal.String.Interpol */
+:is(.doc-code, .script-code) .sx { color: #008000 } /* Literal.String.Other */
+:is(.doc-code, .script-code) .sr { color: #A45A77 } /* Literal.String.Regex */
+:is(.doc-code, .script-code) .s1 { color: #BA2121 } /* Literal.String.Single */
+:is(.doc-code, .script-code) .ss { color: #19177C } /* Literal.String.Symbol */
+:is(.doc-code, .script-code) .bp { color: #008000 } /* Name.Builtin.Pseudo */
+:is(.doc-code, .script-code) .fm { color: #00F } /* Name.Function.Magic */
+:is(.doc-code, .script-code) .vc { color: #19177C } /* Name.Variable.Class */
+:is(.doc-code, .script-code) .vg { color: #19177C } /* Name.Variable.Global */
+:is(.doc-code, .script-code) .vi { color: #19177C } /* Name.Variable.Instance */
+:is(.doc-code, .script-code) .vm { color: #19177C } /* Name.Variable.Magic */
+:is(.doc-code, .script-code) .il { color: #666 } /* Literal.Number.Integer.Long */
+@media (prefers-color-scheme: dark) { pre { line-height: 125%; }
+td.linenos .normal { color: #aaaaaa; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+span.linenos { color: #aaaaaa; background-color: transparent; padding-left: 5px; padding-right: 5px; }
+td.linenos .special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+span.linenos.special { color: #000000; background-color: #ffffc0; padding-left: 5px; padding-right: 5px; }
+:is(.doc-code, .script-code) .hll { background-color: #404040 }
+:is(.doc-code, .script-code) { background: #202020; color: #D0D0D0 }
+:is(.doc-code, .script-code) .c { color: #ABABAB; font-style: italic } /* Comment */
+:is(.doc-code, .script-code) .err { color: #A61717; background-color: #E3D2D2 } /* Error */
+:is(.doc-code, .script-code) .esc { color: #D0D0D0 } /* Escape */
+:is(.doc-code, .script-code) .g { color: #D0D0D0 } /* Generic */
+:is(.doc-code, .script-code) .k { color: #6EBF26; font-weight: bold } /* Keyword */
+:is(.doc-code, .script-code) .l { color: #D0D0D0 } /* Literal */
+:is(.doc-code, .script-code) .n { color: #D0D0D0 } /* Name */
+:is(.doc-code, .script-code) .o { color: #D0D0D0 } /* Operator */
+:is(.doc-code, .script-code) .x { color: #D0D0D0 } /* Other */
+:is(.doc-code, .script-code) .p { color: #D0D0D0 } /* Punctuation */
+:is(.doc-code, .script-code) .ch { color: #ABABAB; font-style: italic } /* Comment.Hashbang */
+:is(.doc-code, .script-code) .cm { color: #ABABAB; font-style: italic } /* Comment.Multiline */
+:is(.doc-code, .script-code) .cp { color: #FF3A3A; font-weight: bold } /* Comment.Preproc */
+:is(.doc-code, .script-code) .cpf { color: #ABABAB; font-style: italic } /* Comment.PreprocFile */
+:is(.doc-code, .script-code) .c1 { color: #ABABAB; font-style: italic } /* Comment.Single */
+:is(.doc-code, .script-code) .cs { color: #E50808; font-weight: bold; background-color: #520000 } /* Comment.Special */
+:is(.doc-code, .script-code) .gd { color: #FF3A3A } /* Generic.Deleted */
+:is(.doc-code, .script-code) .ge { color: #D0D0D0; font-style: italic } /* Generic.Emph */
+:is(.doc-code, .script-code) .ges { color: #D0D0D0; font-weight: bold; font-style: italic } /* Generic.EmphStrong */
+:is(.doc-code, .script-code) .gr { color: #FF3A3A } /* Generic.Error */
+:is(.doc-code, .script-code) .gh { color: #FFF; font-weight: bold } /* Generic.Heading */
+:is(.doc-code, .script-code) .gi { color: #589819 } /* Generic.Inserted */
+:is(.doc-code, .script-code) .go { color: #CCC } /* Generic.Output */
+:is(.doc-code, .script-code) .gp { color: #AAA } /* Generic.Prompt */
+:is(.doc-code, .script-code) .gs { color: #D0D0D0; font-weight: bold } /* Generic.Strong */
+:is(.doc-code, .script-code) .gu { color: #FFF; text-decoration: underline } /* Generic.Subheading */
+:is(.doc-code, .script-code) .gt { color: #FF3A3A } /* Generic.Traceback */
+:is(.doc-code, .script-code) .kc { color: #6EBF26; font-weight: bold } /* Keyword.Constant */
+:is(.doc-code, .script-code) .kd { color: #6EBF26; font-weight: bold } /* Keyword.Declaration */
+:is(.doc-code, .script-code) .kn { color: #6EBF26; font-weight: bold } /* Keyword.Namespace */
+:is(.doc-code, .script-code) .kp { color: #6EBF26 } /* Keyword.Pseudo */
+:is(.doc-code, .script-code) .kr { color: #6EBF26; font-weight: bold } /* Keyword.Reserved */
+:is(.doc-code, .script-code) .kt { color: #6EBF26; font-weight: bold } /* Keyword.Type */
+:is(.doc-code, .script-code) .ld { color: #D0D0D0 } /* Literal.Date */
+:is(.doc-code, .script-code) .m { color: #51B2FD } /* Literal.Number */
+:is(.doc-code, .script-code) .s { color: #ED9D13 } /* Literal.String */
+:is(.doc-code, .script-code) .na { color: #BBB } /* Name.Attribute */
+:is(.doc-code, .script-code) .nb { color: #2FBCCD } /* Name.Builtin */
+:is(.doc-code, .script-code) .nc { color: #71ADFF; text-decoration: underline } /* Name.Class */
+:is(.doc-code, .script-code) .no { color: #40FFFF } /* Name.Constant */
+:is(.doc-code, .script-code) .nd { color: #FFA500 } /* Name.Decorator */
+:is(.doc-code, .script-code) .ni { color: #D0D0D0 } /* Name.Entity */
+:is(.doc-code, .script-code) .ne { color: #BBB } /* Name.Exception */
+:is(.doc-code, .script-code) .nf { color: #71ADFF } /* Name.Function */
+:is(.doc-code, .script-code) .nl { color: #D0D0D0 } /* Name.Label */
+:is(.doc-code, .script-code) .nn { color: #71ADFF; text-decoration: underline } /* Name.Namespace */
+:is(.doc-code, .script-code) .nx { color: #D0D0D0 } /* Name.Other */
+:is(.doc-code, .script-code) .py { color: #D0D0D0 } /* Name.Property */
+:is(.doc-code, .script-code) .nt { color: #6EBF26; font-weight: bold } /* Name.Tag */
+:is(.doc-code, .script-code) .nv { color: #40FFFF } /* Name.Variable */
+:is(.doc-code, .script-code) .ow { color: #6EBF26; font-weight: bold } /* Operator.Word */
+:is(.doc-code, .script-code) .pm { color: #D0D0D0 } /* Punctuation.Marker */
+:is(.doc-code, .script-code) .w { color: #666 } /* Text.Whitespace */
+:is(.doc-code, .script-code) .mb { color: #51B2FD } /* Literal.Number.Bin */
+:is(.doc-code, .script-code) .mf { color: #51B2FD } /* Literal.Number.Float */
+:is(.doc-code, .script-code) .mh { color: #51B2FD } /* Literal.Number.Hex */
+:is(.doc-code, .script-code) .mi { color: #51B2FD } /* Literal.Number.Integer */
+:is(.doc-code, .script-code) .mo { color: #51B2FD } /* Literal.Number.Oct */
+:is(.doc-code, .script-code) .sa { color: #ED9D13 } /* Literal.String.Affix */
+:is(.doc-code, .script-code) .sb { color: #ED9D13 } /* Literal.String.Backtick */
+:is(.doc-code, .script-code) .sc { color: #ED9D13 } /* Literal.String.Char */
+:is(.doc-code, .script-code) .dl { color: #ED9D13 } /* Literal.String.Delimiter */
+:is(.doc-code, .script-code) .sd { color: #ED9D13 } /* Literal.String.Doc */
+:is(.doc-code, .script-code) .s2 { color: #ED9D13 } /* Literal.String.Double */
+:is(.doc-code, .script-code) .se { color: #ED9D13 } /* Literal.String.Escape */
+:is(.doc-code, .script-code) .sh { color: #ED9D13 } /* Literal.String.Heredoc */
+:is(.doc-code, .script-code) .si { color: #ED9D13 } /* Literal.String.Interpol */
+:is(.doc-code, .script-code) .sx { color: #FFA500 } /* Literal.String.Other */
+:is(.doc-code, .script-code) .sr { color: #ED9D13 } /* Literal.String.Regex */
+:is(.doc-code, .script-code) .s1 { color: #ED9D13 } /* Literal.String.Single */
+:is(.doc-code, .script-code) .ss { color: #ED9D13 } /* Literal.String.Symbol */
+:is(.doc-code, .script-code) .bp { color: #2FBCCD } /* Name.Builtin.Pseudo */
+:is(.doc-code, .script-code) .fm { color: #71ADFF } /* Name.Function.Magic */
+:is(.doc-code, .script-code) .vc { color: #40FFFF } /* Name.Variable.Class */
+:is(.doc-code, .script-code) .vg { color: #40FFFF } /* Name.Variable.Global */
+:is(.doc-code, .script-code) .vi { color: #40FFFF } /* Name.Variable.Instance */
+:is(.doc-code, .script-code) .vm { color: #40FFFF } /* Name.Variable.Magic */
+:is(.doc-code, .script-code) .il { color: #51B2FD } /* Literal.Number.Integer.Long */ }
+
+:root { color-scheme: light dark; }
+body { max-width: 860px; margin: 3rem auto; padding: 0 1.25rem 0 3rem;
+       font: 17px/1.65 system-ui, sans-serif; }
+h1, h2, h3 { line-height: 1.25; }
+a { color: #3984c6; }
+pre { padding: 1rem; overflow-x: auto; border: 1px solid #8885;
+      border-radius: .4rem; line-height: 1.5; }
+code { font-family: ui-monospace, monospace; font-size: .9em; }
+.module-docstring { display: flow-root; }
+.doctest { margin: .3rem 0; }
+.doctest-code { margin: 0; padding: 0; border-left: 3px solid #3984c6;
+                font: .9em/1.5 ui-monospace, monospace; }
+.doc-code, .doc-out { display: block; min-width: fit-content;
+                      font: inherit; padding: 0 1rem; }
+.doc-code { padding-top: .65rem; background: #f1f5f9; color: #172033; }
+.doc-out { min-width: 0; padding-bottom: .65rem; }
+.doc-code + .doc-out { padding-top: .35rem; }
+.doc-code:only-child { padding-bottom: .65rem; }
+.doc-out:only-child { padding-top: .65rem; }
+@media (prefers-color-scheme: dark) {
+  .doc-code { background: #202b3b; color: #e5eaf1; }
+}
+.script-block { position: relative; margin: 0; padding: 0; border: 0; }
+.script-block:not([open]) { height: 0; }
+.script-toggle { position: absolute; left: -2.25rem; top: 0;
+                 width: 1.75rem; height: 1.75rem; display: grid;
+                 place-items: center; cursor: pointer; list-style: none;
+                 color: #3984c6; border-radius: .25rem; line-height: 1;
+                 font: 700 .8rem/1 ui-monospace, monospace; }
+.script-toggle::-webkit-details-marker { display: none; }
+.script-toggle:hover, .script-block[open] > .script-toggle { background: #3984c622; }
+.script-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+.script-block[open] { display: flow-root; }
+.script-block[open] > .script-toggle {
+  position: sticky; top: .5rem; left: auto; z-index: 1;
+  margin-left: -2.25rem; margin-bottom: -1.75rem;
+}
+.script-code { margin: 0 0 1.5rem; }
+img { max-width: 100%; height: auto; }
+main img { display: block; margin: .35rem auto; max-height: 50vh;
+           object-fit: contain; cursor: zoom-in; }
+.recorded-image { width: min(100%, calc(50vh * var(--image-ratio))); }
+main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
+main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid #8885; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #8885; padding: .35rem .7rem; }
+@media print {
+  body { max-width: none; margin: 0; padding: 0; }
+  .script-toggle { display: none !important; }
+}
+
+</style>
+</head>
+<body><main>
+<section class="module-docstring">
+<div class="doc-md"><p>A Python document recording text, a CSV table, and a base64 PNG.</p>
+</div>
+</section>
+<details class="script-block"><summary class="script-toggle" aria-label="Toggle script block" title="Show or hide script"><span aria-hidden="true">&lt;/&gt;</span></summary><pre class="script-code"><code class="language-python"><span class="kn">import</span><span class="w"> </span><span class="nn">base64</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">csv</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">io</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">json</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">struct</span>
+<span class="kn">import</span><span class="w"> </span><span class="nn">zlib</span>
+<span class="kn">from</span><span class="w"> </span><span class="nn">pathlib</span><span class="w"> </span><span class="kn">import</span> <span class="n">Path</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">RangeIndex</span><span class="p">:</span>
+    <span class="n">name</span> <span class="o">=</span> <span class="kc">None</span>
+
+
+<span class="k">class</span><span class="w"> </span><span class="nc">MiniTable</span><span class="p">:</span>
+<span class="w">    </span><span class="sd">"""Small duck-typed table; pandas is not required."""</span>
+
+    <span class="n">index</span> <span class="o">=</span> <span class="n">RangeIndex</span><span class="p">()</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="fm">__init__</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="n">label</span><span class="p">:</span> <span class="nb">str</span><span class="p">,</span> <span class="n">value</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">label</span> <span class="o">=</span> <span class="n">label</span>
+        <span class="bp">self</span><span class="o">.</span><span class="n">value</span> <span class="o">=</span> <span class="n">value</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">to_csv</span><span class="p">(</span><span class="bp">self</span><span class="p">,</span> <span class="o">*</span><span class="p">,</span> <span class="n">index</span><span class="p">:</span> <span class="nb">bool</span><span class="p">,</span> <span class="n">lineterminator</span><span class="p">:</span> <span class="nb">str</span><span class="p">):</span>
+        <span class="n">stream</span> <span class="o">=</span> <span class="n">io</span><span class="o">.</span><span class="n">StringIO</span><span class="p">()</span>
+        <span class="n">writer</span> <span class="o">=</span> <span class="n">csv</span><span class="o">.</span><span class="n">writer</span><span class="p">(</span><span class="n">stream</span><span class="p">,</span> <span class="n">lineterminator</span><span class="o">=</span><span class="n">lineterminator</span><span class="p">)</span>
+        <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(([</span><span class="s2">""</span><span class="p">]</span> <span class="k">if</span> <span class="n">index</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span> <span class="p">[</span><span class="s2">"label"</span><span class="p">,</span> <span class="s2">"value"</span><span class="p">])</span>
+        <span class="n">writer</span><span class="o">.</span><span class="n">writerow</span><span class="p">(([</span><span class="mi">0</span><span class="p">]</span> <span class="k">if</span> <span class="n">index</span> <span class="k">else</span> <span class="p">[])</span> <span class="o">+</span> <span class="p">[</span><span class="bp">self</span><span class="o">.</span><span class="n">label</span><span class="p">,</span> <span class="bp">self</span><span class="o">.</span><span class="n">value</span><span class="p">])</span>
+        <span class="k">return</span> <span class="n">stream</span><span class="o">.</span><span class="n">getvalue</span><span class="p">()</span>
+
+
+<span class="k">def</span><span class="w"> </span><span class="nf">png_data_uri</span><span class="p">(</span><span class="n">red</span><span class="p">:</span> <span class="nb">int</span><span class="p">):</span>
+<span class="w">    </span><span class="sd">"""Encode a deterministic one-pixel RGB PNG using only the stdlib."""</span>
+
+    <span class="k">def</span><span class="w"> </span><span class="nf">chunk</span><span class="p">(</span><span class="n">kind</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">,</span> <span class="n">payload</span><span class="p">:</span> <span class="nb">bytes</span><span class="p">):</span>
+        <span class="n">body</span> <span class="o">=</span> <span class="n">kind</span> <span class="o">+</span> <span class="n">payload</span>
+        <span class="k">return</span> <span class="p">(</span>
+            <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s2">"&gt;I"</span><span class="p">,</span> <span class="nb">len</span><span class="p">(</span><span class="n">payload</span><span class="p">))</span> <span class="o">+</span> <span class="n">body</span> <span class="o">+</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s2">"&gt;I"</span><span class="p">,</span> <span class="n">zlib</span><span class="o">.</span><span class="n">crc32</span><span class="p">(</span><span class="n">body</span><span class="p">))</span>
+        <span class="p">)</span>
+
+    <span class="n">png</span> <span class="o">=</span> <span class="p">(</span>
+        <span class="sa">b</span><span class="s2">"</span><span class="se">\x89</span><span class="s2">PNG</span><span class="se">\r\n\x1a\n</span><span class="s2">"</span>
+        <span class="o">+</span> <span class="n">chunk</span><span class="p">(</span><span class="sa">b</span><span class="s2">"IHDR"</span><span class="p">,</span> <span class="n">struct</span><span class="o">.</span><span class="n">pack</span><span class="p">(</span><span class="s2">"&gt;IIBBBBB"</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">1</span><span class="p">,</span> <span class="mi">8</span><span class="p">,</span> <span class="mi">2</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">,</span> <span class="mi">0</span><span class="p">))</span>
+        <span class="o">+</span> <span class="n">chunk</span><span class="p">(</span><span class="sa">b</span><span class="s2">"IDAT"</span><span class="p">,</span> <span class="n">zlib</span><span class="o">.</span><span class="n">compress</span><span class="p">(</span><span class="nb">bytes</span><span class="p">([</span><span class="mi">0</span><span class="p">,</span> <span class="n">red</span><span class="p">,</span> <span class="mi">64</span><span class="p">,</span> <span class="mi">128</span><span class="p">])))</span>
+        <span class="o">+</span> <span class="n">chunk</span><span class="p">(</span><span class="sa">b</span><span class="s2">"IEND"</span><span class="p">,</span> <span class="sa">b</span><span class="s2">""</span><span class="p">)</span>
+    <span class="p">)</span>
+    <span class="k">return</span> <span class="s2">"data:image/png;base64,"</span> <span class="o">+</span> <span class="n">base64</span><span class="o">.</span><span class="n">b64encode</span><span class="p">(</span><span class="n">png</span><span class="p">)</span><span class="o">.</span><span class="n">decode</span><span class="p">(</span><span class="s2">"ascii"</span><span class="p">)</span>
+
+
+<span class="n">data</span> <span class="o">=</span> <span class="n">json</span><span class="o">.</span><span class="n">loads</span><span class="p">(</span><span class="n">Path</span><span class="p">(</span><span class="vm">__file__</span><span class="p">)</span><span class="o">.</span><span class="n">with_name</span><span class="p">(</span><span class="s2">"data.json"</span><span class="p">)</span><span class="o">.</span><span class="n">read_text</span><span class="p">(</span><span class="n">encoding</span><span class="o">=</span><span class="s2">"utf-8"</span><span class="p">))</span>
+<span class="n">message</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"Sample: </span><span class="si">{</span><span class="n">data</span><span class="p">[</span><span class="s1">'label'</span><span class="p">]</span><span class="si">}</span><span class="s2">"</span>
+<span class="n">table</span> <span class="o">=</span> <span class="n">MiniTable</span><span class="p">(</span><span class="n">data</span><span class="p">[</span><span class="s2">"label"</span><span class="p">],</span> <span class="n">data</span><span class="p">[</span><span class="s2">"value"</span><span class="p">])</span>
+<span class="n">image_source</span> <span class="o">=</span> <span class="p">{</span><span class="s2">"red"</span><span class="p">:</span> <span class="n">data</span><span class="p">[</span><span class="s2">"red"</span><span class="p">],</span> <span class="s2">"green"</span><span class="p">:</span> <span class="mi">64</span><span class="p">,</span> <span class="s2">"blue"</span><span class="p">:</span> <span class="mi">128</span><span class="p">}</span>
+<span class="n">picture</span> <span class="o">=</span> <span class="sa">f</span><span class="s2">"![](</span><span class="si">{</span><span class="n">png_data_uri</span><span class="p">(</span><span class="n">image_source</span><span class="p">[</span><span class="s1">'red'</span><span class="p">])</span><span class="si">}</span><span class="s2">)"</span></code></pre></details>
+<section class="module-docstring">
+<div class="doc-md"><p>The following records archive a string, a table, and an inline image.</p>
+</div>
+<section class="doctest"><pre class="doctest-code"><code class="doc-code"><span class="n">message</span></code><samp class="doc-out">&#x27;Sample: baseline&#x27;
+</samp></pre></section>
+</section>
+<section class="module-docstring">
+<div class="doc-md"><h2>Measurements</h2>
+<p>The table below contains the original values, without hidden statistics.</p>
+</div>
+<section class="doctest"><pre class="doctest-code"><code class="doc-code"><span class="n">table</span></code><samp class="doc-out">label,value
+baseline,7
+</samp></pre></section>
+</section>
+<section class="module-docstring">
+<div class="doc-md"><h2>Image</h2>
+<p>This tiny image is encoded directly from its RGB source data.</p>
+</div>
+<section class="doctest"><pre class="doctest-code"><code class="doc-code"><span class="n">image_source</span></code><samp class="doc-out">{&#x27;red&#x27;: 32, &#x27;green&#x27;: 64, &#x27;blue&#x27;: 128}
+</samp></pre></section>
+<section class="doctest"><pre class="doctest-code"><code class="doc-code"><span class="nb">print</span><span class="p">(</span><span class="n">picture</span><span class="p">)</span></code><samp class="doc-out"><img class="recorded-image" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR4nGNQcGgAAAFkAOHHE8n2AAAAAElFTkSuQmCC" width="1" height="1" style="--image-ratio: 1.0" alt="Recorded PNG (1 × 1 pixels)"></samp></pre></section>
+</section>
+<section class="module-docstring">
+<div class="doc-md"><p>This Markdown paragraph follows the final record and must remain unchanged.</p>
+</div>
+</section>
+</main>
+<script>
+document.querySelectorAll('main img').forEach(image => {
+  image.tabIndex = 0;
+  image.setAttribute('role', 'button');
+  image.setAttribute('aria-pressed', 'false');
+  image.title = 'Click to expand to text width';
+  function toggleImage() {
+    const expanded = image.classList.toggle('image-expanded');
+    image.setAttribute('aria-pressed', String(expanded));
+    image.title = expanded
+      ? 'Click to restore preview' : 'Click to expand to text width';
+  }
+  image.addEventListener('click', toggleImage);
+  image.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleImage();
+    }
+  });
+});
+</script>
+</body>
+</html>

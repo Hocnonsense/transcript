@@ -52,7 +52,7 @@ data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-
 message = f"Sample: {data['label']}"
 table = MiniTable(data["label"], data["value"])
 image_source = {"red": data["red"], "green": 64, "blue": 128}
-picture = png_data_uri(image_source["red"])
+picture = f"![]({png_data_uri(image_source['red'])})"
 
 """
 The following records archive a string, a table, and an inline image.

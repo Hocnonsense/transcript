@@ -9,6 +9,9 @@ description = "Executable Python documents with recorded outputs"
 requires-python = ">=3.11"
 dependencies = []
 
+[project.optional-dependencies]
+html = ["markdown-it-py>=3,<5", "pygments>=2.18,<3"]
+
 [project.scripts]
 snakedone = "snakedone.cli:main"
 
@@ -27,7 +30,7 @@ pyright = "*"
 pandas = "*"
 
 [tool.pixi.pypi-dependencies]
-snakedone = { path = ".", editable = true }
+snakedone = { path = ".", editable = true, extras = ["html"] }
 
 [tool.pixi.tasks]
 test = "pytest"

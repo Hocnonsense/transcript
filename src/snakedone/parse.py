@@ -39,15 +39,17 @@ class AstDocument(NamedTuple):
 
 def _document_nodes(body: list[ast.stmt]):
     """Now yield module-level statements without descending into blocks."""
-    for node in body:
-        yield node
-        # Only standalone module-level strings participate in record execution.
-        # It is difficult to determine which nodes are executed or skipped, so we only descend through conditionals and synchronous contexts.
-        # if isinstance(node, ast.If):
-        #     yield from _document_nodes(node.body)
-        #     yield from _document_nodes(node.orelse)
-        # elif isinstance(node, ast.With):
-        #     yield from _document_nodes(node.body)
+    yield from body
+    # for node in body:
+    #     yield node
+    #     # Only standalone module-level strings participate in record execution.
+    #     # It is difficult to determine which nodes are executed or skipped,
+    #     # so we only descend through conditionals and synchronous contexts.
+    #     if isinstance(node, ast.If):
+    #         yield from _document_nodes(node.body)
+    #         yield from _document_nodes(node.orelse)
+    #     elif isinstance(node, ast.With):
+    #         yield from _document_nodes(node.body)
 
 
 def _record_sources(value: str):
