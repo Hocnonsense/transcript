@@ -38,7 +38,7 @@ class AstDocument(NamedTuple):
 
 
 def _document_nodes(body: list[ast.stmt]):
-    """Descend only through conditionals and synchronous contexts."""
+    """Now yield module-level statements without descending into blocks."""
     for node in body:
         yield node
         # Only standalone module-level strings participate in record execution.
@@ -70,6 +70,7 @@ def _record_sources(value: str):
 
 
 def parse(source: str, filename: str):
+    """Read top-level document strings and validate every record's syntax."""
     tree = ast.parse(source, filename=filename)
     lines = source.splitlines(keepends=True)
     offsets = [0]
@@ -87,8 +88,6 @@ def parse(source: str, filename: str):
             continue
         value = node.value.value
         examples = list(_record_sources(value))
-        if not examples:
-            continue
         # endregion filter docstring node
         # region get doctest
         # Physical multiline literals keep source edits local and reviewable.

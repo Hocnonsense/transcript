@@ -21,6 +21,8 @@ def render_output(output: str, indent: str):
 def render(document: AstDocument, outputs: list[list[str]]):
     edits: list[tuple[int, int, str]] = []
     for block, outputblock in zip(document.blocks, outputs):
+        if not block.codes:
+            continue
         content_edits: list[tuple[int, int, str]] = []
         for (code, nextcode), output in zip(pairwise(block.codes), outputblock):
             replacement = render_output(output, code.indent)

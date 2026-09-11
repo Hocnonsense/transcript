@@ -74,6 +74,7 @@ def execute(document: AstDocument, path: Path):
     by_position = {
         (block.node.lineno, block.node.col_offset): i
         for i, block in enumerate(document.blocks)
+        if block.codes
     }
 
     class Instrument(ast.NodeTransformer):
