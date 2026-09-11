@@ -1,33 +1,12 @@
-"""A Python document recording text, a CSV table, and a base64 PNG."""
+"""A Python document recording text, a CSV table, a base64 PNG, and a Datavzrd table."""
 
 import base64
-import csv
-import io
 import json
 import struct
 import zlib
 from pathlib import Path
 
-
-class RangeIndex:
-    name = None
-
-
-class MiniTable:
-    """Small duck-typed table; pandas is not required."""
-
-    index = RangeIndex()
-
-    def __init__(self, label: str, value: int):
-        self.label = label
-        self.value = value
-
-    def to_csv(self, *, index: bool, lineterminator: str):
-        stream = io.StringIO()
-        writer = csv.writer(stream, lineterminator=lineterminator)
-        writer.writerow(([""] if index else []) + ["label", "value"])
-        writer.writerow(([0] if index else []) + [self.label, self.value])
-        return stream.getvalue()
+import pandas as pd
 
 
 def png_data_uri(red: int):
@@ -50,22 +29,14 @@ def png_data_uri(red: int):
 
 data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-8"))
 message = f"Sample: {data['label']}"
-table = MiniTable(data["label"], data["value"])
-image_source = {"red": data["red"], "green": 64, "blue": 128}
-picture = f"![]({png_data_uri(image_source['red'])})"
 
 """
 The following records archive a string, a table, and an inline image.
 >>> message
 """
 
-"""
-## Measurements
-
-The table below contains the original values, without hidden statistics.
-
->>> table
-"""
+image_source = {"red": data["red"], "green": 64, "blue": 128}
+picture = f"![]({png_data_uri(image_source['red'])})"
 
 """
 ## Image
@@ -75,6 +46,18 @@ This tiny image is encoded directly from its RGB source data.
 >>> image_source
 
 >>> print(picture)
+"""
+
+table = pd.DataFrame([data], columns=["label", "value"])
+
+"""
+## Interactive table
+
+The measurements are archived a second time as a Datavzrd snapshot.
+Opening the exported HTML turns this table into a sortable, filterable report.
+
+>>> from snakedone import datavzrd
+>>> datavzrd(table)
 """
 
 """

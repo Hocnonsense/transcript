@@ -4,6 +4,7 @@
 !pyproject.toml
 !*release-please-config.json
 !*.py
+!*.js
 
 !src/
 !tests/

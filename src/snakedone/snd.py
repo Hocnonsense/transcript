@@ -39,8 +39,14 @@ def render(document: AstDocument, outputs: list[list[str]]):
                 raise ValueError("output closes a raw document string")
         else:
             # Encode literal backslashes, but leave decoded newlines as newlines.
-            content = content.replace("\\", "\\\\").replace(
-                block.quote[0], "\\" + block.quote[0]
+            # A triple-quoted literal only needs quotes escaped when they would
+            # close it, so ordinary JSON and prose stay readable in the archive.
+            quote = block.quote[0]
+            content = content.replace("\\", "\\\\")
+            content = re.sub(
+                f"(?:{re.escape(quote)}{{3,}}|{re.escape(quote)}+$)",
+                lambda match: match.group().replace(quote, "\\" + quote),
+                content,
             )
         literal = block.prefix + block.quote + content + block.quote
         edits.append((block.source_start, block.source_end, literal))

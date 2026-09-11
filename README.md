@@ -11,9 +11,14 @@ Install from the repository root:
 
 ```bash
 python -m pip install -e .
-#For HTML export, install the optional renderer:
+# For HTML export, install the optional renderer:
 python -m pip install -e '.[html]'
+# For interactive Datavzrd tables in HTML, install the datavzrd extra
+# (it includes the HTML renderer):
+python -m pip install -e '.[datavzrd]'
 ```
+
+Datavzrd tables additionally require the `datavzrd` executable on `PATH`, for example `conda install -c conda-forge datavzrd`.
 
 ## Usage
 
@@ -31,7 +36,8 @@ snakedone examples/demo.snd
 snakedone examples/demo.snd --overwrite
 ```
 
-The example reads the adjacent `data.json` and creates `examples/demo.snd`, recording text, a CSV table, RGB data, and an explicitly printed Markdown image (`![](data:image/png;base64,...)`). Change the data file to try comparing and updating the archive.
+The example reads the adjacent `data.json` and creates `examples/demo.snd`, recording text, a CSV table, RGB data, an explicitly printed Markdown image (`![](data:image/png;base64,...)`), and a Datavzrd snapshot. Change the data file to try comparing and updating the archive.
+`pixi run snakedone examples/demo.py --html` (or `pixi run demo` for the archive only) then renders `examples/demo.html`, which shows the Datavzrd table.
 
 ### Archive generation and comparison
 
@@ -187,7 +193,7 @@ Escaping and quote spelling within `module-docstring` elements may be normalized
 Archives use UTF-8 and LF line endings and end with one newline.
 
 Output lines beginning with optional whitespace followed by `>>> ` are escaped to `\>>> ` so they are not interpreted as code on the next run.
-Backslashes and matching quotes are escaped in ordinary strings.
+Backslashes are escaped in ordinary strings; quotes are escaped only when they would close the triple-quoted literal, so recorded JSON and prose stay readable in the archive.
 A raw string containing its own triple-quote delimiter cannot be rendered and causes generation to fail.
 
 ## Execution semantics
@@ -217,6 +223,32 @@ CSV and other text outputs retain their original formatting.
 Standalone `![](data:image/png;base64,...)` lines become inline images; bare PNG data URI lines from existing archives are also supported.
 Text and images appear in their recorded order within the same `doc-out` section.
 The rendering step reads the archive without executing Python.
+
+### Datavzrd tables
+
+Wrap a pandas or polars `DataFrame` to render it as an interactive [Datavzrd](https://datavzrd.github.io/) table in the HTML report:
+
+```python
+from snakedone import datavzrd
+
+frame = pandas.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
+
+"""
+>>> datavzrd(frame, {"views": {"results": {"dataset": "data"}}})
+"""
+```
+
+`datavzrd(frame, config)` records a snapshot of the data as CSV plus the Datavzrd configuration in a `snakedone-output` block inside the archive.
+That block stores only the renderer name and its payload; HTML export dispatches to the registered renderer, so new renderers can be added without changing the archive format or the HTML step.
+`config` may be a mapping or a YAML filename, resolved against the document directory; when omitted, a single table view named `results` is created.
+Every view must use the managed dataset `data`, and snakedone supplies `datasets.data.path` itself, so no intermediate files are kept.
+A single-view configuration opens that table directly instead of Datavzrd's overview page; multiple views show the overview unless `default-view` selects one.
+Configurations that require external assets, custom JavaScript, plots from external data, or online services are rejected when the snapshot is created; built-in `render-table` options such as column bars, heatmaps, and links are supported.
+
+HTML export runs the `datavzrd` executable once per recorded table and embeds the generated report, including its scripts, styles, and data, into the single HTML file.
+The report runs inside an iframe served from embedded `blob:` URLs, so sorting, filtering, paging, and built-in plots keep working without a network connection or the original data files.
+Embedded report files are gzip-compressed and decompressed in the browser with `DecompressionStream`, and files shared by several reports are stored once, so a typical report stays near 2 MB instead of embedding Datavzrd's ~6 MB bundle verbatim.
+This is why a report containing Datavzrd tables relaxes the report's Content Security Policy to allow `blob:` scripts and `'unsafe-eval'` (used by Vega plot expressions); documents without Datavzrd tables keep the stricter policy.
 
 ## Development
 

@@ -2,6 +2,8 @@
 
 import base64
 import binascii
+import gzip
+import json
 import re
 import struct
 import textwrap
@@ -9,7 +11,9 @@ from collections.abc import Callable
 from hashlib import sha256
 from html import escape
 
+from .output import RecordedOutput, split_output
 from .parse import AstDocument
+from .renderers import get
 
 STYLE = """
 :root { color-scheme: light dark; }
@@ -31,6 +35,8 @@ code { font-family: ui-monospace, monospace; font-size: .9em; }
 .doc-code + .doc-out { padding-top: .35rem; }
 .doc-code:only-child { padding-bottom: .65rem; }
 .doc-out:only-child { padding-top: .65rem; }
+.snakedone-report { margin: .5rem 0 1rem; border: 1px solid #8885;
+                    border-radius: .4rem; overflow: hidden; }
 @media (prefers-color-scheme: dark) {
   .doc-code { background: #202b3b; color: #e5eaf1; }
 }
@@ -111,26 +117,71 @@ def _png_image(line: str) -> tuple[str, int, int] | None:
     return (uri, width, height) if width and height else None
 
 
-def _output_html(code_html: str, output: str):
+Report = tuple[str, dict[str, tuple[str, bytes]]]
+
+
+def _output_html(
+    code_html: str,
+    output: str,
+    reports: list[Report],
+):
     parts: list[str] = []
     code_block = '<code class="doc-code">' + code_html.removesuffix("\n") + "</code>"
 
-    for line in output.splitlines(keepends=True):
-        png = _png_image(line)
-        if png is None:
-            parts.append(escape(line))
-        else:
-            uri, width, height = png
+    for chunk in split_output(output):
+        if isinstance(chunk, RecordedOutput):
+            renderer = get(chunk.renderer)
+            assert renderer is not None  # split_output only yields known renderers
+            index = len(reports)
+            reports.append((chunk.renderer, renderer.build(chunk)))
             parts.append(
-                f'<img class="recorded-image" src="{escape(uri, quote=True)}"'
-                f' width="{width}" height="{height}"'
-                f' style="--image-ratio: {width / height}"'
-                f' alt="Recorded PNG ({width} × {height} pixels)">'
+                '<div class="snakedone-report"'
+                f' data-snakedone-report="report-{index}"'
+                f' data-snakedone-renderer="{escape(chunk.renderer, quote=True)}"'
+                "></div>"
             )
+            continue
+        for line in chunk.splitlines(keepends=True):
+            png = _png_image(line)
+            if png is None:
+                parts.append(escape(line))
+            else:
+                uri, width, height = png
+                parts.append(
+                    f'<img class="recorded-image" src="{escape(uri, quote=True)}"'
+                    f' width="{width}" height="{height}"'
+                    f' style="--image-ratio: {width / height}"'
+                    f' alt="Recorded PNG ({width} × {height} pixels)">'
+                )
     output_block = (
         '<samp class="doc-out">' + "".join(parts) + "</samp>" if parts else ""
     )
     return '<pre class="doctest-code">' + code_block + output_block + "</pre>"
+
+
+def _reports_payload(reports: list[Report]) -> str:
+    """Encode report files so they cannot terminate the surrounding script.
+
+    Identical files (for example the shared Datavzrd bundle) are stored once.
+    """
+    pool: dict[str, dict[str, str | bool]] = {}
+    registry: dict[str, dict[str, str]] = {}
+    for index, (_, files) in enumerate(reports):
+        entry: dict[str, str] = {}
+        for name, (mime, data) in files.items():
+            digest = sha256(data).hexdigest()
+            if digest not in pool:
+                compressed = gzip.compress(data, compresslevel=9)
+                payload = compressed if len(compressed) < len(data) else data
+                pool[digest] = {
+                    "mime": mime,
+                    "gzip": payload is compressed,
+                    "content": base64.b64encode(payload).decode("ascii"),
+                }
+            entry[name] = digest
+        registry[f"report-{index}"] = entry
+    encoded = json.dumps({"pool": pool, "reports": registry}, sort_keys=True)
+    return encoded.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
 def _script_html(source: str, highlight_python: Callable[[str], str]):
@@ -183,6 +234,7 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
 
     position = get_position(document.source)
     parts: list[str] = []
+    reports: list[Report] = []
 
     cursor = 0
     for block in document.blocks:
@@ -216,7 +268,7 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
             output = re.sub(r"^([^\S\n]*)\\>>> ", r"\1>>> ", output, flags=re.MULTILINE)
             parts.append(
                 '<section class="doctest">'
-                + _output_html(highlight_python(record.source), output)
+                + _output_html(highlight_python(record.source), output, reports)
                 + "</section>"
             )
         parts.append("</section>")
@@ -225,15 +277,47 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
     if script:
         parts.append(script)
     body = "\n".join(parts)
-    script_hash = base64.b64encode(sha256(IMAGE_SCRIPT.encode()).digest()).decode()
+    image_hash = base64.b64encode(sha256(IMAGE_SCRIPT.encode()).digest()).decode()
+    sources = [f"'sha256-{image_hash}'"]
+    image_src = "data:"
+    font_src = ""
+    frame_src = ""
+    tail = ""
+    if reports:
+        runtimes: list[str] = []
+        seen: set[str] = set()
+        for renderer_name, _ in reports:
+            if renderer_name in seen:
+                continue
+            seen.add(renderer_name)
+            renderer = get(renderer_name)
+            assert renderer is not None
+            source = renderer.runtime()
+            if source:
+                runtimes.append(source)
+                digest = base64.b64encode(sha256(source.encode()).digest()).decode()
+                sources.append(f"'sha256-{digest}'")
+        sources.append("blob:")
+        # Vega evaluates plot expressions, which needs string compilation.
+        sources.append("'unsafe-eval'")
+        image_src = "data: blob:"
+        font_src = " font-src blob:;"
+        frame_src = " frame-src 'self' blob:;"
+        tail = (
+            '<script id="snakedone-reports" type="application/json">'
+            + _reports_payload(reports)
+            + "</script>\n"
+            + "\n".join(f"<script>{source}</script>" for source in runtimes)
+        )
+    script_src = " ".join(sources)
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy"
- content="default-src 'none'; style-src 'unsafe-inline'; img-src data:;
- script-src 'sha256-{script_hash}'; base-uri 'none'; form-action 'none'">
+ content="default-src 'none'; style-src 'unsafe-inline'; img-src {image_src};{font_src}
+ script-src {script_src};{frame_src} base-uri 'none'; form-action 'none'">
 <title>{escape(title)}</title>
 <style>
 {highlight_style}
@@ -245,6 +329,7 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
 {body}
 </main>
 <script>{IMAGE_SCRIPT}</script>
+{tail}
 </body>
 </html>
 """

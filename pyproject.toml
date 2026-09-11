@@ -15,8 +15,6 @@ datavzrd = [
     "markdown-it-py>=3,<5",
     "pygments>=2.18,<3",
     "PyYAML>=6,<7",
-    "beautifulsoup4>=4.12,<5",
-    "tinycss2>=1.4,<2",
 ]
 
 [project.scripts]

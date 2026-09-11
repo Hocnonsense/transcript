@@ -1,5 +1,5 @@
 """Executable Python documents with recorded outputs."""
 
-from .output import datavzrd
+from .renderers.datavzrd import datavzrd
 
 __all__ = ["datavzrd"]
