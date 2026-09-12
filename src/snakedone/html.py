@@ -37,6 +37,8 @@ code { font-family: ui-monospace, monospace; font-size: .9em; }
 .doc-out:only-child { padding-top: .65rem; }
 .snakedone-report { margin: .5rem 0 1rem; border: 1px solid #8885;
                     border-radius: .4rem; overflow: hidden; }
+.doc-text { margin: 0; padding: 0; border: 0; border-radius: 0;
+            font: inherit; }
 @media (prefers-color-scheme: dark) {
   .doc-code { background: #202b3b; color: #e5eaf1; }
 }
@@ -124,21 +126,39 @@ def _output_html(
     code_html: str,
     output: str,
     reports: list[Report],
+    report_cache: dict[bytes, dict[str, tuple[str, bytes]]],
 ):
     parts: list[str] = []
+    blocks: list[str] = []
     code_block = '<code class="doc-code">' + code_html.removesuffix("\n") + "</code>"
+
+    def flush_text():
+        nonlocal code_block
+        output_block = (
+            '<samp class="doc-out">' + "".join(parts) + "</samp>" if parts else ""
+        )
+        if code_block or output_block:
+            blocks.append(
+                '<pre class="doc-text">' + code_block + output_block + "</pre>"
+            )
+        parts.clear()
+        code_block = ""
 
     for chunk in split_output(output):
         if isinstance(chunk, RecordedOutput):
+            flush_text()
             renderer = get(chunk.renderer)
             assert renderer is not None  # split_output only yields known renderers
             index = len(reports)
-            reports.append((chunk.renderer, renderer.build(chunk)))
-            parts.append(
-                '<div class="snakedone-report"'
+            key = sha256(chunk.to_text().encode()).digest()
+            if key not in report_cache:
+                report_cache[key] = renderer.build(chunk)
+            reports.append((chunk.renderer, report_cache[key]))
+            blocks.append(
+                '<div class="doc-out"><div class="snakedone-report"'
                 f' data-snakedone-report="report-{index}"'
                 f' data-snakedone-renderer="{escape(chunk.renderer, quote=True)}"'
-                "></div>"
+                "></div></div>"
             )
             continue
         for line in chunk.splitlines(keepends=True):
@@ -153,6 +173,9 @@ def _output_html(
                     f' style="--image-ratio: {width / height}"'
                     f' alt="Recorded PNG ({width} × {height} pixels)">'
                 )
+    if blocks:
+        flush_text()
+        return '<div class="doctest-code">' + "".join(blocks) + "</div>"
     output_block = (
         '<samp class="doc-out">' + "".join(parts) + "</samp>" if parts else ""
     )
@@ -169,9 +192,9 @@ def _reports_payload(reports: list[Report]) -> str:
     for index, (_, files) in enumerate(reports):
         entry: dict[str, str] = {}
         for name, (mime, data) in files.items():
-            digest = sha256(data).hexdigest()
+            digest = sha256(mime.encode() + b"\0" + data).hexdigest()
             if digest not in pool:
-                compressed = gzip.compress(data, compresslevel=9)
+                compressed = gzip.compress(data, compresslevel=9, mtime=0)
                 payload = compressed if len(compressed) < len(data) else data
                 pool[digest] = {
                     "mime": mime,
@@ -235,6 +258,7 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
     position = get_position(document.source)
     parts: list[str] = []
     reports: list[Report] = []
+    report_cache: dict[bytes, dict[str, tuple[str, bytes]]] = {}
 
     cursor = 0
     for block in document.blocks:
@@ -268,7 +292,9 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
             output = re.sub(r"^([^\S\n]*)\\>>> ", r"\1>>> ", output, flags=re.MULTILINE)
             parts.append(
                 '<section class="doctest">'
-                + _output_html(highlight_python(record.source), output, reports)
+                + _output_html(
+                    highlight_python(record.source), output, reports, report_cache
+                )
                 + "</section>"
             )
         parts.append("</section>")
@@ -293,16 +319,19 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
             renderer = get(renderer_name)
             assert renderer is not None
             source = renderer.runtime()
-            if source:
-                runtimes.append(source)
-                digest = base64.b64encode(sha256(source.encode()).digest()).decode()
-                sources.append(f"'sha256-{digest}'")
-        sources.append("blob:")
+            if not source:
+                raise RuntimeError(
+                    f"Renderer {renderer_name!r} has no offline HTML runtime"
+                )
+            runtimes.append(source)
+            digest = base64.b64encode(sha256(source.encode()).digest()).decode()
+            sources.append(f"'sha256-{digest}'")
+        sources.extend(["blob:", "data:"])
         # Vega evaluates plot expressions, which needs string compilation.
         sources.append("'unsafe-eval'")
         image_src = "data: blob:"
-        font_src = " font-src blob:;"
-        frame_src = " frame-src 'self' blob:;"
+        font_src = " font-src data: blob:;"
+        frame_src = " frame-src 'self' data: blob:;"
         tail = (
             '<script id="snakedone-reports" type="application/json">'
             + _reports_payload(reports)

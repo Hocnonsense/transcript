@@ -1,0 +1,23 @@
+name: DataFrame measurements
+default-view: scores
+views:
+  scores:
+    dataset: data
+    desc: Scores as bars and counts as a heatmap.
+    page-size: 2
+    render-table:
+      columns:
+        score:
+          precision: 2
+          plot:
+            bars:
+              scale: linear
+              domain: [0, 1]
+        count:
+          plot:
+            heatmap:
+              scale: linear
+              color-scheme: blues
+  raw:
+    dataset: data
+    desc: Original values without column plots.

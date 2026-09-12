@@ -48,17 +48,29 @@
     return decoder.decode(file.bytes);
   }
 
-  function blob(content, type) {
-    return URL.createObjectURL(new Blob([content], {type}));
+  function dataURL(content, type) {
+    // A sandbox with an opaque origin cannot load blob URLs created by its
+    // file:// parent. Data URLs work without granting the frame parent access.
+    const bytes = typeof content === "string" ? new TextEncoder().encode(content) : content;
+    let binary = "";
+    for (let offset = 0; offset < bytes.length; offset += 32768) {
+      binary += String.fromCharCode(...bytes.subarray(offset, offset + 32768));
+    }
+    return `data:${type};base64,${btoa(binary)}`;
   }
 
   function adaptJavaScript(source) {
     // Location is not configurable in browsers. Give Datavzrd its own location
     // so links and query parameters continue to work inside an offline srcdoc.
-    return source
-      .replace(/\bwindow\.location\s*=(?!=)/g, "window.__snakedoneLocation.href =")
-      .replace(/\bwindow\.location\b/g, "window.__snakedoneLocation")
-      .replace(/\blocation\s*=\s*this\.value/g, "window.__snakedoneLocation.href = this.value");
+    // Skip literals and comments: names, descriptions and data are not code.
+    // Native template strings contain markup; their handlers are adapted when
+    // attached below, rather than rewriting the template's visible text.
+    const tokens = /("(?:\\[\s\S]|[^"\\])*"|'(?:\\[\s\S]|[^'\\])*'|`(?:\\[\s\S]|[^`\\])*`|\/\/[^\r\n]*|\/\*[\s\S]*?\*\/)|\bwindow\.location\b/g;
+    return source.replace(tokens, (token, literal, offset) => {
+      if (literal) return literal;
+      const assignment = /^\s*=(?!=)/.test(source.slice(offset + token.length));
+      return `window.__snakedoneLocation${assignment ? ".href" : ""}`;
+    });
   }
 
   // This function is injected before any native report script, including in
@@ -101,8 +113,13 @@
     function convertInlineHandlers(element) {
       for (const name of inlineEvents) {
         if (!element.hasAttribute(name)) continue;
-        const code = element.getAttribute(name);
+        let code = element.getAttribute(name);
         element.removeAttribute(name);
+        // The view selector is generated inside a native JavaScript template.
+        code = code.replace(/^\s*location\s*=\s*this\.value\s*;?\s*$/,
+          "window.__snakedoneLocation.href = this.value;");
+        code = code.replace(/\bwindow\.location(?=\s*=)/,
+          "window.__snakedoneLocation.href");
         const handler = new Function("event", code);
         element.addEventListener(name.slice(2), function (event) {
           if (handler.call(this, event) === false) event.preventDefault();
@@ -217,12 +234,15 @@
     const report = document.createElement("iframe");
     report.className = "datavzrd-page";
     report.title = "Datavzrd report";
+    report.setAttribute("sandbox", "allow-scripts allow-downloads allow-popups allow-popups-to-escape-sandbox");
     report.style.cssText = "width:100%;height:480px;max-height:90vh;border:0;display:block";
     container.append(report);
 
     function resource(path, base) {
+      if (/^(?:data|blob):/i.test(path)) return path;
       const url = resolve(path, base);
-      if (!url || !files[key(url)]) return path;
+      if (!url) throw new Error(`The offline report requires an external resource: ${path}`);
+      if (!files[key(url)]) throw new Error(`The offline report does not contain ${key(url)}.`);
       const name = key(url);
       if (!urls.has(name)) {
         const file = files[name];
@@ -234,7 +254,7 @@
         } else {
           content = file.bytes;
         }
-        urls.set(name, blob(content, file.mime));
+        urls.set(name, dataURL(content, file.mime));
       }
       return urls.get(name) + url.hash;
     }
@@ -247,7 +267,7 @@
     function page(address, id, parentId, depth) {
       const name = key(address);
       if (!files[name]) throw new Error(`The offline report does not contain ${name}.`);
-      const html = new DOMParser().parseFromString(adaptJavaScript(decode(files[name])), "text/html");
+      const html = new DOMParser().parseFromString(decode(files[name]), "text/html");
       html.querySelectorAll("base").forEach(base => base.remove());
       html.querySelectorAll("link[href],img[src],source[src],video[src],audio[src]").forEach(element => {
         const attribute = element.hasAttribute("src") ? "src" : "href";
@@ -256,12 +276,15 @@
         element.removeAttribute("crossorigin");
       });
       html.querySelectorAll("script").forEach(element => {
+        const type = (element.getAttribute("type") || "").toLowerCase();
+        // Data and template scripts are not code and must keep their text.
+        const isJavaScript = !type || /(?:java|ecma)script|module/.test(type);
         if (element.hasAttribute("src")) {
           element.setAttribute("src", resource(element.getAttribute("src"), address.href));
-        } else if (element.textContent.trim()) {
+        } else if (isJavaScript && element.textContent.trim()) {
           const source = adaptJavaScript(element.textContent);
           element.textContent = "";
-          element.setAttribute("src", blob(source, "text/javascript"));
+          element.setAttribute("src", dataURL(source, "text/javascript"));
         }
         element.removeAttribute("integrity");
         element.removeAttribute("crossorigin");
@@ -271,7 +294,7 @@
         element.setAttribute("style", rewriteCSS(element.getAttribute("style"), address.href));
       });
       const script = html.createElement("script");
-      script.src = blob(
+      script.src = dataURL(
         `(${bootstrap.toString()})(${[address.href, id, parentId, depth, channel].map(value => JSON.stringify(value)).join(",")});`,
         "text/javascript",
       );

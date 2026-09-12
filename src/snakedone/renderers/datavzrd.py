@@ -95,12 +95,24 @@ def _validate_config(config: dict[str, Any]) -> None:
     for name, view in views.items():
         if not name or not isinstance(view, dict):
             raise ValueError("Datavzrd views must map nonempty names to mappings")
-        if name in {".", ".."} or any(char in name for char in "/\\\x00"):
-            raise ValueError("Datavzrd view names must be plain directory names")
+        if (
+            name in {".", ".."}
+            or name.startswith(" ")
+            or any(
+                char in "/\\:?#%" or ord(char) < 32 or 127 <= ord(char) <= 159
+                for char in name
+            )
+        ):
+            raise ValueError(
+                "Datavzrd view names must be plain directory names without "
+                "URL delimiters, control characters, or leading spaces"
+            )
         if view.get("dataset") != "data" or "datasets" in view:
             raise ValueError(f"Datavzrd view {name!r} must use dataset 'data'")
-    if "default-view" in config and config["default-view"] not in views:
-        raise ValueError("Datavzrd default-view must name an archived view")
+    if "default-view" in config:
+        selected = config["default-view"]
+        if not isinstance(selected, str) or selected not in views:
+            raise ValueError("Datavzrd default-view must name an archived view")
 
 
 def build_report(output: RecordedOutput) -> dict[str, tuple[str, bytes]]:

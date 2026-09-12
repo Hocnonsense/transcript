@@ -80,7 +80,9 @@ def html_file(path: Path, target: Path):
     try:
         source = path.read_text(encoding="utf-8-sig")
         document = parse(source, str(path))
-        write(target, render_html(document, title=path.stem))
+        candidate = render_html(document, title=path.stem)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write(target, candidate)
     except Exception as error:
         print(f"snakedone: {error}", file=sys.stderr)
         return 2
