@@ -9,10 +9,13 @@ import textwrap
 from collections.abc import Callable
 from hashlib import sha256
 from html import escape
+from typing import TYPE_CHECKING
 
 from .output import RecordedOutput, split_output
-from .parse import AstDocument
 from .renderers import get
+
+if TYPE_CHECKING:
+    from .document import AstDocument
 
 STYLE = """
 :root { color-scheme: light dark; }
@@ -221,20 +224,8 @@ def _script_html(source: str, highlight_python: Callable[[str], str]):
     )
 
 
-def get_position(text: str):
-    lines = text.splitlines(keepends=True)
-    offsets = [0]
-    for line in lines:
-        offsets.append(offsets[-1] + len(line))
-
-    def position(line: int, column: int):
-        # AST columns use UTF-8 bytes, whereas source slicing uses characters.
-        return offsets[line - 1] + len(lines[line - 1].encode()[:column].decode())
-
-    return position
-
-
-def render(document: AstDocument, *, title: str = "snakedone document"):
+def render(self: AstDocument, *, title: str = "snakedone document") -> str:
+    """Render recorded content as offline HTML without executing the document."""
     try:
         from markdown_it import MarkdownIt
         from pygments import highlight, lexers
@@ -254,18 +245,18 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
     def highlight_python(source: str) -> str:
         return highlight(source, lexer, formatter)
 
-    position = get_position(document.source)
+    position = self.position
     parts: list[str] = []
     reports: list[Report] = []
     report_cache: dict[bytes, dict[str, tuple[str, bytes]]] = {}
 
     cursor = 0
-    for block in document.blocks:
+    for block in self.blocks:
         node = block.node
         assert node.end_lineno is not None and node.end_col_offset is not None
         start = position(node.lineno, node.col_offset)
         end = position(node.end_lineno, node.end_col_offset)
-        script = _script_html(document.source[cursor:start], highlight_python)
+        script = _script_html(self.source[cursor:start], highlight_python)
         if script:
             parts.append(script)
         cursor = end
@@ -274,17 +265,8 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
         if prose:
             parts.append('<div class="doc-md">' + markdown.render(prose) + "</div>")
         for statement in block.statements:
-            code = document.source[statement.start : statement.end]
-            output = ""
-            if statement.slot is not None:
-                output = statement.slot.value
-                indent = document.indent_of(statement.start)
-                if indent:
-                    output = "".join(
-                        line.removeprefix(indent)
-                        for line in output.splitlines(keepends=True)
-                    )
-                output = output.removeprefix("\n")
+            code = self.source[statement.start : statement.end]
+            output = self.slot_output(statement)
             parts.append(
                 '<section class="doctest">'
                 + _output_html(highlight_python(code), output, reports, report_cache)
@@ -292,7 +274,7 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
             )
         parts.append("</section>")
 
-    script = _script_html(document.source[cursor:], highlight_python)
+    script = _script_html(self.source[cursor:], highlight_python)
     if script:
         parts.append(script)
     body = "\n".join(parts)

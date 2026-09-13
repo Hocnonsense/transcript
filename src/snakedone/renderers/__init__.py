@@ -33,10 +33,9 @@ class Renderer(Protocol):
 
 
 RENDERERS: dict[str, Renderer] = {}
-_LOADED = False
 
 
-def register(renderer: Renderer) -> Renderer:
+def register(renderer: Renderer):
     if not renderer.name:
         raise ValueError("renderer name must not be empty")
     if renderer.name in RENDERERS:
@@ -45,15 +44,6 @@ def register(renderer: Renderer) -> Renderer:
     return renderer
 
 
-def get(name: str) -> Renderer | None:
+def get(name: str):
     """Return the registered renderer, or ``None`` for an unknown name."""
     return RENDERERS.get(name)
-
-
-def load() -> None:
-    """Import the built-in renderers so they register themselves."""
-    global _LOADED
-    if _LOADED:
-        return
-    _LOADED = True
-    from . import datavzrd  # noqa: F401

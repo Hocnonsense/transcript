@@ -2,17 +2,15 @@
 
 import json
 import re
-from collections.abc import Iterator
-from dataclasses import dataclass
-from typing import Any
+from typing import Any, NamedTuple
 
-from .renderers import get, load
+from .renderers import get
 
 _FENCE = re.compile(r"^```snakedone-output[ \t]*(?:\r?\n)?$")
 _CLOSE_FENCE = re.compile(r"^```[ \t]*(?:\r?\n)?$")
 
 
-def dataframe_csv(frame: Any) -> str:
+def dataframe_csv(frame: Any):
     """Export pandas or polars through their public CSV methods, without imports."""
     if callable(getattr(frame, "to_csv", None)) and hasattr(frame, "index"):
         index = frame.index
@@ -27,22 +25,27 @@ def dataframe_csv(frame: Any) -> str:
     return content
 
 
-@dataclass(frozen=True, slots=True)
-class RecordedOutput:
-    """A data and configuration snapshot stored in a snakedone-output fence."""
+class RecordedOutput(NamedTuple):
+    """Renderer-defined data stored in a snakedone-output fence."""
 
     renderer: str
-    datasets: dict[str, dict[str, str]]
-    config: dict[str, Any]
-    version: int = 1
+    data: Any
 
-    def to_text(self) -> str:
-        validate_output(self)
+    def validate(self):
+        """Validate both author-created outputs and restored archive payloads."""
+        if not isinstance(self.renderer, str) or not self.renderer:
+            raise ValueError("snakedone-output requires a renderer name")
+        renderer = get(self.renderer)
+        if renderer is None:
+            raise ValueError("Unsupported snakedone-output renderer")
+        renderer.validate(self)
+
+    def to_text(self):
+        self.validate()
         payload = {
-            "version": self.version,
+            "version": 2,
             "renderer": self.renderer,
-            "datasets": self.datasets,
-            "config": self.config,
+            "data": self.data,
         }
         encoded = json.dumps(payload, sort_keys=True, indent=2, allow_nan=False)
         return f"```snakedone-output\n{encoded}\n```\n"
@@ -53,22 +56,8 @@ class RecordedOutput:
     __str__ = __repr__
 
 
-def validate_output(output: RecordedOutput) -> None:
-    """Validate both author-created outputs and restored archive payloads."""
-    if type(output.version) is not int or output.version != 1:
-        raise ValueError("Unsupported snakedone-output version")
-    if not isinstance(output.renderer, str) or not output.renderer:
-        raise ValueError("snakedone-output requires a renderer name")
-    load()
-    renderer = get(output.renderer)
-    if renderer is None:
-        raise ValueError("Unsupported snakedone-output renderer")
-    renderer.validate(output)
-
-
-def split_output(text: str) -> Iterator[str | RecordedOutput]:
+def split_output(text: str):
     """Split recognized blocks while retaining ordinary text and future formats."""
-    load()
     lines = text.splitlines(keepends=True)
     cursor = 0
     plain_start = 0
@@ -91,21 +80,14 @@ def split_output(text: str) -> Iterator[str | RecordedOutput]:
             or not isinstance(payload.get("renderer"), str)
         ):
             raise ValueError("snakedone-output requires integer version and renderer")
-        if payload["version"] != 1 or get(payload["renderer"]) is None:
+        if payload["version"] != 2 or get(payload["renderer"]) is None:
             # Unknown versions and renderers stay readable as plain text.
             cursor = end + 1
             continue
-        datasets = payload.get("datasets")
-        config = payload.get("config")
-        if not isinstance(datasets, dict) or not isinstance(config, dict):
-            raise ValueError("snakedone-output requires datasets and config mappings")
-        output = RecordedOutput(
-            version=payload["version"],
-            renderer=payload["renderer"],
-            datasets=datasets,
-            config=config,
-        )
-        validate_output(output)
+        if "data" not in payload:
+            raise ValueError("snakedone-output requires data")
+        output = RecordedOutput(renderer=payload["renderer"], data=payload["data"])
+        output.validate()
         if plain_start < cursor:
             yield "".join(lines[plain_start:cursor])
         yield output

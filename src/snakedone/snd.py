@@ -1,4 +1,4 @@
-"""Rebuild report output slots and annotate report markers in archives."""
+"""Rebuild archives from captured outputs and write files atomically."""
 
 import ast
 import os
@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 from .parse import REPORT_MARKER_COMMENT, ReportBlock, with_has_marker
 
 if TYPE_CHECKING:
-    from .parse import AstDocument
+    from .document import AstDocument
 
 
 def _escape_slot(content: str):
@@ -37,7 +37,7 @@ def _escape_slot(content: str):
     )
 
 
-def _slot_literal(output: str, prefix: str) -> str:
+def _slot_literal(output: str, prefix: str):
     """Render *output* as an indented triple-quoted literal source snippet.
 
     The parsed-back value is ``"\\n" + prefix-each-line(output) [+ "\\n" + prefix]``,
@@ -50,13 +50,14 @@ def _slot_literal(output: str, prefix: str) -> str:
     return f'"""\n{inner}"""'
 
 
-def find_line_start(source: str, token: tokenize.TokenInfo):
+def _find_line_start(source: str, token: tokenize.TokenInfo):
     lines = source.splitlines(keepends=True)
     return sum(len(line) for line in lines[: token.end[0] - 1])
 
 
 def _strip_stale_markers(document: AstDocument, blocks: list[ReportBlock]):
     """Remove ``# snakedone`` from ``with`` regions that are not report blocks."""
+
     confirmed = {id(block.node) for block in blocks}
     for region in document.regions.values():
         node = region.node
@@ -67,36 +68,38 @@ def _strip_stale_markers(document: AstDocument, blocks: list[ReportBlock]):
         )
         if not is_marker:
             continue
-        comment_line = start + find_line_start(document.source[start:end], token)
+        comment_line = start + _find_line_start(document.source[start:end], token)
         end = len(token.line.rstrip("\r\n"))
         yield (comment_line + token.end[1], comment_line + end, "")
 
 
-def render(document: AstDocument, blocks: list[ReportBlock], outputs: list[list[str]]):
-    edits: list[tuple[int, int, str]] = [*_strip_stale_markers(document, blocks)]
+def render(
+    self: AstDocument, blocks: list[ReportBlock], outputs: list[list[str]]
+) -> str:
+    """Rebuild output slots and markers using the captured execution results."""
+
+    edits: list[tuple[int, int, str]] = [*_strip_stale_markers(self, blocks)]
     for block, output_block in zip(blocks, outputs):
         if isinstance(block.node, ast.With):
             start, end, token, is_marker = with_has_marker(
-                document.source, block.node, document.position
+                self.source, block.node, self.position
             )
             if not is_marker:
-                comment_line = start + find_line_start(
-                    document.source[start:end], token
-                )
+                comment_line = start + _find_line_start(self.source[start:end], token)
                 colon_next = comment_line + token.end[1]
                 edits.append((colon_next, colon_next, "  " + REPORT_MARKER_COMMENT))
         for statement, output in zip(block.statements, output_block):
-            indent = document.indent_of(statement.start)
+            indent = self.indent_of(statement.start)
             if statement.slot is not None:
                 literal = _slot_literal(output, indent) if output else ""
                 edits.append((statement.slot.start, statement.slot.end, literal))
             elif output:
-                newline = document.source.find("\n", statement.end)
+                newline = self.source.find("\n", statement.end)
                 if newline == -1:
-                    newline = len(document.source)
+                    newline = len(self.source)
                 literal = "\n" + indent + _slot_literal(output, indent)
                 edits.append((newline, newline, literal))
-    result = document.source
+    result = self.source
     for start, end, replacement in sorted(edits, reverse=True):
         result = result[:start] + replacement + result[end:]
     result = result.rstrip("\n") + "\n"
@@ -105,6 +108,7 @@ def render(document: AstDocument, blocks: list[ReportBlock], outputs: list[list[
 
 
 def write(path: Path, source: str):
+    """Write *source* to *path* via a temporary file and atomic replace."""
     temporary = None
     try:
         with tempfile.NamedTemporaryFile(

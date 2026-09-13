@@ -26,53 +26,50 @@ if "snakedone":
     """
     ```snakedone-output
     {
-      "config": {
-        "default-view": "scores",
-        "name": "DataFrame measurements",
-        "views": {
-          "raw": {
-            "dataset": "data",
-            "desc": "Original values without column plots."
-          },
-          "scores": {
-            "dataset": "data",
-            "desc": "Scores as bars and counts as a heatmap.",
-            "page-size": 2,
-            "render-table": {
-              "columns": {
-                "count": {
-                  "plot": {
-                    "heatmap": {
-                      "color-scheme": "blues",
-                      "scale": "linear"
-                    }
-                  }
-                },
-                "score": {
-                  "plot": {
-                    "bars": {
-                      "domain": [
-                        0,
-                        1
-                      ],
-                      "scale": "linear"
+      "data": {
+        "config": {
+          "default-view": "scores",
+          "name": "DataFrame measurements",
+          "views": {
+            "raw": {
+              "dataset": "data",
+              "desc": "Original values without column plots."
+            },
+            "scores": {
+              "dataset": "data",
+              "desc": "Scores as bars and counts as a heatmap.",
+              "page-size": 2,
+              "render-table": {
+                "columns": {
+                  "count": {
+                    "plot": {
+                      "heatmap": {
+                        "color-scheme": "blues",
+                        "scale": "linear"
+                      }
                     }
                   },
-                  "precision": 2
+                  "score": {
+                    "plot": {
+                      "bars": {
+                        "domain": [
+                          0,
+                          1
+                        ],
+                        "scale": "linear"
+                      }
+                    },
+                    "precision": 2
+                  }
                 }
               }
             }
           }
-        }
-      },
-      "datasets": {
-        "data": {
-          "content": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n",
-          "format": "csv"
-        }
+        },
+        "csv": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n"
       },
       "renderer": "datavzrd",
-      "version": 1
+      "version": 2
     }
     ```
     """
@@ -85,53 +82,50 @@ if "snakedone":
     """
     ```snakedone-output
     {
-      "config": {
-        "default-view": "scores",
-        "name": "DataFrame measurements",
-        "views": {
-          "raw": {
-            "dataset": "data",
-            "desc": "Original values without column plots."
-          },
-          "scores": {
-            "dataset": "data",
-            "desc": "Scores as bars and counts as a heatmap.",
-            "page-size": 2,
-            "render-table": {
-              "columns": {
-                "count": {
-                  "plot": {
-                    "heatmap": {
-                      "color-scheme": "blues",
-                      "scale": "linear"
-                    }
-                  }
-                },
-                "score": {
-                  "plot": {
-                    "bars": {
-                      "domain": [
-                        0,
-                        1
-                      ],
-                      "scale": "linear"
+      "data": {
+        "config": {
+          "default-view": "scores",
+          "name": "DataFrame measurements",
+          "views": {
+            "raw": {
+              "dataset": "data",
+              "desc": "Original values without column plots."
+            },
+            "scores": {
+              "dataset": "data",
+              "desc": "Scores as bars and counts as a heatmap.",
+              "page-size": 2,
+              "render-table": {
+                "columns": {
+                  "count": {
+                    "plot": {
+                      "heatmap": {
+                        "color-scheme": "blues",
+                        "scale": "linear"
+                      }
                     }
                   },
-                  "precision": 2
+                  "score": {
+                    "plot": {
+                      "bars": {
+                        "domain": [
+                          0,
+                          1
+                        ],
+                        "scale": "linear"
+                      }
+                    },
+                    "precision": 2
+                  }
                 }
               }
             }
           }
-        }
-      },
-      "datasets": {
-        "data": {
-          "content": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n",
-          "format": "csv"
-        }
+        },
+        "csv": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n"
       },
       "renderer": "datavzrd",
-      "version": 1
+      "version": 2
     }
     ```
     """

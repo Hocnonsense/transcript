@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ..output import RecordedOutput, dataframe_csv, validate_output
+from ..output import RecordedOutput, dataframe_csv
 from . import register
 
 _NAMED_MAPPINGS = {"views", "datasets", "columns", "links", "link-to-url", "headers"}
@@ -115,57 +115,6 @@ def _validate_config(config: dict[str, Any]) -> None:
             raise ValueError("Datavzrd default-view must name an archived view")
 
 
-def build_report(output: RecordedOutput) -> dict[str, tuple[str, bytes]]:
-    """Return all report files; no temporary paths survive in the result."""
-    validate_output(output)
-    executable = shutil.which("datavzrd")
-    if executable is None:
-        raise RuntimeError(
-            "Datavzrd HTML export requires the datavzrd executable on PATH; "
-            "install it with: conda install -c conda-forge datavzrd"
-        )
-    config = copy.deepcopy(output.config)
-    dataset = config.setdefault("datasets", {}).setdefault("data", {})
-    dataset["path"] = "data.csv"
-    with tempfile.TemporaryDirectory(prefix="snakedone-datavzrd-") as temporary:
-        root = Path(temporary)
-        (root / "data.csv").write_text(
-            output.datasets["data"]["content"], encoding="utf-8", newline=""
-        )
-        (root / "config.yaml").write_text(
-            json.dumps(config, ensure_ascii=False, allow_nan=False), encoding="utf-8"
-        )
-        result = subprocess.run(
-            [executable, "config.yaml", "--output", "report"],
-            cwd=root,
-            capture_output=True,
-            text=True,
-            timeout=300,
-            check=False,
-        )
-        if result.returncode:
-            message = result.stderr.strip() or result.stdout.strip()
-            raise RuntimeError(f"Datavzrd failed: {message}")
-        report = root / "report"
-        files = {}
-        for path in sorted(report.rglob("*")):
-            if path.is_symlink() or not path.resolve().is_relative_to(report):
-                raise ValueError(
-                    "Datavzrd report contains a file outside its directory"
-                )
-            if path.is_file():
-                name = path.relative_to(report).as_posix()
-                mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
-                files[name] = (mime, path.read_bytes())
-        if "index.html" not in files:
-            raise RuntimeError("Datavzrd did not produce an index.html entry point")
-        return files
-
-
-def runtime_source() -> str:
-    return Path(__file__).with_name("datavzrd_runtime.js").read_text(encoding="utf-8")
-
-
 def datavzrd(
     frame: Any, config: Mapping[str, Any] | str | Path | None = None
 ) -> RecordedOutput:
@@ -205,10 +154,9 @@ def datavzrd(
         snapshot["default-view"] = next(iter(views))
     output = RecordedOutput(
         renderer="datavzrd",
-        datasets={"data": {"format": "csv", "content": dataframe_csv(frame)}},
-        config=snapshot,
+        data={"csv": dataframe_csv(frame), "config": snapshot},
     )
-    validate_output(output)
+    output.validate()
     return output
 
 
@@ -218,26 +166,65 @@ class Datavzrd:
     name = "datavzrd"
 
     def validate(self, output: RecordedOutput) -> None:
-        if not isinstance(output.datasets, dict) or set(output.datasets) != {"data"}:
-            raise ValueError("Datavzrd output must archive exactly the dataset 'data'")
-        data = output.datasets["data"]
-        if (
-            not isinstance(data, dict)
-            or data.get("format") != "csv"
-            or not isinstance(data.get("content"), str)
-        ):
-            raise ValueError(
-                "Datavzrd output dataset 'data' requires CSV string content"
-            )
-        if not isinstance(output.config, dict):
+        if not isinstance(output.data, dict):
+            raise ValueError("Datavzrd output data must be a mapping")
+        if not isinstance(output.data.get("csv"), str):
+            raise ValueError("Datavzrd output data requires CSV string content")
+        if not isinstance(output.data.get("config"), dict):
             raise ValueError("Datavzrd output config must be a mapping")
-        _validate_config(output.config)
+        _validate_config(output.data["config"])
 
     def build(self, output: RecordedOutput) -> dict[str, tuple[str, bytes]]:
-        return build_report(output)
+        """Return all report files; no temporary paths survive in the result."""
+        output.validate()
+        executable = shutil.which("datavzrd")
+        if executable is None:
+            raise RuntimeError(
+                "Datavzrd HTML export requires the datavzrd executable on PATH; "
+                "install it with: conda install -c conda-forge datavzrd"
+            )
+        config = copy.deepcopy(output.data["config"])
+        dataset = config.setdefault("datasets", {}).setdefault("data", {})
+        dataset["path"] = "data.csv"
+        with tempfile.TemporaryDirectory(prefix="snakedone-datavzrd-") as temporary:
+            root = Path(temporary)
+            (root / "data.csv").write_text(
+                output.data["csv"], encoding="utf-8", newline=""
+            )
+            (root / "config.yaml").write_text(
+                json.dumps(config, ensure_ascii=False, allow_nan=False),
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [executable, "config.yaml", "--output", "report"],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                timeout=300,
+                check=False,
+            )
+            if result.returncode:
+                message = result.stderr.strip() or result.stdout.strip()
+                raise RuntimeError(f"Datavzrd failed: {message}")
+            report = root / "report"
+            files = {}
+            for path in sorted(report.rglob("*")):
+                if path.is_symlink() or not path.resolve().is_relative_to(report):
+                    raise ValueError(
+                        "Datavzrd report contains a file outside its directory"
+                    )
+                if path.is_file():
+                    name = path.relative_to(report).as_posix()
+                    mime = mimetypes.guess_type(name)[0] or "application/octet-stream"
+                    files[name] = (mime, path.read_bytes())
+            if "index.html" not in files:
+                raise RuntimeError("Datavzrd did not produce an index.html entry point")
+            return files
 
     def runtime(self) -> str:
-        return runtime_source()
+        return (
+            Path(__file__).with_name("datavzrd_runtime.js").read_text(encoding="utf-8")
+        )
 
 
 register(Datavzrd())

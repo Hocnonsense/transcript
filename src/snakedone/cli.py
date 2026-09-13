@@ -2,12 +2,12 @@
 
 import argparse
 import difflib
+import subprocess
 import sys
 from pathlib import Path
 
-from .execute import execute
-from .parse import parse
-from .snd import render, write
+from .document import parse
+from .snd import write
 
 
 def get_parser():
@@ -58,42 +58,26 @@ def main(argv: list[str] | None = None):
             target = target.with_suffix(target.suffix + ".snd")
     else:
         target = path.with_suffix(".snd")
-    # Plain archive export is offline; explicit execution flags still apply.
-    if not (make_html and path.suffix == ".snd" and args.diff is None):
-        if args.diff is None:
-            diff = path == target
-        else:
-            diff = args.diff and not (make_html and not target.exists())
-            # to make HTML, force create the snd file, diff make no sense
+    if not make_html:
+        diff = path == target if args.diff is None else args.diff
         ret = py2snd(path, target, diff)
-        path = target
+
+    # Plain archive export is offline; explicit execution flags still apply.
     else:
         ret = 0
-    if make_html and ret == 0:
-        ret = snd2html(path, target.with_suffix(".html"))
+        if path.suffix != ".snd" or args.diff is not None:
+            ret = py2snd_subprocess(args, target)
+            path = target
+        if not ret:
+            ret = snd2html(path, target.with_suffix(".html"))
     sys.exit(ret)
-
-
-def snd2html(path: Path, target: Path):
-    from .html import render as render_html
-
-    try:
-        source = path.read_text(encoding="utf-8-sig")
-        document = parse(source, str(path))
-        candidate = render_html(document, title=path.stem)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        write(target, candidate)
-    except Exception as error:
-        print(f"snakedone: {error}", file=sys.stderr)
-        return 2
-    return 0
 
 
 def py2snd(path: Path, target: Path, diff: bool = False):
     source = path.read_text(encoding="utf-8-sig")
     try:
         document = parse(source, str(path))
-        candidate = render(document, *execute(document, path))
+        candidate = document.render_snd(*document.execute(path))
     except Exception as e:
         print(f"snakedone: {e}", file=sys.stderr)
         return 2
@@ -120,4 +104,43 @@ def py2snd(path: Path, target: Path, diff: bool = False):
         write(target, candidate)
     else:
         target.touch()
+    return 0
+
+
+def py2snd_subprocess(args, target: Path):
+    if args.diff and not target.exists():
+        diff = []  # HTML export needs an archive to read.
+    else:
+        diff = {True: ["--diff"], False: ["--overwrite"], None: []}[args.diff]
+    try:
+        ret = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                "from snakedone.cli import main; main()",
+                args.file,
+                *diff,
+                "-o",
+                str(target),
+            ],
+            check=False,
+        ).returncode
+    except OSError as error:
+        print(f"snakedone: {error}", file=sys.stderr)
+        ret = 2
+    if ret < 0:
+        ret = 128 - ret
+    return ret
+
+
+def snd2html(path: Path, target: Path):
+    source = path.read_text(encoding="utf-8-sig")
+    try:
+        document = parse(source, str(path))
+        candidate = document.render_html(title=path.stem)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        write(target, candidate)
+    except Exception as error:
+        print(f"snakedone: {error}", file=sys.stderr)
+        return 2
     return 0

@@ -31,62 +31,31 @@ class ReportBlock(NamedTuple):
     statements: list[Statement]
 
 
-class Region(NamedTuple):
-    """A module-level report entry (``if "snakedone":`` or a top-level ``with``)."""
-
-    node: ast.If | ast.With
-    marker: bool  # the comment right after the ``with`` colon is ``# snakedone``
-
-    @property
-    def kind(self):
-        return "if" if isinstance(self.node, ast.If) else "with"
-
-
-class AstDocument(NamedTuple):
-    source: str
-    tree: ast.Module
-    position: Callable[[int, int], int]
-    regions: dict[int, Region]
-
-    def indent_of(self, start: int):
-        source = self.source
-        return source[source.rfind("\n", 0, start) + 1 : start]
-
-    @property
-    def blocks(self):
-        """Compute all report blocks from the document's regions."""
-        return [
-            parse_block(region, self.position)
-            for region in self.regions.values()
-            if region.kind == "if" or region.marker
-        ]
-
-
-def _line_offsets(source: str):
-    """Split source into lines plus each line's character offset."""
+def line_offsets(source: str):
+    """Return a ``(lineno, column) -> character offset`` mapper for *source*."""
 
     lines = source.splitlines(keepends=True)
     starts = [0]
     for line in lines:
         starts.append(starts[-1] + len(line))
 
-    def _position(lineno: int, column: int):
+    def position(lineno: int, column: int):
         # AST columns count UTF-8 bytes; source slicing counts characters.
         return starts[lineno - 1] + len(lines[lineno - 1].encode()[:column].decode())
 
-    return _position
+    return position
 
 
-def span_start(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+def _span_start(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
     return position(node.lineno, node.col_offset)
 
 
-def span_end(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+def _span_end(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
     assert node.end_lineno is not None and node.end_col_offset is not None
     return position(node.end_lineno, node.end_col_offset)
 
 
-def _is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
+def is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
     return (
         isinstance(node, ast.If)
         and isinstance(node.test, ast.Constant)
@@ -94,9 +63,9 @@ def _is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
     )
 
 
-def with_has_marker(source, node: ast.With, _position: Callable[[int, int], int]):
-    start = span_start(node, _position)
-    end = span_start(node.body[0], _position)
+def with_has_marker(source: str, node: ast.With, position: Callable[[int, int], int]):
+    start = _span_start(node, position)
+    end = _span_start(node.body[0], position)
     tokens = list(tokenize.generate_tokens(io.StringIO(source[start:end]).readline))
     colon = None
     for token in tokens:
@@ -110,23 +79,6 @@ def with_has_marker(source, node: ast.With, _position: Callable[[int, int], int]
     return start, end, colon, after_colon.strip() == REPORT_MARKER_COMMENT
 
 
-def parse(source: str, filename: str):
-    """Locate module-level report regions, never compute a block here.
-
-    for with block, only one with item is allowed
-    """
-    tree = ast.parse(source, filename=filename)
-    _position = _line_offsets(source)
-    regions = {}
-    for i, node in enumerate(tree.body):
-        if _is_report_if(node):
-            regions[i] = Region(node, True)
-        elif isinstance(node, ast.With) and len(node.items) == 1:
-            marker = with_has_marker(source, node, _position)
-            regions[i] = Region(node, marker[-1])
-    return AstDocument(source, tree, _position, regions)
-
-
 def _string_expr(node: ast.stmt):
     if (
         isinstance(node, ast.Expr)
@@ -137,56 +89,84 @@ def _string_expr(node: ast.stmt):
     return None
 
 
-def parse_block(region: Region, position: Callable[[int, int], int]):
-    """Compute a block from its region; called when a report block is reached."""
-    node, _ = region
-    body = node.body
-    if not body:
-        raise ValueError(f"line {node.lineno}: a report block must have a body")
-    if body[0].lineno == node.lineno:
-        raise ValueError(
-            f"line {node.lineno}: a report block body must start on the next line; "
-            "put the body on its own line"
-        )
-    markdown = ""
-    index = 0
-    first = _string_expr(body[0])
-    if first is not None:
-        _, markdown = first
-        index = 1
-    statements: list[Statement] = []
-    previous_end_line = 0
-    while index < len(body):
-        statement = body[index]
-        if _string_expr(statement) is not None:
-            # A docstring that does not follow a code statement has no slot role.
-            # warnings.warn(
-            #     f"line {statement.lineno}: stray record docstring ignored",
-            #     stacklevel=2,
-            # )
-            index += 1
-            continue
-        if statement.lineno <= previous_end_line:
+class Region(NamedTuple):
+    """A module-level report entry (``if "snakedone":`` or a top-level ``with``)."""
+
+    node: ast.If | ast.With
+    marker: bool  # the comment right after the ``with`` colon is ``# snakedone``
+
+    @property
+    def kind(self):
+        return "if" if isinstance(self.node, ast.If) else "with"
+
+    def parse_block(self, position: Callable[[int, int], int]):
+        """Compute a block from its region; called when a report block is reached."""
+        node = self.node
+        body = node.body
+        if not body:
+            raise ValueError(f"line {node.lineno}: a report block must have a body")
+        if body[0].lineno == node.lineno:
             raise ValueError(
-                f"line {statement.lineno}: multiple statements on one line are "
-                "not supported in report blocks; put each statement on its own line"
+                f"line {node.lineno}: a report block body must start on the next line; "
+                "put the body on its own line"
             )
-        previous_end_line = statement.end_lineno or 0
-        slot = None
-        if index + 1 < len(body):
-            next_string = _string_expr(body[index + 1])
-            if next_string is not None:
-                constant, value = next_string
-                slot = Slot(
-                    span_start(constant, position),
-                    span_end(constant, position),
-                    value,
-                )
+        markdown = ""
+        index = 0
+        first = _string_expr(body[0])
+        if first is not None:
+            _, markdown = first
+            index = 1
+        statements: list[Statement] = []
+        previous_end_line = 0
+        while index < len(body):
+            statement = body[index]
+            if _string_expr(statement) is not None:
+                # A docstring that does not follow a code statement has no slot role.
+                # warnings.warn(
+                #     f"line {statement.lineno}: stray record docstring ignored",
+                #     stacklevel=2,
+                # )
                 index += 1
-        start = span_start(statement, position)
-        end = span_end(statement, position)
-        statements.append(Statement(statement, start, end, slot))
-        index += 1
-    body_start = span_start(body[0], position)
-    body_end = span_end(body[-1], position)
-    return ReportBlock(node, body_start, body_end, markdown, statements)
+                continue
+            if statement.lineno <= previous_end_line:
+                raise ValueError(
+                    f"line {statement.lineno}: multiple statements on one line are "
+                    "not supported in report blocks; put each statement on its own line"
+                )
+            previous_end_line = statement.end_lineno or 0
+            slot = None
+            if index + 1 < len(body):
+                next_string = _string_expr(body[index + 1])
+                if next_string is not None:
+                    constant, value = next_string
+                    slot = Slot(
+                        _span_start(constant, position),
+                        _span_end(constant, position),
+                        value,
+                    )
+                    index += 1
+            start = _span_start(statement, position)
+            end = _span_end(statement, position)
+            statements.append(Statement(statement, start, end, slot))
+            index += 1
+        body_start = _span_start(body[0], position)
+        body_end = _span_end(body[-1], position)
+        return ReportBlock(node, body_start, body_end, markdown, statements)
+
+
+def locate(source: str, filename: str):
+    """Locate module-level report regions without computing any block.
+
+    A ``with`` block is a region only when it has a single item; the comment
+    after its colon decides whether it is a report block.
+    """
+    tree = ast.parse(source, filename=filename)
+    position = line_offsets(source)
+    regions = {}
+    for i, node in enumerate(tree.body):
+        if is_report_if(node):
+            regions[i] = Region(node, True)
+        elif isinstance(node, ast.With) and len(node.items) == 1:
+            marker = with_has_marker(source, node, position)
+            regions[i] = Region(node, marker[-1])
+    return tree, position, regions

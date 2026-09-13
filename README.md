@@ -38,8 +38,8 @@ snakedone examples/demo.snd
 snakedone examples/demo.snd --overwrite
 ```
 
-The example reads the adjacent `data.json` and creates `examples/demo.snd`, recording text, a CSV table, RGB data, an explicitly printed Markdown image (`![](data:image/png;base64,...)`), and a Datavzrd snapshot. Change the data file to try comparing and updating the archive.
-`snakedone examples/datavzrd_demo.py --html` then renders `examples/datavzrd_demo.html`, which shows the Datavzrd table.
+The example reads the adjacent `data.json` and creates `examples/demo.snd`, recording text, a DataFrame table, RGB data, and an explicitly printed Markdown image (`![](data:image/png;base64,...)`). Change the data file to try comparing and updating the archive.
+The [Datavzrd example](#datavzrd-tables) records pandas and polars DataFrames as interactive tables; `snakedone examples/datavzrd_demo.py --html` renders `examples/datavzrd_demo.html`.
 
 ### Archive generation and comparison
 
@@ -66,11 +66,9 @@ An archive does not require the original `.py` file, but execution still needs a
 ```bash
 # Export stored results without executing the archive.
 snakedone examples/demo.snd --html
-snakedone examples/demo.snd -o report.html
 
 # Execute Python, write report.snd, then export report.html.
-snakedone examples/demo.py -o report.html
-
+snakedone examples/demo.py --html
 # An .html output path also selects HTML export.
 snakedone examples/demo.py -o report.html
 
@@ -141,13 +139,13 @@ That keeps archives (`.snd`) self-describing for HTML export without ever forcin
 
 Inside a block, the top-level statements are treated as follows:
 
-- The first docstring is Markdown. A block may contain only Markdown. All other strings are considered as output slot and refreshed in `.snd`
-- A non-string expression statement runs and echoes its value like a REPL (`repr`, or CSV for tables and a rich block for recorded outputs).
+- The first docstring is Markdown. A block may contain only Markdown. All other strings are output slots and are refreshed in `.snd`.
+- A non-string expression statement runs and echoes its value like a REPL (`repr`, or a rich block for recorded outputs).
 - Any other statement (assignment, `import`, `for`, `if`, `try`, …) runs normally; its stdout is archived.
 - Every statement that produces output is followed by an output docstring, which is
   rebuilt on each run. Existing output docstrings are discarded and regenerated.
 
-Specfically:
+Specifically:
 `for`, `if`, and `try` are collected as one unit, so a loop prints all of its output into a single slot.
 An f-string is a computed expression (not a docstring), so it is echoed rather than treated as Markdown.
 
@@ -268,7 +266,7 @@ views:
               domain: [0, 1]
 ```
 
-The [pandas and polars example](examples/datavzrd_demo.py) uses a shared [YAML configuration](examples/datavzrd.yaml) with column bars, a heatmap, and two views of the same dataset:
+The [pandas and polars example](examples/datavzrd_demo.py) uses a shared [YAML configuration](examples/datavzrd.yaml) with column bars, a heatmap, and two views of the same dataset.
 
 The initial Datavzrd integration supports one archived dataset per output and any number of table views over it.
 Built-in `render-table` options such as column bars, heatmaps, and links are supported.

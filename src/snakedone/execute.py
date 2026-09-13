@@ -1,5 +1,7 @@
 """Execute a document statement by statement, capturing report output."""
 
+import __future__ as future
+
 import ast
 import io
 import sys
@@ -7,22 +9,19 @@ import types
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .canon import text
-from .parse import parse_block
+from .parse import ReportBlock
 
 if TYPE_CHECKING:
-    from .parse import AstDocument, ReportBlock
-
+    from .document import AstDocument
 
 _FUTURE_FLAGS = 0
-for _name in __import__("__future__").all_feature_names:
-    _FUTURE_FLAGS |= getattr(__import__("__future__"), _name).compiler_flag
+for _name in future.all_feature_names:
+    _FUTURE_FLAGS |= getattr(future, _name).compiler_flag
 
 
-def _report_singleton():
-    from . import report
-
-    return report
+def text(value: str):
+    """Normalize captured output to LF endings with a single trailing newline."""
+    return value.replace("\r\n", "\n").replace("\r", "\n").rstrip("\n") + "\n"
 
 
 class ExecutionScope:
@@ -30,15 +29,15 @@ class ExecutionScope:
         self.path = path
 
     def __enter__(self):
-        self.old_main = sys.modules.get("__main__")
-        self.old_path, self.old_argv = sys.path, sys.argv
-        module = types.ModuleType("__main__")
         filename = str(self.path)
+        self.old_path, self.old_argv = sys.path, sys.argv
+        sys.path = [str(self.path.parent), *self.old_path]
+        sys.argv = [filename]
+        module = types.ModuleType("__main__")
+        self.old_main = sys.modules.get("__main__")
+        sys.modules["__main__"] = module
         namespace = module.__dict__
         namespace.update(__file__=filename, __package__=None)
-        sys.modules["__main__"] = module
-        sys.path = [str(self.path.parent), *self.old_path]
-        sys.argv = [str(self.path)]
         return namespace
 
     def __exit__(self, exc_type, exc, tb):
@@ -50,19 +49,29 @@ class ExecutionScope:
         sys.argv = self.old_argv
 
 
-def execute(document: AstDocument, path: Path):
-    """
-    Run top-level statements in order
-    capture blocks whose CM is the report.
-    """
+class _Report:
+    """Plain context manager for ``with snakedone.report:`` report blocks."""
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc):
+        return False
+
+
+report = _Report()
+
+
+def execute(self: AstDocument, path: Path):
+    """Execute statements in order and capture dynamically identified reports."""
+
     filename = str(path)
     # collect future flags and send to each compile cell
     future_flags = (
-        compile(document.tree, filename, "exec", dont_inherit=True).co_flags
-        & _FUTURE_FLAGS
+        compile(self.tree, filename, "exec", dont_inherit=True).co_flags & _FUTURE_FLAGS
     )
     hack_name = "__snakedone__name"
-    while hack_name in document.source:
+    while hack_name in self.source:
         hack_name += hack_name
 
     def eval_expression(node: ast.expr):
@@ -143,26 +152,25 @@ def execute(document: AstDocument, path: Path):
         del namespace[hack_name]
 
     failures: list[BaseException] = []
-    report_singleton = _report_singleton()
     outputs: list[list[str]] = []
     blocks: list[ReportBlock] = []
     with ExecutionScope(path) as namespace:
-        for i, node in enumerate(document.tree.body):
-            if i not in document.regions:
+        for i, node in enumerate(self.tree.body):
+            if i not in self.regions:
                 exec_statement(node)
                 continue
             if TYPE_CHECKING:
-                node = document.regions[i].node
+                node = self.regions[i].node
             if isinstance(node, ast.With):
                 context = eval_expression(node.items[0].context_expr)
-                if context is not report_singleton:
+                if context is not report:
                     with_normal(context, node)
                     continue
                 optional_vars = node.items[0].optional_vars
             else:
-                context = report_singleton
+                context = report
                 optional_vars = None
-            blocks.append(parse_block(document.regions[i], document.position))
+            blocks.append(self.regions[i].parse_block(self.position))
             outputs.append(with_snakedone(context, blocks[-1], optional_vars))
     if failures:
         raise failures[0]
