@@ -1,138 +1,169 @@
-"""Execute one module, evaluating records at their narrative positions."""
+"""Execute a document statement by statement, capturing report output."""
 
 import ast
-import contextlib
-import copy
 import io
 import sys
 import types
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
-from .canon import display, text
-from .output import RecordedOutput, document_directory
+from .canon import text
+from .parse import parse_block
 
 if TYPE_CHECKING:
-    from .parse import AstDocument, DocExpression
+    from .parse import AstDocument, ReportBlock
 
 
-def evaluate(record: DocExpression, namespace: dict[str, Any], filename: str):
-    tree = ast.parse(record.source, filename=filename)
-    ast.increment_lineno(tree, record.line - 1)  # for error reporting
-
-    stream = io.StringIO()
-    value = None
-    with contextlib.redirect_stdout(stream):
-        last = tree.body[-1]
-        if isinstance(last, ast.Expr):
-            # take the last expression out of the body
-            tree.body.pop()
-        exec(compile(tree, filename, "exec", dont_inherit=True), namespace)
-        if isinstance(last, ast.Expr):
-            value = eval(
-                compile(
-                    ast.Expression(last.value), filename, "eval", dont_inherit=True
-                ),
-                namespace,
-            )
-            if value is not None:
-                if (
-                    isinstance(value, RecordedOutput)
-                    and stream.tell()
-                    and not stream.getvalue().endswith("\n")
-                ):
-                    stream.write("\n")
-                stream.write(display(value))
-    captured = stream.getvalue()
-    # if value is None and not captured and expression is not None:
-    #     print(f"{filename}:{record.line}: warning: record returned None")
-    return text(captured) if captured else ""
+_FUTURE_FLAGS = 0
+for _name in __import__("__future__").all_feature_names:
+    _FUTURE_FLAGS |= getattr(__import__("__future__"), _name).compiler_flag
 
 
-def _find_last_future_import(tree: ast.Module, prefix_end=0):
-    """Find the last future import in the module body, starting from prefix_end."""
-    while prefix_end < len(tree.body):
-        # find the last future import if any
-        node = tree.body[prefix_end]
-        if not (isinstance(node, ast.ImportFrom) and node.module == "__future__"):
-            break
-        prefix_end += 1
-    return prefix_end
+def _report_singleton():
+    from . import report
+
+    return report
+
+
+class ExecutionScope:
+    def __init__(self, path: Path):
+        self.path = path
+
+    def __enter__(self):
+        self.old_main = sys.modules.get("__main__")
+        self.old_path, self.old_argv = sys.path, sys.argv
+        module = types.ModuleType("__main__")
+        filename = str(self.path)
+        namespace = module.__dict__
+        namespace.update(__file__=filename, __package__=None)
+        sys.modules["__main__"] = module
+        sys.path = [str(self.path.parent), *self.old_path]
+        sys.argv = [str(self.path)]
+        return namespace
+
+    def __exit__(self, exc_type, exc, tb):
+        if self.old_main is not None:
+            sys.modules["__main__"] = self.old_main
+        else:
+            sys.modules.pop("__main__", None)
+        sys.path = self.old_path
+        sys.argv = self.old_argv
 
 
 def execute(document: AstDocument, path: Path):
-    block_outputs = [[""] * len(block.codes) for block in document.blocks]
-    module = types.ModuleType("__main__")
-    namespace = module.__dict__
-    namespace.update(__file__=str(path), __package__=None)
+    """
+    Run top-level statements in order
+    capture blocks whose CM is the report.
+    """
+    filename = str(path)
+    # collect future flags and send to each compile cell
+    future_flags = (
+        compile(document.tree, filename, "exec", dont_inherit=True).co_flags
+        & _FUTURE_FLAGS
+    )
+    hack_name = "__snakedone__name"
+    while hack_name in document.source:
+        hack_name += hack_name
 
-    def doc_code_runner(index: int):
-        # Copy bindings once per string, retaining shared object identities.
-        record_namespace = namespace.copy()
-        for position, record in enumerate(document.blocks[index].codes):
-            block_outputs[index][position] = evaluate(
-                record, record_namespace, str(path)
+    def eval_expression(node: ast.expr):
+        return eval(
+            compile(
+                ast.Expression(node),
+                filename,
+                "eval",
+                flags=future_flags,
+                dont_inherit=True,
+            ),
+            namespace,
+        )
+
+    def exec_statement(node: ast.stmt):
+        return exec(
+            compile(
+                ast.Module(body=[node], type_ignores=[]),
+                filename,
+                "exec",
+                flags=future_flags,
+                dont_inherit=True,
+            ),
+            namespace,
+        )
+
+    def run_captured(node: ast.stmt):
+        stream = io.StringIO()
+        old = sys.stdout
+        sys.stdout = stream
+        try:
+            exec(
+                compile(
+                    ast.Interactive(body=[node]),
+                    filename,
+                    "single",
+                    flags=future_flags,
+                    dont_inherit=True,
+                ),
+                namespace,
             )
+        except BaseException as exc:
+            failures.append(exc)
+            raise
+        finally:
+            sys.stdout = old
+        captured = stream.getvalue()
+        return text(captured) if captured else ""
 
-    uname_doc_code_runner = "__snakedone_record_block__"
-    while uname_doc_code_runner in document.source:
-        uname_doc_code_runner += uname_doc_code_runner
-    namespace[uname_doc_code_runner] = doc_code_runner
-    by_position = {
-        (block.node.lineno, block.node.col_offset): i
-        for i, block in enumerate(document.blocks)
-        if block.codes
-    }
-
-    class Instrument(ast.NodeTransformer):
-        def visit_Expr(self, node: ast.Expr):
-            index = by_position.get((node.lineno, node.col_offset))
-            if index is None:
-                return node
-            call = ast.Expr(
-                ast.Call(
-                    func=ast.Name(id=uname_doc_code_runner, ctx=ast.Load()),
-                    args=[ast.Constant(index)],
-                    keywords=[],
+    def with_snakedone(context, block: ReportBlock, optional_vars=None):
+        with context as entered:
+            if optional_vars is not None:
+                # bind the entered context manager to the `with ... as` target
+                namespace[hack_name] = entered
+                assignment = ast.Assign(
+                    targets=[optional_vars],
+                    value=ast.Name(id=hack_name, ctx=ast.Load()),
                 )
-            )
-            return [node, ast.copy_location(call, node)]
+                ast.fix_missing_locations(assignment)
+                exec_statement(assignment)
+                del namespace[hack_name]
+            return [run_captured(statement.node) for statement in block.statements]
 
-    # Scan only the legal prefix: an optional docstring, then future imports.
-    tree = copy.deepcopy(document.tree)
-    has_docstring = ast.get_docstring(tree) is not None
+    def with_normal(context, node: ast.With):
+        namespace[hack_name] = context
+        rebuilt = ast.With(
+            items=[
+                ast.withitem(
+                    context_expr=ast.Name(id=hack_name, ctx=ast.Load()),
+                    optional_vars=node.items[0].optional_vars,
+                )
+            ],
+            body=node.body,
+            type_comment=node.type_comment,
+        )
+        ast.fix_missing_locations(rebuilt)
+        exec_statement(rebuilt)
+        del namespace[hack_name]
 
-    # region handle running inject of module docstring around future imports
-    prefix_end = _find_last_future_import(tree, int(has_docstring))
-    module_prefix = tree.body[:prefix_end]
-    instrument = Instrument()
-    if has_docstring:
-        # lazy insert the collect call after the future imports
-        transformed = instrument.visit(module_prefix[0])
-        if isinstance(transformed, list):
-            # The original docstring is already in the preserved prefix.
-            module_prefix.extend(transformed[1:])
-    # endregion handle running inject of module docstring around future imports
-
-    tree.body = tree.body[prefix_end:]
-    instrument.visit(tree)
-    tree.body = module_prefix + tree.body
-    ast.fix_missing_locations(tree)
-
-    old_main = sys.modules.get("__main__")
-    old_path, old_argv = sys.path, sys.argv
-    directory_token = document_directory.set(path.resolve().parent)
-    try:
-        sys.modules["__main__"] = module
-        sys.path = [str(path.parent), *old_path]
-        sys.argv = [str(path)]
-        exec(compile(tree, str(path), "exec", dont_inherit=True), namespace)
-    finally:
-        document_directory.reset(directory_token)
-        if old_main is not None:
-            sys.modules["__main__"] = old_main
-        else:
-            sys.modules.pop("__main__", None)
-        sys.path = old_path
-        sys.argv = old_argv
-    return block_outputs
+    failures: list[BaseException] = []
+    report_singleton = _report_singleton()
+    outputs: list[list[str]] = []
+    blocks: list[ReportBlock] = []
+    with ExecutionScope(path) as namespace:
+        for i, node in enumerate(document.tree.body):
+            if i not in document.regions:
+                exec_statement(node)
+                continue
+            if TYPE_CHECKING:
+                node = document.regions[i].node
+            if isinstance(node, ast.With):
+                context = eval_expression(node.items[0].context_expr)
+                if context is not report_singleton:
+                    with_normal(context, node)
+                    continue
+                optional_vars = node.items[0].optional_vars
+            else:
+                context = report_singleton
+                optional_vars = None
+            blocks.append(parse_block(document.regions[i], document.position))
+            outputs.append(with_snakedone(context, blocks[-1], optional_vars))
+    if failures:
+        raise failures[0]
+    return blocks, outputs

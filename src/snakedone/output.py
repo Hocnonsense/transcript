@@ -3,17 +3,10 @@
 import json
 import re
 from collections.abc import Iterator
-from contextvars import ContextVar
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Any
 
 from .renderers import get, load
-
-# Set for the complete module execution, including document expressions.
-document_directory: ContextVar[Path | None] = ContextVar(
-    "snakedone_document_directory", default=None
-)
 
 _FENCE = re.compile(r"^```snakedone-output[ \t]*(?:\r?\n)?$")
 _CLOSE_FENCE = re.compile(r"^```[ \t]*(?:\r?\n)?$")
@@ -54,8 +47,10 @@ class RecordedOutput:
         encoded = json.dumps(payload, sort_keys=True, indent=2, allow_nan=False)
         return f"```snakedone-output\n{encoded}\n```\n"
 
-    def __str__(self) -> str:
+    def __repr__(self) -> str:
         return self.to_text().removesuffix("\n")
+
+    __str__ = __repr__
 
 
 def validate_output(output: RecordedOutput) -> None:
@@ -103,9 +98,7 @@ def split_output(text: str) -> Iterator[str | RecordedOutput]:
         datasets = payload.get("datasets")
         config = payload.get("config")
         if not isinstance(datasets, dict) or not isinstance(config, dict):
-            raise ValueError(
-                "snakedone-output requires datasets and config mappings"
-            )
+            raise ValueError("snakedone-output requires datasets and config mappings")
         output = RecordedOutput(
             version=payload["version"],
             renderer=payload["renderer"],

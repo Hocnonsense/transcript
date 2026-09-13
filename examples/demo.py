@@ -30,36 +30,36 @@ def png_data_uri(red: int):
 data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-8"))
 message = f"Sample: {data['label']}"
 
-"""
-The following records archive a string, a table, and an inline image.
->>> message
-"""
+if "snakedone":
+    """
+    The following records archive a string, a table, and an inline image.
+    """
+    message
 
 image_source = {"red": data["red"], "green": 64, "blue": 128}
 picture = f"![]({png_data_uri(image_source['red'])})"
 
-"""
-## Image
+if "snakedone":
+    """
+    ## Image
 
-This tiny image is encoded directly from its RGB source data.
-
->>> image_source
-
->>> print(picture)
-"""
+    This tiny image is encoded directly from its RGB source data.
+    """
+    image_source
+    print(picture)
 
 table = pd.DataFrame([data], columns=["label", "value"])
 
-"""
-## Interactive table
+if "snakedone":
+    """
+    ## Interactive table
 
-The measurements are archived a second time as a Datavzrd snapshot.
-Opening the exported HTML turns this table into a sortable, filterable report.
+    The measurements are archived a second time as a Datavzrd snapshot.
+    Opening the exported HTML turns this table into a sortable, filterable report.
+    """
+    table
 
->>> from snakedone import datavzrd
->>> datavzrd(table)
-"""
-
-"""
-This Markdown paragraph follows the final record and must remain unchanged.
-"""
+if "snakedone":
+    """
+    This Markdown paragraph follows the final record and must remain unchanged.
+    """

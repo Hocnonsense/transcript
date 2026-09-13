@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from pathlib import Path
 from typing import Any
 
-from ..output import RecordedOutput, dataframe_csv, document_directory, validate_output
+from ..output import RecordedOutput, dataframe_csv, validate_output
 from . import register
 
 _NAMED_MAPPINGS = {"views", "datasets", "columns", "links", "link-to-url", "headers"}
@@ -173,7 +173,7 @@ def datavzrd(
 
     ``config`` is a native Datavzrd configuration mapping or YAML filename.
     Each view uses the managed dataset ``data``. Relative YAML filenames are
-    resolved against the source document directory when run by snakedone.
+    resolved against the current working directory, like any Python file read.
     The snapshot contains the CSV and configuration, not their original paths.
 
     A single-view configuration without ``default-view`` opens that view
@@ -188,8 +188,6 @@ def datavzrd(
                 'YAML configuration requires: pip install "snakedone[datavzrd]"'
             ) from error
         path = Path(config)
-        if not path.is_absolute() and (directory := document_directory.get()):
-            path = directory / path
         try:
             config = yaml.safe_load(path.read_text(encoding="utf-8"))
         except yaml.YAMLError as error:

@@ -4,7 +4,6 @@ import base64
 import binascii
 import gzip
 import json
-import re
 import struct
 import textwrap
 from collections.abc import Callable
@@ -262,7 +261,6 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
 
     cursor = 0
     for block in document.blocks:
-        # Use the entire expression span, including any grouping parentheses.
         node = block.node
         assert node.end_lineno is not None and node.end_col_offset is not None
         start = position(node.lineno, node.col_offset)
@@ -272,29 +270,24 @@ def render(document: AstDocument, *, title: str = "snakedone document"):
             parts.append(script)
         cursor = end
         parts.append('<section class="module-docstring">')
-        prose_end = block.codes[0].source_start if block.codes else len(block.content)
-        prose = textwrap.dedent(block.content[:prose_end]).strip()
+        prose = textwrap.dedent(block.markdown).strip()
         if prose:
             parts.append('<div class="doc-md">' + markdown.render(prose) + "</div>")
-        for index, record in enumerate(block.codes):
-            end = (
-                block.codes[index + 1].source_start
-                if index + 1 < len(block.codes)
-                else len(block.content)
-            )
-            output = block.content[record.source_end : end]
-            # Remove only the archive's structural indentation and prompt escape.
-            if record.indent:
-                output = "".join(
-                    line.removeprefix(record.indent)
-                    for line in output.splitlines(keepends=True)
-                )
-            output = re.sub(r"^([^\S\n]*)\\>>> ", r"\1>>> ", output, flags=re.MULTILINE)
+        for statement in block.statements:
+            code = document.source[statement.start : statement.end]
+            output = ""
+            if statement.slot is not None:
+                output = statement.slot.value
+                indent = document.indent_of(statement.start)
+                if indent:
+                    output = "".join(
+                        line.removeprefix(indent)
+                        for line in output.splitlines(keepends=True)
+                    )
+                output = output.removeprefix("\n")
             parts.append(
                 '<section class="doctest">'
-                + _output_html(
-                    highlight_python(record.source), output, reports, report_cache
-                )
+                + _output_html(highlight_python(code), output, reports, report_cache)
                 + "</section>"
             )
         parts.append("</section>")

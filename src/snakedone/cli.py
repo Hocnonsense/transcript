@@ -65,16 +65,16 @@ def main(argv: list[str] | None = None):
         else:
             diff = args.diff and not (make_html and not target.exists())
             # to make HTML, force create the snd file, diff make no sense
-        ret = main_file(path, target, diff)
+        ret = py2snd(path, target, diff)
         path = target
     else:
         ret = 0
     if make_html and ret == 0:
-        ret = html_file(path, target.with_suffix(".html"))
+        ret = snd2html(path, target.with_suffix(".html"))
     sys.exit(ret)
 
 
-def html_file(path: Path, target: Path):
+def snd2html(path: Path, target: Path):
     from .html import render as render_html
 
     try:
@@ -89,11 +89,11 @@ def html_file(path: Path, target: Path):
     return 0
 
 
-def main_file(path: Path, target: Path, diff: bool = False):
+def py2snd(path: Path, target: Path, diff: bool = False):
     source = path.read_text(encoding="utf-8-sig")
     try:
         document = parse(source, str(path))
-        candidate = render(document, execute(document, path))
+        candidate = render(document, *execute(document, path))
     except Exception as e:
         print(f"snakedone: {e}", file=sys.stderr)
         return 2

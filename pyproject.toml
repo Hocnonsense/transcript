@@ -11,11 +11,7 @@ dependencies = []
 
 [project.optional-dependencies]
 html = ["markdown-it-py>=3,<5", "pygments>=2.18,<3"]
-datavzrd = [
-    "markdown-it-py>=3,<5",
-    "pygments>=2.18,<3",
-    "PyYAML>=6,<7",
-]
+datavzrd = ["markdown-it-py>=3,<5", "pygments>=2.18,<3", "PyYAML>=6,<7"]
 
 [project.scripts]
 snakedone = "snakedone.cli:main"
@@ -61,5 +57,6 @@ select = ["E", "F", "I", "UP"]
 include = ["src", "tests", "examples"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
+reportUnusedExpression = false
 venvPath = ".pixi/envs"
 venv = "default"
