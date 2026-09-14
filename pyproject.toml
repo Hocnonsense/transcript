@@ -40,7 +40,7 @@ test = "pytest"
 format = "ruff format ."
 lint = "ruff check ."
 typecheck = "pyright"
-check = { depends-on = ["test", "lint", "typecheck"] }
+check = { depends-on = ["lint", "typecheck", "test"] }
 demo = "snakedone examples/demo.py"
 
 [tool.pytest.ini_options]
