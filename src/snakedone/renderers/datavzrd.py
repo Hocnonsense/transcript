@@ -2,19 +2,17 @@
 
 from __future__ import annotations
 
-import copy
 import json
-import math
 import mimetypes
 import shutil
 import subprocess
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any, TypeVar, overload
+from typing import Any
 
-from ..output import dataframe_csv, fence
-from . import Renderer, register
+from ..output import Renderer, dataframe_csv
+from . import load_spec, register, jsonify
 
 _NAMED_MAPPINGS = {"views", "datasets", "columns", "links", "link-to-url", "headers"}
 _UNSUPPORTED_OPTIONS = {
@@ -32,30 +30,6 @@ _UNSUPPORTED_OPTIONS = {
     "spell",
     "__use_yte__",
 }
-
-
-T = TypeVar("T", str, bool, int, float, None)
-
-
-@overload
-def _json_value(value: Mapping[str, Any]) -> dict[str, Any]: ...
-@overload
-def _json_value(value: list[Any] | tuple[Any, ...]) -> list[Any]: ...
-@overload
-def _json_value(value: T) -> T: ...
-def _json_value(value):
-    """Copy configuration so subsequent mutations cannot change a snapshot."""
-    if isinstance(value, Mapping):
-        if not all(isinstance(key, str) for key in value):
-            raise ValueError("Datavzrd config keys must be strings")
-        return {key: _json_value(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
-        return [_json_value(item) for item in value]
-    if value is None or isinstance(value, (str, bool, int)):
-        return value
-    if isinstance(value, float) and math.isfinite(value):
-        return value
-    raise ValueError("Datavzrd config must contain JSON-compatible values")
 
 
 def _check_options(value: Any, location: str = "config", *, properties=True) -> None:
@@ -82,7 +56,6 @@ def _check_options(value: Any, location: str = "config", *, properties=True) -> 
 
 
 def _validate_config(config: dict[str, Any]):
-    _json_value(config)
     _check_options(config)
     if config.get("webview-controls", False):
         raise ValueError("Datavzrd webview-controls requires an online service")
@@ -136,73 +109,74 @@ def datavzrd(frame: Any, config: Mapping[str, Any] | str | Path | None = None):
     directly instead of Datavzrd's landing page. Multiple views keep the
     landing page unless ``default-view`` selects one.
     """
-    if isinstance(config, (str, Path)):
+    if config is not None:
         try:
-            import yaml
-        except ImportError as error:
-            raise RuntimeError(
-                'YAML configuration requires: pip install "snakedone[datavzrd]"'
-            ) from error
-        path = Path(config)
-        try:
-            config = yaml.safe_load(path.read_text(encoding="utf-8"))
-        except yaml.YAMLError as error:
-            raise ValueError(f"Invalid Datavzrd YAML configuration: {path}") from error
-        if not isinstance(config, Mapping):
-            raise ValueError("Datavzrd YAML configuration must contain a mapping")
+            config = load_spec(config)
+        except Exception as error:
+            raise ValueError("Invalid Datavzrd configuration") from error
     if config is None:
         config = {}
     elif not isinstance(config, Mapping):
         raise TypeError("Datavzrd config must be a mapping or a YAML filename")
-    snapshot = _json_value(config)
-    snapshot.setdefault("views", {"results": {"dataset": "data"}})
+    snapshot = jsonify(config, context="Datavzrd config") | {
+        "views": {"results": {"dataset": "data"}},
+    }
     views = snapshot.get("views")
     if isinstance(views, dict) and len(views) == 1 and "default-view" not in snapshot:
         snapshot["default-view"] = next(iter(views))
-    return Datavzrd({"csv": dataframe_csv(frame), "config": snapshot})
+    return Datavzrd(dataframe_csv(frame), snapshot)
 
 
+@register
 class Datavzrd(Renderer):
     """Registered renderer for ``snakedone.datavzrd`` snapshots."""
 
     name = "datavzrd"
     version = (1,)
 
-    def __init__(self, py_obj):
-        self._validate(py_obj)
-        self.obj = py_obj
+    def __init__(self, csv: str, config: dict):
+        if not isinstance(csv, str):
+            raise ValueError("Datavzrd output data requires CSV string content")
+        config_ = jsonify(config, context="Datavzrd config")
+        _validate_config(config_)
+        self.obj = {"csv": csv, "config": config_}
 
-    def to_snd(self):
+    def serialize(self):
         """Serialize the CSV and configuration into the archived fence."""
         body = json.dumps(self.obj, sort_keys=True, indent=2, allow_nan=False)
-        return fence(self, body)
+        return body
 
     @classmethod
     def to_html(cls, data: str):
         """Validate stored data, then return its inner HTML and report files."""
-        return "", cls._build(data)
+        parsed = cls._validate(data)
+        return "", cls._build(parsed)
 
     @classmethod
-    def _validate(cls, data):
-        if not isinstance(data, dict):
+    def _validate(cls, data: str):
+        try:
+            parsed = json.loads(data)
+        except json.JSONDecodeError as error:
+            raise ValueError("Datavzrd output data must be a JSON mapping") from error
+        if not isinstance(parsed, dict):
             raise ValueError("Datavzrd output data must be a mapping")
-        if not isinstance(data.get("csv"), str):
+        if not isinstance(parsed.get("csv"), str):
             raise ValueError("Datavzrd output data requires CSV string content")
-        if not isinstance(data.get("config"), dict):
+        if not isinstance(parsed.get("config"), dict):
             raise ValueError("Datavzrd output config must be a mapping")
-        _validate_config(data["config"])
+        _validate_config(parsed["config"])
+        return parsed
 
     @classmethod
-    def _build(cls, data: str) -> dict[str, tuple[str, bytes]]:
+    def _build(cls, parsed: dict):
         """Return all report files; no temporary paths survive in the result."""
-        parsed = json.loads(data)
         executable = shutil.which("datavzrd")
         if executable is None:
             raise RuntimeError(
                 "Datavzrd HTML export requires the datavzrd executable on PATH; "
                 "install it with: conda install -c conda-forge datavzrd"
             )
-        config = copy.deepcopy(parsed["config"])
+        config = parsed["config"]
         dataset = config.setdefault("datasets", {}).setdefault("data", {})
         dataset["path"] = "data.csv"
         with tempfile.TemporaryDirectory(prefix="snakedone-datavzrd-") as directory:
@@ -243,6 +217,3 @@ class Datavzrd(Renderer):
         return (
             Path(__file__).with_name("datavzrd_runtime.js").read_text(encoding="utf-8")
         )
-
-
-register(Datavzrd)

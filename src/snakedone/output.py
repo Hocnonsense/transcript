@@ -2,9 +2,58 @@
 
 import re
 from logging import warning
-from typing import Any, NamedTuple
+from typing import Any, NamedTuple, Protocol, runtime_checkable
 
-from .renderers import Renderer, get
+from .renderers import get
+
+
+@runtime_checkable
+class Renderer(Protocol):
+    """Adapter that serializes, validates, and renders one kind of output.
+
+    An instance wraps a Python object
+    - ``serialize`` converts it to a reloadable string that
+        can be reladed by corresponding method ``to_html``
+    - ``to_snd`` add fence arround the serialized string for storage in a report
+    - ``to_html`` turns the reloadable string to HTML,
+        also extra files for the report.
+    - ``runtime`` (browser script) and ``resources`` (CSP sources) are optional
+        for renderers that need a browser runtime.
+    """
+
+    name: str
+    version: tuple[int, ...] | None = None
+
+    def __init__(self):
+        """Wrap the Python object this renderer serializes."""
+        ...
+
+    def serialize(self) -> str:
+        """Return the renderer's data, ready for the output fence."""
+        ...
+
+    def to_snd(self):
+        """Return the archived ``snakedone-output`` representation."""
+        return fence(self, self.serialize())
+
+    def __repr__(self):
+        return self.to_snd().removesuffix("\n")
+
+    @classmethod
+    def to_html(cls, sndata: str) -> tuple[str, dict[str, tuple[str, bytes]]]:
+        """Validate stored *data* and return ``(html, files)``."""
+        ...
+
+    @classmethod
+    def runtime(cls) -> str | None:
+        """Return the browser script that serves the embedded report."""
+        return None
+
+    @classmethod
+    def sources(cls) -> list[str]:
+        """Return extra Content-Security-Policy sources for this renderer."""
+        return []
+
 
 _FENCE = re.compile(
     r"(?P<fence>```(`*))snakedone-output"
@@ -36,10 +85,10 @@ def fence(renderer: Renderer, data: str):
     if version is not None:
         header += "=" + ".".join(str(part) for part in version)
     body = data.rstrip("\n")
-    fence = "```"
-    while fence in body:
-        fence += "`"
-    return f"{fence}snakedone-output {header}\n{body}\n{fence}\n"
+    marker = "```"
+    while marker in body:
+        marker += "`"
+    return f"{marker}snakedone-output {header}\n{body}\n{marker}\n"
 
 
 class RecordedOutput(NamedTuple):

@@ -4,12 +4,14 @@ import base64
 import binascii
 import gzip
 import json
+import re
 import struct
 import textwrap
 from collections.abc import Callable
 from hashlib import sha256
 from html import escape
 from typing import TYPE_CHECKING, NamedTuple
+from urllib.parse import urlsplit
 
 from .output import RecordedOutput, split_output
 from .renderers import get
@@ -75,6 +77,17 @@ main img { display: block; margin: .35rem auto; max-height: 50vh;
 main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
 main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 
+/* static and interactive Vega-Lite charts */
+.snakedone-chart { margin: .5rem 0; text-align: center; }
+.snakedone-chart svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+/* The action menu reserves 38px on the right; nudge back to true center. */
+.snakedone-chart .vega-embed.has-actions { transform: translateX(19px); }
+.snakedone-status { display: inline-block; margin-top: .15rem; padding: .1rem .5rem;
+                    font: .72rem/1.5 ui-monospace, monospace; color: #888;
+                    border: 1px solid #8884; border-radius: 999px; }
+.snakedone-status[data-state="rendering"] { color: #b8860b; border-color: #b8860b66; }
+.snakedone-status[data-state="interactive"] { color: #3984c6; border-color: #3984c666; }
+
 @media (prefers-color-scheme: dark) {
   .doc-code { background: #202b3b; color: #e5eaf1; }
 }
@@ -105,6 +118,35 @@ document.querySelectorAll('main img').forEach(image => {
   });
 });
 """
+
+
+_EXTERNAL_IMAGE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<url>https?://[^)\s]+)\)\s*$")
+_EXTERNAL_LINK = re.compile(r'<a href="(https?://[^"]*)"')
+_IMAGE_SRC = re.compile(r'<img\b[^>]*\bsrc="(?P<url>https?://[^"]+)"')
+
+
+def _external_image(line: str) -> tuple[str, str] | None:
+    """Recognize a Markdown image pointing at an online ``http(s)`` resource."""
+    match = _EXTERNAL_IMAGE.match(line.strip())
+    if match is None:
+        return None
+    return match.group("url"), match.group("alt")
+
+
+def _external_links(html: str):
+    """Open online links in a new tab, without leaking the referrer."""
+    return _EXTERNAL_LINK.sub(
+        r'<a href="\1" target="_blank" rel="noopener noreferrer"', html
+    )
+
+
+def _image_origins(html: str):
+    """Collect the origins of every online image in *html*, for the CSP."""
+    origins = set()
+    for match in _IMAGE_SRC.finditer(html):
+        parsed = urlsplit(match.group("url"))
+        origins.add(f"{parsed.scheme}://{parsed.netloc}")
+    return sorted(origins)
 
 
 def _png_image(line: str) -> tuple[str, int, int] | None:
@@ -186,9 +228,7 @@ def _output_html(
             continue
         for line in str(chunk).splitlines(keepends=True):
             png = _png_image(line)
-            if png is None:
-                parts.append(escape(line))
-            else:
+            if png is not None:
                 uri, width, height = png
                 parts.append(
                     f'<img class="recorded-image" src="{escape(uri, quote=True)}"'
@@ -196,6 +236,16 @@ def _output_html(
                     f' style="--image-ratio: {width / height}"'
                     f' alt="Recorded PNG ({width} × {height} pixels)">'
                 )
+                continue
+            external = _external_image(line)
+            if external is not None:
+                url, alt = external
+                parts.append(
+                    f'<img src="{escape(url, quote=True)}"'
+                    f' alt="{escape(alt, quote=True)}" loading="lazy">'
+                )
+                continue
+            parts.append(escape(line))
     flush_text()
     return f'<div class="doctest-code">{"".join(blocks)}</div>'
 
@@ -278,7 +328,8 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
         parts.append('<section class="module-docstring">')
         prose = textwrap.dedent(block.markdown).strip()
         if prose:
-            parts.append('<div class="doc-md">' + markdown.render(prose) + "</div>")
+            rendered = _external_links(markdown.render(prose))
+            parts.append('<div class="doc-md">' + rendered + "</div>")
         for statement in block.statements:
             code = self.source[statement.start : statement.end]
             output = self.slot_output(statement)
@@ -311,24 +362,36 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
             assert renderer is not None
             source = renderer.runtime()
             if not source:
-                raise RuntimeError(
-                    f"Renderer {renderer_name!r} has no offline HTML runtime"
-                )
+                # Static renderers fill their slot with plain HTML and files
+                # would have no runtime to consume them.
+                if reporter.files:
+                    raise RuntimeError(
+                        f"Renderer {renderer_name!r} has report files but no "
+                        "offline HTML runtime"
+                    )
+                continue
             runtimes.append(source)
             digest = base64.b64encode(sha256(source.encode()).digest()).decode()
             sources.append(f"'sha256-{digest}'")
-        sources.extend(["blob:", "data:"])
-        # Vega evaluates plot expressions, which needs string compilation.
-        sources.append("'unsafe-eval'")
-        image_src = "data: blob:"
-        font_src = " font-src data: blob:;"
-        frame_src = " frame-src 'self' data: blob:;"
-        tail = (
-            '<script id="snakedone-reports" type="application/json">'
-            + _reports_payload(reports)
-            + "</script>\n"
-            + "\n".join(f"<script>{source}</script>" for source in runtimes)
-        )
+            for extra in renderer.sources():
+                if extra not in sources:
+                    sources.append(extra)
+        if runtimes:
+            sources.extend(["blob:", "data:"])
+            # Vega evaluates plot expressions, which needs string compilation.
+            sources.append("'unsafe-eval'")
+            image_src = "data: blob:"
+            font_src = " font-src data: blob:;"
+            frame_src = " frame-src 'self' data: blob:;"
+            tail = (
+                '<script id="snakedone-reports" type="application/json">'
+                + _reports_payload(reports)
+                + "</script>\n"
+                + "\n".join(f"<script>{source}</script>" for source in runtimes)
+            )
+    origins = _image_origins(body)
+    if origins:
+        image_src = (image_src + " " + " ".join(origins)).strip()
     script_src = " ".join(sources)
     return f"""<!doctype html>
 <html lang="en">
