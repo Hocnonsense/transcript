@@ -17,12 +17,14 @@ class Renderer(Protocol):
     - ``to_snd`` add fence arround the serialized string for storage in a report
     - ``to_html`` turns the reloadable string to HTML,
         also extra files for the report.
-    - ``runtime`` (browser script) and ``resources`` (CSP sources) are optional
-        for renderers that need a browser runtime.
+    - ``STYLE`` and ``runtime`` contribute browser assets only when the renderer
+        occurs in a document; ``sources`` adds CSP sources required by its runtime.
     """
 
     name: str
     version: tuple[int, ...] | None = None
+    STYLE = ""
+    """CSS needed by this renderer in exported HTML."""
 
     def __init__(self):
         """Wrap the Python object this renderer serializes."""
@@ -44,15 +46,11 @@ class Renderer(Protocol):
         """Validate stored *data* and return ``(html, files)``."""
         ...
 
-    @classmethod
-    def runtime(cls) -> str | None:
-        """Return the browser script that serves the embedded report."""
-        return None
+    runtime = None
+    """Browser script serving the embedded report"""
 
-    @classmethod
-    def sources(cls) -> list[str]:
-        """Return extra Content-Security-Policy sources for this renderer."""
-        return []
+    sources = []
+    """Extra Content-Security-Policy sources for this renderer"""
 
 
 _FENCE = re.compile(

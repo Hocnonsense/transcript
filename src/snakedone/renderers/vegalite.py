@@ -1,20 +1,29 @@
 """Vega-Lite renderer: snapshot DataFrames as SVG or upgraded charts."""
 
-from __future__ import annotations
-
 import json
 from collections.abc import Mapping
-from pathlib import Path
-from typing import Any
 
 from ..output import Renderer
-from . import load_spec, register, jsonify, ConfigType
+from . import ConfigType, jsonify, load_spec, register
 
 _CDN = [
     "https://cdn.jsdelivr.net/npm/vega@6",
     "https://cdn.jsdelivr.net/npm/vega-lite@6.4",
     "https://cdn.jsdelivr.net/npm/vega-embed@6",
 ]
+
+_STYLE = """
+/* static and interactive Vega-Lite charts */
+.snakedone-chart { margin: .5rem 0; text-align: center; }
+.snakedone-chart svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
+/* The action menu reserves 38px on the right; nudge back to true center. */
+.snakedone-chart .vega-embed.has-actions { transform: translateX(19px); }
+.snakedone-status { display: inline-block; margin-top: .15rem; padding: .1rem .5rem;
+                    font: .72rem/1.5 ui-monospace, monospace; color: #888;
+                    border: 1px solid #8884; border-radius: 999px; }
+.snakedone-status[data-state="rendering"] { color: #b8860b; border-color: #b8860b66; }
+.snakedone-status[data-state="interactive"] { color: #3984c6; border-color: #3984c666; }
+"""
 
 # A status hint next to every chart: ``offline`` (static preview), ``rendering``
 # (loading the runtime), ``interactive`` (the dynamic chart is live).
@@ -131,6 +140,7 @@ class _VegaliteBase(Renderer):
     """Shared snapshot handling for the static and interactive renderers."""
 
     version = (1,)
+    STYLE = _STYLE
 
     def __init__(self, spec):
         self._validate(spec)
@@ -194,12 +204,8 @@ class VegaliteInteractive(_VegaliteBase):
             {},
         )
 
-    @classmethod
-    def runtime(cls):
-        """Return the loader that upgrades previews when the CDN is reachable."""
-        return _LOADER_SCRIPT
+    runtime = _LOADER_SCRIPT
+    """Return the loader that upgrades previews when the CDN is reachable."""
 
-    @classmethod
-    def sources(cls):
-        """Allow the Vega runtime scripts from the jsDelivr CDN."""
-        return ["https://cdn.jsdelivr.net"]
+    sources = ["https://cdn.jsdelivr.net"]
+    """Allow the Vega runtime scripts from the jsDelivr CDN."""

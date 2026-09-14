@@ -10,11 +10,10 @@ import textwrap
 from collections.abc import Callable
 from hashlib import sha256
 from html import escape
-from typing import TYPE_CHECKING, NamedTuple
+from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
 from .output import RecordedOutput, split_output
-from .renderers import get
 
 if TYPE_CHECKING:
     from .document import AstDocument
@@ -77,17 +76,6 @@ main img { display: block; margin: .35rem auto; max-height: 50vh;
 main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
 main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 
-/* static and interactive Vega-Lite charts */
-.snakedone-chart { margin: .5rem 0; text-align: center; }
-.snakedone-chart svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
-/* The action menu reserves 38px on the right; nudge back to true center. */
-.snakedone-chart .vega-embed.has-actions { transform: translateX(19px); }
-.snakedone-status { display: inline-block; margin-top: .15rem; padding: .1rem .5rem;
-                    font: .72rem/1.5 ui-monospace, monospace; color: #888;
-                    border: 1px solid #8884; border-radius: 999px; }
-.snakedone-status[data-state="rendering"] { color: #b8860b; border-color: #b8860b66; }
-.snakedone-status[data-state="interactive"] { color: #3984c6; border-color: #3984c666; }
-
 @media (prefers-color-scheme: dark) {
   .doc-code { background: #202b3b; color: #e5eaf1; }
 }
@@ -142,7 +130,7 @@ def _external_links(html: str):
 
 def _image_origins(html: str):
     """Collect the origins of every online image in *html*, for the CSP."""
-    origins = set()
+    origins: set[str] = set()
     for match in _IMAGE_SRC.finditer(html):
         parsed = urlsplit(match.group("url"))
         origins.add(f"{parsed.scheme}://{parsed.netloc}")
@@ -172,15 +160,20 @@ def _png_image(line: str) -> tuple[str, int, int] | None:
     return (uri, width, height) if width and height else None
 
 
-class Report(NamedTuple):
+class Report:
     """A report to embed in the HTML output.
 
     The report is identified by its *renderer* name and a unique *id*.
     The *files* dictionary maps file names to ``(mime, data)`` pairs.
     """
 
-    chunk: RecordedOutput
-    id: str
+    def __init__(self, chunk: RecordedOutput, id: str):
+        self.chunk = chunk
+        self.id = id
+        if self.files and not chunk.renderer.runtime:
+            raise RuntimeError(
+                f"Renderer {self.name!r} has report files but no offline HTML runtime"
+            )
 
     @property
     def name(self):
@@ -275,6 +268,57 @@ def _reports_payload(reports: list[Report]):
     return encoded.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
+def _page_resources(reports: list[Report], origins: list[str]):
+    """Return ``(styles, csp, scripts)`` for the exported page.
+
+    Styles from every renderer are collected;
+    scripts, the report payload, and CSP sources only collected
+      from renderers that ship a runtime,
+    since a renderer without one never executes in the browser.
+    """
+
+    image_hash = base64.b64encode(sha256(IMAGE_SCRIPT.encode()).digest()).decode()
+    styles = [STYLE]
+    runtimes = []
+    sources = [f"'sha256-{image_hash}'"]
+    for renderer in {r.name: r.chunk.renderer for r in reports}.values():
+        if renderer.STYLE:
+            styles.append(renderer.STYLE)
+        if renderer.runtime:
+            runtimes.append(renderer.runtime)
+            sources.extend(renderer.sources)
+    scripts = []
+    for runtime in dict.fromkeys(runtimes):
+        digest = base64.b64encode(sha256(runtime.encode()).digest()).decode()
+        sources.append(f"'sha256-{digest}'")
+        scripts.append(f"<script>{runtime}</script>")
+    if scripts:
+        # No runtime means nothing reads the payload; static renderers
+        # already emit their final HTML into the report block.
+        sources.extend(["blob:", "data:", "'unsafe-eval'"])
+        image_src = "data: blob:"
+        script = (
+            '<script id="snakedone-reports" type="application/json">'
+            + _reports_payload(reports)
+            + "</script>\n"
+            + "\n".join(scripts)
+        )
+        font_frame_src = " font-src data: blob:; frame-src 'self' data: blob:;"
+    else:
+        image_src = "data:"
+        font_frame_src = script = ""
+    script_src = " ".join(dict.fromkeys(sources))
+    if origins:
+        image_src += " " + " ".join(origins)
+    csp = (
+        "default-src 'none'; style-src 'unsafe-inline'; "
+        f"img-src {image_src};{font_frame_src} "
+        f"script-src {script_src}; "
+        "base-uri 'none'; form-action 'none'"
+    )
+    return "\n".join(dict.fromkeys(styles)), csp, script
+
+
 def _script_html(source: str, highlight_python: Callable[[str], str]):
     """Hide the source code of a script block behind a toggle button in HTML."""
     # Semicolons between adjacent document expressions are only separators.
@@ -344,68 +388,19 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
     if script:
         parts.append(script)
     body = "\n".join(parts)
-    image_hash = base64.b64encode(sha256(IMAGE_SCRIPT.encode()).digest()).decode()
-    sources = [f"'sha256-{image_hash}'"]
-    image_src = "data:"
-    font_src = ""
-    frame_src = ""
-    tail = ""
-    if reports:
-        runtimes: list[str] = []
-        seen: set[str] = set()
-        for reporter in reports:
-            renderer_name = reporter.name
-            if renderer_name in seen:
-                continue
-            seen.add(renderer_name)
-            renderer = get(renderer_name)
-            assert renderer is not None
-            source = renderer.runtime()
-            if not source:
-                # Static renderers fill their slot with plain HTML and files
-                # would have no runtime to consume them.
-                if reporter.files:
-                    raise RuntimeError(
-                        f"Renderer {renderer_name!r} has report files but no "
-                        "offline HTML runtime"
-                    )
-                continue
-            runtimes.append(source)
-            digest = base64.b64encode(sha256(source.encode()).digest()).decode()
-            sources.append(f"'sha256-{digest}'")
-            for extra in renderer.sources():
-                if extra not in sources:
-                    sources.append(extra)
-        if runtimes:
-            sources.extend(["blob:", "data:"])
-            # Vega evaluates plot expressions, which needs string compilation.
-            sources.append("'unsafe-eval'")
-            image_src = "data: blob:"
-            font_src = " font-src data: blob:;"
-            frame_src = " frame-src 'self' data: blob:;"
-            tail = (
-                '<script id="snakedone-reports" type="application/json">'
-                + _reports_payload(reports)
-                + "</script>\n"
-                + "\n".join(f"<script>{source}</script>" for source in runtimes)
-            )
-    origins = _image_origins(body)
-    if origins:
-        image_src = (image_src + " " + " ".join(origins)).strip()
-    script_src = " ".join(sources)
+    style, csp, tail = _page_resources(reports, origins=_image_origins(body))
+
     return f"""<!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta http-equiv="Content-Security-Policy"
- content="default-src 'none'; style-src 'unsafe-inline'; img-src {image_src};{font_src}
- script-src {script_src};{frame_src} base-uri 'none'; form-action 'none'">
+<meta http-equiv="Content-Security-Policy" content="{csp}">
 <title>{escape(title)}</title>
 <style>
 {highlight_style}
 @media (prefers-color-scheme: dark) {{ {dark_style} }}
-{STYLE}
+{style}
 </style>
 </head>
 <body><main>

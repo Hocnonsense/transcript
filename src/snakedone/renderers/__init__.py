@@ -7,11 +7,11 @@ individual renderer modules.
 
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, overload, TYPE_CHECKING
-import math
+from typing import TYPE_CHECKING, Any, overload
 
 if TYPE_CHECKING:
     from ..output import Renderer

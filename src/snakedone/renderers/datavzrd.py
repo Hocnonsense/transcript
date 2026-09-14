@@ -1,7 +1,5 @@
 """Datavzrd renderer: snapshot DataFrames and build offline table reports."""
 
-from __future__ import annotations
-
 import json
 import mimetypes
 import shutil
@@ -12,7 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ..output import Renderer, dataframe_csv
-from . import load_spec, register, jsonify
+from . import jsonify, load_spec, register
 
 _NAMED_MAPPINGS = {"views", "datasets", "columns", "links", "link-to-url", "headers"}
 _UNSUPPORTED_OPTIONS = {
@@ -118,10 +116,10 @@ def datavzrd(frame: Any, config: Mapping[str, Any] | str | Path | None = None):
         config = {}
     elif not isinstance(config, Mapping):
         raise TypeError("Datavzrd config must be a mapping or a YAML filename")
-    snapshot = jsonify(config, context="Datavzrd config") | {
-        "views": {"results": {"dataset": "data"}},
-    }
-    views = snapshot.get("views")
+    snapshot = {"views": {"results": {"dataset": "data"}}} | jsonify(
+        config, context="Datavzrd config"
+    )
+    views = snapshot["views"]
     if isinstance(views, dict) and len(views) == 1 and "default-view" not in snapshot:
         snapshot["default-view"] = next(iter(views))
     return Datavzrd(dataframe_csv(frame), snapshot)
@@ -212,8 +210,6 @@ class Datavzrd(Renderer):
                 raise RuntimeError("Datavzrd did not produce an index.html entry point")
             return files
 
-    @classmethod
-    def runtime(cls):
-        return (
-            Path(__file__).with_name("datavzrd_runtime.js").read_text(encoding="utf-8")
-        )
+    runtime = (
+        Path(__file__).with_name("datavzrd_runtime.js").read_text(encoding="utf-8")
+    )

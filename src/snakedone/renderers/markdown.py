@@ -1,7 +1,5 @@
 """Renderer for output that should be interpreted as ordinary Markdown."""
 
-from __future__ import annotations
-
 from ..output import Renderer
 from . import register
 
@@ -29,6 +27,3 @@ class Markdown(Renderer):
 
         markdown = MarkdownIt("commonmark", {"html": False}).enable("table")
         return markdown.render(data), {}
-
-    # Markdown output needs no browser runtime.
-    # def runtime(cls):
