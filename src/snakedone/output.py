@@ -121,7 +121,7 @@ class RecordedOutput(NamedTuple):
                 supported = ".".join(str(part) for part in current)
                 return None, (
                     f"unsupported version: {version} for renderer "
-                    f"{renderer.name} (supported: {supported})"
+                    f"{renderer.name} (supported: {op}{supported})"
                 )
         try:
             text, files = renderer.to_html(data)
