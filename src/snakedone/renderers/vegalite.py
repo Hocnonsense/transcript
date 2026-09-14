@@ -18,7 +18,8 @@ _STYLE = """
 .snakedone-chart svg { display: block; margin: 0 auto; max-width: 100%; height: auto; }
 /* The action menu reserves 38px on the right; nudge back to true center. */
 .snakedone-chart .vega-embed.has-actions { transform: translateX(19px); }
-.snakedone-status { display: inline-block; margin-top: .15rem; padding: .1rem .5rem;
+.snakedone-status { display: block; width: max-content; margin: .15rem 0 0 auto;
+                    padding: .1rem .5rem;
                     font: .72rem/1.5 ui-monospace, monospace; color: #888;
                     border: 1px solid #8884; border-radius: 999px; }
 .snakedone-status[data-state="rendering"] { color: #b8860b; border-color: #b8860b66; }
@@ -39,7 +40,7 @@ _LOADER_SCRIPT = """
 (function () {
   const charts = [];
   document.querySelectorAll('script.snakedone-vegalite-spec').forEach(node => {
-    charts.push({node: node, container: node.parentElement});
+    charts.push({ node: node, container: node.parentElement });
   });
   if (!charts.length) return;
   const sources = __SOURCES__;
@@ -77,15 +78,15 @@ _LOADER_SCRIPT = """
       const preview = chart.container.querySelector('.snakedone-preview');
       const target = document.createElement('div');
       const spec = JSON.parse(node.textContent);
-      node.replaceWith(target);
       const config = dark.matches ? darkConfig : {background: 'transparent'};
       vegaEmbed(target, spec, {renderer: 'svg', config}).then(
         () => {
-          if (preview) preview.remove();
+          if (preview) preview.replaceWith(target);
+          else node.before(target);
+          node.remove();
           setState(chart.container, 'interactive');
         },
         () => {
-          target.remove();
           setState(chart.container, 'offline');
         },
       );
@@ -179,7 +180,11 @@ class VegaliteOffline(_VegaliteBase):
         """Render stored data to a static SVG chart with no report files."""
         parsed = json.loads(data)
         cls._validate(parsed)
-        return f'<div class="snakedone-chart">{cls._svg(parsed)}{_STATUS}</div>', {}
+        return (
+            '<div class="snakedone-chart"><div class="snakedone-frame">'
+            f"{cls._svg(parsed)}{_STATUS}</div></div>",
+            {},
+        )
 
 
 @register

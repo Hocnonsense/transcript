@@ -26,7 +26,7 @@ if "snakedone":
     """
     vegalite(pandas_frame, "vegalite.yaml", offline=True)
     """
-    ```snakedone-output vegalite=1
+    ```snakedone-output vegalite_offline=1
     {
       "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
       "data": {
