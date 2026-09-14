@@ -134,6 +134,14 @@ if "snakedone":
     """
     'sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n'
     """
+    print(polars_frame.write_csv())
+    """
+    sample,score,count
+    A,0.8,10
+    B,0.3,25
+    C,0.9,40
+    D,0.6,15
+    """
     polars_frame
     """
     shape: (4, 3)

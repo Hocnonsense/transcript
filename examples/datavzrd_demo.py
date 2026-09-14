@@ -36,4 +36,5 @@ if "snakedone":
     The exported HTML contains both reports and can be shared as one offline file.
     """
     polars_frame.write_csv()
+    print(polars_frame.write_csv())
     polars_frame
