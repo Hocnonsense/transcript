@@ -9,7 +9,7 @@ import textwrap
 from collections.abc import Callable
 from hashlib import sha256
 from html import escape
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 from .output import RecordedOutput, split_output
 from .renderers import get
@@ -23,52 +23,61 @@ body { max-width: 860px; margin: 3rem auto; padding: 0 1.25rem 0 3rem;
        font: 17px/1.65 system-ui, sans-serif; }
 h1, h2, h3 { line-height: 1.25; }
 a { color: #3984c6; }
-pre { padding: 1rem; overflow-x: auto; border: 1px solid #8885;
-      border-radius: .4rem; line-height: 1.5; }
 code { font-family: ui-monospace, monospace; font-size: .9em; }
-.module-docstring { display: flow-root; }
-.doctest { margin: .3rem 0; }
-.doctest-code { margin: 0; padding: 0; border-left: 3px solid #3984c6;
-                font: .9em/1.5 ui-monospace, monospace; }
-.doc-code, .doc-out { display: block; min-width: fit-content;
-                      font: inherit; padding: 0 1rem; }
-.doc-code { padding-top: .65rem; background: #f1f5f9; color: #172033; }
-.doc-out { min-width: 0; padding-bottom: .65rem; }
-.doc-code + .doc-out { padding-top: .35rem; }
-.doc-code:only-child { padding-bottom: .65rem; }
-.doc-out:only-child { padding-top: .65rem; }
-.snakedone-report { margin: .5rem 0 1rem; border: 1px solid #8885;
-                    border-radius: .4rem; overflow: hidden; }
-.doc-text { margin: 0; padding: 0; border: 0; border-radius: 0;
-            font: inherit; }
-@media (prefers-color-scheme: dark) {
-  .doc-code { background: #202b3b; color: #e5eaf1; }
+blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid #8885; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #8885; padding: .35rem .7rem; }
+
+/* bordered boxes */
+.script-code, .doctest-code, .snakedone-report {
+  border: 1px solid #8885; border-radius: .4rem;
 }
+
+/* scripts */
 .script-block { position: relative; margin: 0; padding: 0; border: 0; }
+.script-block[open] { display: flow-root; }
 .script-block:not([open]) { height: 0; }
+.script-code { margin: 0 0 1.5rem; padding: 1rem; overflow-x: auto;
+               line-height: 1.5; }
 .script-toggle { position: absolute; left: -2.25rem; top: 0;
                  width: 1.75rem; height: 1.75rem; display: grid;
                  place-items: center; cursor: pointer; list-style: none;
                  color: #3984c6; border-radius: .25rem; line-height: 1;
                  font: 700 .8rem/1 ui-monospace, monospace; }
 .script-toggle::-webkit-details-marker { display: none; }
-.script-toggle:hover, .script-block[open] > .script-toggle { background: #3984c622; }
 .script-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
-.script-block[open] { display: flow-root; }
+.script-toggle:hover, .script-block[open] > .script-toggle { background: #3984c622; }
 .script-block[open] > .script-toggle {
   position: sticky; top: .5rem; left: auto; z-index: 1;
   margin-left: -2.25rem; margin-bottom: -1.75rem;
 }
-.script-code { margin: 0 0 1.5rem; }
+
+/* docstring and code records */
+.module-docstring { display: flow-root; }
+.doctest { margin: .3rem 0; }
+.doctest-code { overflow: hidden; border-left: 3px solid #3984c6;
+                font: .9em/1.5 ui-monospace, monospace; }
+.doc-text { margin: 0; overflow-x: auto; font: inherit; }
+.doc-code, .doc-out { display: block; padding: 0 1rem; font: inherit; }
+.doc-code { min-width: fit-content; padding-top: .65rem;
+            background: #f1f5f9; color: #172033; }
+.doc-out { padding-bottom: .65rem; }
+.doc-code + .doc-out { padding-top: .35rem; }
+.doc-code:only-child { padding-bottom: .65rem; }
+.doc-out:only-child { padding-top: .65rem; }
+.snakedone-report { margin: .5rem 0 1rem; overflow: hidden; }
+
+/* img */
 img { max-width: 100%; height: auto; }
 main img { display: block; margin: .35rem auto; max-height: 50vh;
            object-fit: contain; cursor: zoom-in; }
 .recorded-image { width: min(100%, calc(50vh * var(--image-ratio))); }
 main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
 main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
-blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid #8885; }
-table { border-collapse: collapse; }
-th, td { border: 1px solid #8885; padding: .35rem .7rem; }
+
+@media (prefers-color-scheme: dark) {
+  .doc-code { background: #202b3b; color: #e5eaf1; }
+}
 @media print {
   body { max-width: none; margin: 0; padding: 0; }
   .script-toggle { display: none !important; }
@@ -121,14 +130,38 @@ def _png_image(line: str) -> tuple[str, int, int] | None:
     return (uri, width, height) if width and height else None
 
 
-Report = tuple[str, dict[str, tuple[str, bytes]]]
+class Report(NamedTuple):
+    """A report to embed in the HTML output.
+
+    The report is identified by its *renderer* name and a unique *id*.
+    The *files* dictionary maps file names to ``(mime, data)`` pairs.
+    """
+
+    chunk: RecordedOutput
+    id: str
+
+    @property
+    def name(self):
+        return self.chunk.renderer.name
+
+    @property
+    def files(self):
+        return self.chunk.files
+
+    @property
+    def block(self):
+        return (
+            '<div class="doc-out"><div class="snakedone-report"'
+            f' data-snakedone-report="{self.id}"'
+            f' data-snakedone-renderer="{self.name}">'
+            f"{self.chunk.text}</div></div>"
+        )
 
 
 def _output_html(
     code_html: str,
     output: str,
     reports: list[Report],
-    report_cache: dict[bytes, dict[str, tuple[str, bytes]]],
 ):
     parts: list[str] = []
     blocks: list[str] = []
@@ -136,34 +169,22 @@ def _output_html(
 
     def flush_text():
         nonlocal code_block
-        output_block = (
-            '<samp class="doc-out">' + "".join(parts) + "</samp>" if parts else ""
-        )
-        if code_block or output_block:
-            blocks.append(
-                '<pre class="doc-text">' + code_block + output_block + "</pre>"
-            )
-        parts.clear()
+        if parts:
+            code_block += f'<samp class="doc-out">{"".join(parts)}</samp>'
+            parts.clear()
+        elif not code_block:
+            return
+        blocks.append(f'<pre class="doc-text">{code_block}</pre>')
         code_block = ""
 
     for chunk in split_output(output):
         if isinstance(chunk, RecordedOutput):
             flush_text()
-            renderer = get(chunk.renderer)
-            assert renderer is not None  # split_output only yields known renderers
-            index = len(reports)
-            key = sha256(chunk.to_text().encode()).digest()
-            if key not in report_cache:
-                report_cache[key] = renderer.build(chunk)
-            reports.append((chunk.renderer, report_cache[key]))
-            blocks.append(
-                '<div class="doc-out"><div class="snakedone-report"'
-                f' data-snakedone-report="report-{index}"'
-                f' data-snakedone-renderer="{escape(chunk.renderer, quote=True)}"'
-                "></div></div>"
-            )
+            report = Report(chunk, f"report-{len(reports)}")
+            reports.append(report)
+            blocks.append(report.block)
             continue
-        for line in chunk.splitlines(keepends=True):
+        for line in str(chunk).splitlines(keepends=True):
             png = _png_image(line)
             if png is None:
                 parts.append(escape(line))
@@ -175,25 +196,20 @@ def _output_html(
                     f' style="--image-ratio: {width / height}"'
                     f' alt="Recorded PNG ({width} × {height} pixels)">'
                 )
-    if blocks:
-        flush_text()
-        return '<div class="doctest-code">' + "".join(blocks) + "</div>"
-    output_block = (
-        '<samp class="doc-out">' + "".join(parts) + "</samp>" if parts else ""
-    )
-    return '<pre class="doctest-code">' + code_block + output_block + "</pre>"
+    flush_text()
+    return f'<div class="doctest-code">{"".join(blocks)}</div>'
 
 
-def _reports_payload(reports: list[Report]) -> str:
+def _reports_payload(reports: list[Report]):
     """Encode report files so they cannot terminate the surrounding script.
 
     Identical files (for example the shared Datavzrd bundle) are stored once.
     """
     pool: dict[str, dict[str, str | bool]] = {}
     registry: dict[str, dict[str, str]] = {}
-    for index, (_, files) in enumerate(reports):
+    for reporter in reports:
         entry: dict[str, str] = {}
-        for name, (mime, data) in files.items():
+        for name, (mime, data) in reporter.files.items():
             digest = sha256(mime.encode() + b"\0" + data).hexdigest()
             if digest not in pool:
                 compressed = gzip.compress(data, compresslevel=9, mtime=0)
@@ -204,7 +220,7 @@ def _reports_payload(reports: list[Report]) -> str:
                     "content": base64.b64encode(payload).decode("ascii"),
                 }
             entry[name] = digest
-        registry[f"report-{index}"] = entry
+        registry[reporter.id] = entry
     encoded = json.dumps({"pool": pool, "reports": registry}, sort_keys=True)
     return encoded.replace("<", "\\u003c").replace(">", "\\u003e")
 
@@ -248,7 +264,6 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
     position = self.position
     parts: list[str] = []
     reports: list[Report] = []
-    report_cache: dict[bytes, dict[str, tuple[str, bytes]]] = {}
 
     cursor = 0
     for block in self.blocks:
@@ -269,7 +284,7 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
             output = self.slot_output(statement)
             parts.append(
                 '<section class="doctest">'
-                + _output_html(highlight_python(code), output, reports, report_cache)
+                + _output_html(highlight_python(code), output, reports)
                 + "</section>"
             )
         parts.append("</section>")
@@ -287,7 +302,8 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
     if reports:
         runtimes: list[str] = []
         seen: set[str] = set()
-        for renderer_name, _ in reports:
+        for reporter in reports:
+            renderer_name = reporter.name
             if renderer_name in seen:
                 continue
             seen.add(renderer_name)

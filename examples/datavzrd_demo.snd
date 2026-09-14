@@ -24,52 +24,48 @@ if "snakedone":
     """
     datavzrd(pandas_frame, "datavzrd.yaml")
     """
-    ```snakedone-output
+    ```snakedone-output datavzrd=1
     {
-      "data": {
-        "config": {
-          "default-view": "scores",
-          "name": "DataFrame measurements",
-          "views": {
-            "raw": {
-              "dataset": "data",
-              "desc": "Original values without column plots."
-            },
-            "scores": {
-              "dataset": "data",
-              "desc": "Scores as bars and counts as a heatmap.",
-              "page-size": 2,
-              "render-table": {
-                "columns": {
-                  "count": {
-                    "plot": {
-                      "heatmap": {
-                        "color-scheme": "blues",
-                        "scale": "linear"
-                      }
+      "config": {
+        "default-view": "scores",
+        "name": "DataFrame measurements",
+        "views": {
+          "raw": {
+            "dataset": "data",
+            "desc": "Original values without column plots."
+          },
+          "scores": {
+            "dataset": "data",
+            "desc": "Scores as bars and counts as a heatmap.",
+            "page-size": 2,
+            "render-table": {
+              "columns": {
+                "count": {
+                  "plot": {
+                    "heatmap": {
+                      "color-scheme": "blues",
+                      "scale": "linear"
+                    }
+                  }
+                },
+                "score": {
+                  "plot": {
+                    "bars": {
+                      "domain": [
+                        0,
+                        1
+                      ],
+                      "scale": "linear"
                     }
                   },
-                  "score": {
-                    "plot": {
-                      "bars": {
-                        "domain": [
-                          0,
-                          1
-                        ],
-                        "scale": "linear"
-                      }
-                    },
-                    "precision": 2
-                  }
+                  "precision": 2
                 }
               }
             }
           }
-        },
-        "csv": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n"
+        }
       },
-      "renderer": "datavzrd",
-      "version": 2
+      "csv": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n"
     }
     ```
     """
@@ -80,57 +76,75 @@ if "snakedone":
     """
     datavzrd(polars_frame, "datavzrd.yaml")
     """
-    ```snakedone-output
+    ```snakedone-output datavzrd=1
     {
-      "data": {
-        "config": {
-          "default-view": "scores",
-          "name": "DataFrame measurements",
-          "views": {
-            "raw": {
-              "dataset": "data",
-              "desc": "Original values without column plots."
-            },
-            "scores": {
-              "dataset": "data",
-              "desc": "Scores as bars and counts as a heatmap.",
-              "page-size": 2,
-              "render-table": {
-                "columns": {
-                  "count": {
-                    "plot": {
-                      "heatmap": {
-                        "color-scheme": "blues",
-                        "scale": "linear"
-                      }
+      "config": {
+        "default-view": "scores",
+        "name": "DataFrame measurements",
+        "views": {
+          "raw": {
+            "dataset": "data",
+            "desc": "Original values without column plots."
+          },
+          "scores": {
+            "dataset": "data",
+            "desc": "Scores as bars and counts as a heatmap.",
+            "page-size": 2,
+            "render-table": {
+              "columns": {
+                "count": {
+                  "plot": {
+                    "heatmap": {
+                      "color-scheme": "blues",
+                      "scale": "linear"
+                    }
+                  }
+                },
+                "score": {
+                  "plot": {
+                    "bars": {
+                      "domain": [
+                        0,
+                        1
+                      ],
+                      "scale": "linear"
                     }
                   },
-                  "score": {
-                    "plot": {
-                      "bars": {
-                        "domain": [
-                          0,
-                          1
-                        ],
-                        "scale": "linear"
-                      }
-                    },
-                    "precision": 2
-                  }
+                  "precision": 2
                 }
               }
             }
           }
-        },
-        "csv": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n"
+        }
       },
-      "renderer": "datavzrd",
-      "version": 2
+      "csv": "sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n"
     }
     ```
+    """
+    polars_frame.write_csv()
+    """
+    'sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n'
     """
 
 if "snakedone":
     """
     The exported HTML contains both reports and can be shared as one offline file.
+    """
+    polars_frame.write_csv()
+    """
+    'sample,score,count\\nA,0.8,10\\nB,0.3,25\\nC,0.9,40\\nD,0.6,15\\n'
+    """
+    polars_frame
+    """
+    shape: (4, 3)
+    ┌────────┬───────┬───────┐
+    │ sample ┆ score ┆ count │
+    │ ---    ┆ ---   ┆ ---   │
+    │ str    ┆ f64   ┆ i64   │
+    ╞════════╪═══════╪═══════╡
+    │ A      ┆ 0.8   ┆ 10    │
+    │ B      ┆ 0.3   ┆ 25    │
+    │ C      ┆ 0.9   ┆ 40    │
+    │ D      ┆ 0.6   ┆ 15    │
+    └────────┴───────┴───────┘
     """

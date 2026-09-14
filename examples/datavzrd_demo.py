@@ -29,8 +29,11 @@ if "snakedone":
     ## polars
     """
     datavzrd(polars_frame, "datavzrd.yaml")
+    polars_frame.write_csv()
 
 if "snakedone":
     """
     The exported HTML contains both reports and can be shared as one offline file.
     """
+    polars_frame.write_csv()
+    polars_frame

@@ -1,13 +1,17 @@
 """Snapshot explicitly selected rich outputs into portable record blocks."""
 
-import json
 import re
+from logging import warning
 from typing import Any, NamedTuple
 
-from .renderers import get
+from .renderers import Renderer, get
 
-_FENCE = re.compile(r"^```snakedone-output[ \t]*(?:\r?\n)?$")
-_CLOSE_FENCE = re.compile(r"^```[ \t]*(?:\r?\n)?$")
+_FENCE = re.compile(
+    r"(?P<fence>```(`*))snakedone-output"
+    r"[ \t]+(?P<renderer>\w+)"
+    r"((?P<op>==|>=|<=|>|<|=)(?P<version>\d+(?:\.\d+)*))?"
+    r"[ \t]*\r?\n?$"
+)
 
 
 def dataframe_csv(frame: Any):
@@ -25,35 +29,84 @@ def dataframe_csv(frame: Any):
     return content
 
 
+def fence(renderer: Renderer, data: str):
+    """Wrap serialized renderer *data* in a ``snakedone-output`` fence."""
+    header = renderer.name
+    version = getattr(renderer, "version", None)
+    if version is not None:
+        header += "=" + ".".join(str(part) for part in version)
+    body = data.rstrip("\n")
+    fence = "```"
+    while fence in body:
+        fence += "`"
+    return f"{fence}snakedone-output {header}\n{body}\n{fence}\n"
+
+
 class RecordedOutput(NamedTuple):
-    """Renderer-defined data stored in a snakedone-output fence."""
+    """A rendered output
+    the HTML filling its slot and its report files.
+    """
 
-    renderer: str
-    data: Any
+    renderer: type[Renderer]
+    text: str
+    files: dict[str, tuple[str, bytes]]
 
-    def validate(self):
-        """Validate both author-created outputs and restored archive payloads."""
-        if not isinstance(self.renderer, str) or not self.renderer:
-            raise ValueError("snakedone-output requires a renderer name")
-        renderer = get(self.renderer)
+    @classmethod
+    def validate(
+        cls,
+        renderer_name: str,
+        data: str,
+        op: str | None = None,
+        version: str | None = None,
+    ):
+        """Check that the stored *data* is valid for the named renderer and version.
+        Return ``(output, None)`` or ``(None, reason)`` for stored *data*.
+        """
+        if not isinstance(renderer_name, str) or not renderer_name:
+            return None, f"requires a renderer name, got {renderer_name!r}"
+        renderer = get(renderer_name)
         if renderer is None:
-            raise ValueError("Unsupported snakedone-output renderer")
-        renderer.validate(self)
+            return None, f"unknown renderer: {renderer_name}"
+        current = getattr(renderer, "version", None)
+        if current is not None and version is not None:
+            declared = _parse_version(version)
+            if not _version_ok(op, declared, current):
+                supported = ".".join(str(part) for part in current)
+                return None, (
+                    f"unsupported version: {version} for renderer "
+                    f"{renderer.name} (supported: {supported})"
+                )
+        try:
+            text, files = renderer.to_html(data)
+        except Exception as error:
+            return None, f"renderer {renderer.name} failed to render: {error}"
+        return cls(renderer, text, files), None
 
-    def to_text(self):
-        self.validate()
-        payload = {
-            "version": 2,
-            "renderer": self.renderer,
-            "data": self.data,
-        }
-        encoded = json.dumps(payload, sort_keys=True, indent=2, allow_nan=False)
-        return f"```snakedone-output\n{encoded}\n```\n"
-
-    def __repr__(self) -> str:
-        return self.to_text().removesuffix("\n")
+    def __repr__(self):
+        return self.text.removesuffix("\n")
 
     __str__ = __repr__
+
+
+def _parse_version(value: str):
+    return tuple(int(part) for part in value.split("."))
+
+
+def _version_ok(op, declared, current):
+    """Whether the installed *current* version satisfies the declared constraint."""
+    if op is None:
+        return True
+    if op in ("=", "=="):
+        return current == declared
+    if op == ">":
+        return current > declared
+    if op == ">=":
+        return current >= declared
+    if op == "<":
+        return current < declared
+    if op == "<=":
+        return current <= declared
+    return False
 
 
 def split_output(text: str):
@@ -62,32 +115,28 @@ def split_output(text: str):
     cursor = 0
     plain_start = 0
     while cursor < len(lines):
-        if not _FENCE.fullmatch(lines[cursor]):
+        header = _FENCE.fullmatch(lines[cursor])
+        if not header:
             cursor += 1
             continue
         end = cursor + 1
-        while end < len(lines) and not _CLOSE_FENCE.fullmatch(lines[end]):
+        close_fence = re.compile(r"^" + header.group("fence") + r"[ \t]*(?:\r?\n)?$")
+        while end < len(lines) and not close_fence.fullmatch(lines[end]):
             end += 1
         if end == len(lines):
-            raise ValueError("Unterminated snakedone-output block")
-        try:
-            payload = json.loads("".join(lines[cursor + 1 : end]))
-        except json.JSONDecodeError as error:
-            raise ValueError("Invalid JSON in snakedone-output block") from error
-        if (
-            not isinstance(payload, dict)
-            or type(payload.get("version")) is not int
-            or not isinstance(payload.get("renderer"), str)
-        ):
-            raise ValueError("snakedone-output requires integer version and renderer")
-        if payload["version"] != 2 or get(payload["renderer"]) is None:
-            # Unknown versions and renderers stay readable as plain text.
+            warning(f"Incomplete snakedone-output block: {lines[cursor].rstrip()}")
+            yield "".join(lines[plain_start:])
+            return
+        body = "".join(lines[cursor + 1 : end]).removesuffix("\n")
+        output, reason = RecordedOutput.validate(
+            header.group("renderer"), body, header.group("op"), header.group("version")
+        )
+        if output is None:
+            warning(f"Invalid snakedone-output block: {reason}")
+            yield "".join(lines[plain_start : end + 1])
             cursor = end + 1
+            plain_start = cursor
             continue
-        if "data" not in payload:
-            raise ValueError("snakedone-output requires data")
-        output = RecordedOutput(renderer=payload["renderer"], data=payload["data"])
-        output.validate()
         if plain_start < cursor:
             yield "".join(lines[plain_start:cursor])
         yield output

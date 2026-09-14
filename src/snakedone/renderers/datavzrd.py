@@ -11,10 +11,10 @@ import subprocess
 import tempfile
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import Any, TypeVar, overload
 
-from ..output import RecordedOutput, dataframe_csv
-from . import register
+from ..output import dataframe_csv, fence
+from . import Renderer, register
 
 _NAMED_MAPPINGS = {"views", "datasets", "columns", "links", "link-to-url", "headers"}
 _UNSUPPORTED_OPTIONS = {
@@ -34,7 +34,16 @@ _UNSUPPORTED_OPTIONS = {
 }
 
 
-def _json_value(value: Any) -> Any:
+T = TypeVar("T", str, bool, int, float, None)
+
+
+@overload
+def _json_value(value: Mapping[str, Any]) -> dict[str, Any]: ...
+@overload
+def _json_value(value: list[Any] | tuple[Any, ...]) -> list[Any]: ...
+@overload
+def _json_value(value: T) -> T: ...
+def _json_value(value):
     """Copy configuration so subsequent mutations cannot change a snapshot."""
     if isinstance(value, Mapping):
         if not all(isinstance(key, str) for key in value):
@@ -72,7 +81,7 @@ def _check_options(value: Any, location: str = "config", *, properties=True) -> 
             _check_options(item, location)
 
 
-def _validate_config(config: dict[str, Any]) -> None:
+def _validate_config(config: dict[str, Any]):
     _json_value(config)
     _check_options(config)
     if config.get("webview-controls", False):
@@ -115,9 +124,7 @@ def _validate_config(config: dict[str, Any]) -> None:
             raise ValueError("Datavzrd default-view must name an archived view")
 
 
-def datavzrd(
-    frame: Any, config: Mapping[str, Any] | str | Path | None = None
-) -> RecordedOutput:
+def datavzrd(frame: Any, config: Mapping[str, Any] | str | Path | None = None):
     """Record a DataFrame for Datavzrd table rendering during HTML export.
 
     ``config`` is a native Datavzrd configuration mapping or YAML filename.
@@ -145,52 +152,62 @@ def datavzrd(
             raise ValueError("Datavzrd YAML configuration must contain a mapping")
     if config is None:
         config = {}
-    if not isinstance(config, Mapping):
+    elif not isinstance(config, Mapping):
         raise TypeError("Datavzrd config must be a mapping or a YAML filename")
     snapshot = _json_value(config)
     snapshot.setdefault("views", {"results": {"dataset": "data"}})
     views = snapshot.get("views")
     if isinstance(views, dict) and len(views) == 1 and "default-view" not in snapshot:
         snapshot["default-view"] = next(iter(views))
-    output = RecordedOutput(
-        renderer="datavzrd",
-        data={"csv": dataframe_csv(frame), "config": snapshot},
-    )
-    output.validate()
-    return output
+    return Datavzrd({"csv": dataframe_csv(frame), "config": snapshot})
 
 
-class Datavzrd:
+class Datavzrd(Renderer):
     """Registered renderer for ``snakedone.datavzrd`` snapshots."""
 
     name = "datavzrd"
+    version = (1,)
 
-    def validate(self, output: RecordedOutput) -> None:
-        if not isinstance(output.data, dict):
+    def __init__(self, py_obj):
+        self._validate(py_obj)
+        self.obj = py_obj
+
+    def to_snd(self):
+        """Serialize the CSV and configuration into the archived fence."""
+        body = json.dumps(self.obj, sort_keys=True, indent=2, allow_nan=False)
+        return fence(self, body)
+
+    @classmethod
+    def to_html(cls, data: str):
+        """Validate stored data, then return its inner HTML and report files."""
+        return "", cls._build(data)
+
+    @classmethod
+    def _validate(cls, data):
+        if not isinstance(data, dict):
             raise ValueError("Datavzrd output data must be a mapping")
-        if not isinstance(output.data.get("csv"), str):
+        if not isinstance(data.get("csv"), str):
             raise ValueError("Datavzrd output data requires CSV string content")
-        if not isinstance(output.data.get("config"), dict):
+        if not isinstance(data.get("config"), dict):
             raise ValueError("Datavzrd output config must be a mapping")
-        _validate_config(output.data["config"])
+        _validate_config(data["config"])
 
-    def build(self, output: RecordedOutput) -> dict[str, tuple[str, bytes]]:
+    @classmethod
+    def _build(cls, data: str) -> dict[str, tuple[str, bytes]]:
         """Return all report files; no temporary paths survive in the result."""
-        output.validate()
+        parsed = json.loads(data)
         executable = shutil.which("datavzrd")
         if executable is None:
             raise RuntimeError(
                 "Datavzrd HTML export requires the datavzrd executable on PATH; "
                 "install it with: conda install -c conda-forge datavzrd"
             )
-        config = copy.deepcopy(output.data["config"])
+        config = copy.deepcopy(parsed["config"])
         dataset = config.setdefault("datasets", {}).setdefault("data", {})
         dataset["path"] = "data.csv"
-        with tempfile.TemporaryDirectory(prefix="snakedone-datavzrd-") as temporary:
-            root = Path(temporary)
-            (root / "data.csv").write_text(
-                output.data["csv"], encoding="utf-8", newline=""
-            )
+        with tempfile.TemporaryDirectory(prefix="snakedone-datavzrd-") as directory:
+            root = Path(directory)
+            (root / "data.csv").write_text(parsed["csv"], encoding="utf-8", newline="")
             (root / "config.yaml").write_text(
                 json.dumps(config, ensure_ascii=False, allow_nan=False),
                 encoding="utf-8",
@@ -221,10 +238,11 @@ class Datavzrd:
                 raise RuntimeError("Datavzrd did not produce an index.html entry point")
             return files
 
-    def runtime(self) -> str:
+    @classmethod
+    def runtime(cls):
         return (
             Path(__file__).with_name("datavzrd_runtime.js").read_text(encoding="utf-8")
         )
 
 
-register(Datavzrd())
+register(Datavzrd)
