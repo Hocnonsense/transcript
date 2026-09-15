@@ -30,7 +30,7 @@ table { border-collapse: collapse; }
 th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 
 /* bordered boxes */
-.script-code, .doctest-code, .snakedone-report {
+.script-code, .doctest-code {
   border: 1px solid #8885; border-radius: .4rem;
 }
 
@@ -65,7 +65,6 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .doc-code + .doc-out { padding-top: .35rem; }
 .doc-code:only-child { padding-bottom: .65rem; }
 .doc-out:only-child { padding-top: .65rem; }
-.snakedone-report { margin: .5rem 0 1rem; overflow: hidden; }
 
 /* img */
 img { max-width: 100%; height: auto; }

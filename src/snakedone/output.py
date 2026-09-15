@@ -112,10 +112,10 @@ class Report:
     @property
     def block(self):
         return (
-            '<div class="doc-out"><div class="snakedone-report"'
+            '<div class="snakedone-report"'
             f' data-snakedone-report="{self.id}"'
             f' data-snakedone-renderer="{self.name}">'
-            f"{self.chunk.text}</div></div>"
+            f"{self.chunk.text}</div>"
         )
 
 
