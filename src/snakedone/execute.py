@@ -3,6 +3,8 @@
 import __future__ as future
 
 import ast
+
+# import builtins
 import io
 import sys
 import types
@@ -102,6 +104,18 @@ def execute(self: AstDocument, path: Path):
         stream = io.StringIO()
         old = sys.stdout
         sys.stdout = stream
+
+        # def displayhook(value):
+        #     from .renderers.vegalite import is_altair_chart, vegalite
+
+        #     if is_altair_chart(value):
+        #         setattr(builtins, "_", value)
+        #         print(repr(vegalite(value)))
+        #     else:
+        #         old_displayhook(value)
+
+        # old_displayhook = sys.displayhook
+        # sys.displayhook = displayhook
         try:
             exec(
                 compile(
@@ -118,6 +132,7 @@ def execute(self: AstDocument, path: Path):
             raise
         finally:
             sys.stdout = old
+            # sys.displayhook = old_displayhook
         captured = stream.getvalue()
         return text(captured) if captured else ""
 

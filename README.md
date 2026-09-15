@@ -223,33 +223,38 @@ If configuration validation or rendering fails, HTML export reports an error and
 
 ### Vega-Lite charts
 
-Wrap a pandas or polars `DataFrame` to render it as a static [Vega-Lite](https://vega.github.io/vega-lite/) chart in the HTML report:
+[Vega-Lite](https://vega.github.io/vega-lite/) chart from [Altair](https://altair-viz.github.io/) used as a report expression is automatically recorded with the Vega-Lite renderer:
 
 ```python
+import altair as alt
 import pandas as pd
 
-from snakedone import vegalite
-
 frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
+chart = alt.Chart(frame).mark_bar().encode(
+    x="sample:N",
+    y="score:Q",
+    tooltip=["sample:N", "score:Q"],
+)
 
 if "snakedone":
     """
-    ## Static chart
+    ## Altair chart
     """
-    vegalite(frame, {"mark": "bar", "encoding": {
-        "x": {"field": "sample", "type": "nominal"},
-        "y": {"field": "score", "type": "quantitative"},
-    }})
+    vegalite(chart)
 ```
 
 Install the renderer with `python -m pip install -e '.[vegalite]'`.
-`vegalite(frame, spec)` records the spec plus the DataFrame rows; `spec` may be a mapping or a `.json`/YAML filename, resolved against the current working directory.
-snakedone manages the chart data, so the spec's own `data` and `datasets` are replaced by the recorded rows bound to the top-level `data`.
-The [pandas and polars example](examples/vegalite_demo.py) builds a pure static chart from a shared [YAML specification](examples/vegalite.yaml) and a default interactive scatter from an inline spec.
+snakedone snapshots the chart's Vega-Lite specification and data, so the archive
+does not depend on the original DataFrame.
 
 HTML export inlines a static SVG preview with `vl-convert`, so the report is always a single offline file.
 By default the preview is upgraded to an interactive chart when the page is opened online (disabled by `offline=True`).
-The plotting area defaults to 800 × 450; `"width": "container"` only works in the interactive chart.
+Use `vegalite(chart, offline=True)` when the Altair chart should remain a pure
+static SVG instead of upgrading to an interactive chart online.
+
+Alternatively, `vegalite(config, data=None)` accepts a custom Vega-Lite
+configuration and optional pandas or polars data. See the
+[custom configuration and data example](examples/vegalite_demo.py).
 
 ### Labelled outputs
 

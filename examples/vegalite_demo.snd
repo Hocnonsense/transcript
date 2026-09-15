@@ -24,7 +24,7 @@ if "snakedone":
 
     ## pandas (offline)
     """
-    vegalite(pandas_frame, "vegalite.yaml", offline=True)
+    vegalite("vegalite.yaml", pandas_frame, offline=True)
     """
     ```snakedone-output vegalite_offline=1
     {
@@ -96,7 +96,7 @@ if "snakedone":
     """
     ## polars (interactive)
     """
-    vegalite(polars_frame, config_dict)
+    vegalite(config_dict, polars_frame)
     """
     ```snakedone-output vegalite_interactive=1
     {

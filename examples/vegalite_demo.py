@@ -24,7 +24,7 @@ if "snakedone":
 
     ## pandas (offline)
     """
-    vegalite(pandas_frame, "vegalite.yaml", offline=True)
+    vegalite("vegalite.yaml", pandas_frame, offline=True)
 
 config_dict = {
     "width": 500,
@@ -45,4 +45,4 @@ if "snakedone":
     """
     ## polars (interactive)
     """
-    vegalite(polars_frame, config_dict)
+    vegalite(config_dict, polars_frame)

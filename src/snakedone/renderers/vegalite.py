@@ -1,10 +1,18 @@
 """Vega-Lite renderer: snapshot DataFrames as SVG or upgraded charts."""
 
+from __future__ import annotations
+
 import json
 from collections.abc import Mapping
+from typing import TYPE_CHECKING, TypeIs
 
 from ..output import Renderer
 from . import ConfigType, jsonify, load_spec, register
+
+if TYPE_CHECKING:
+    import altair as alt
+
+    ConfigOrFig = ConfigType | alt.TopLevelMixin
 
 _CDN = [
     "https://cdn.jsdelivr.net/npm/vega@6",
@@ -114,14 +122,24 @@ def _records(rows):
     return jsonify(rows, context="Vega-Lite output")
 
 
-def vegalite(data, spec: ConfigType, *, offline: bool = False):
-    """Record a DataFrame for Vega-Lite rendering during HTML export.
+def is_altair_chart(value) -> TypeIs[alt.TopLevelMixin]:
+    """Return whether *value* is an Altair top-level chart object."""
+    try:
+        import altair as alt
+    except ImportError:
+        return False
+    return isinstance(value, alt.TopLevelMixin)
 
-    ``spec`` is a Vega-Lite specification mapping or a ``.json``/YAML filename.
-    snakedone manages the chart data: the recorded rows are bound to the
-    top-level ``data``, so the spec must not depend on its own ``data`` or
-    ``datasets``. Relative filenames are resolved against the current working
-    directory, like any Python file read.
+
+def vegalite(spec: ConfigOrFig, data=None, *, offline: bool = False):
+    """Record a Vega-Lite spec, optionally replacing its data.
+
+    ``spec`` is a TopLevelMixin, Vega-Lite specification mapping or configfile.
+    When ``data`` is provided, snakedone snapshots its DataFrame rows into
+    the top-level ``data`` and replaces any ``data`` or ``datasets`` already
+    in the spec. With no ``data`` argument, the complete spec is preserved.
+    Relative filenames are resolved against the current working directory,
+    like any Python file read.
 
     By default the chart is a static preview that a browser upgrades to an
     interactive chart (tooltips, zoom, action menu) once the Vega runtime can
@@ -130,15 +148,25 @@ def vegalite(data, spec: ConfigType, *, offline: bool = False):
     chart a pure static SVG: no dynamic rendering, no CDN, and the report keeps
     its strict Content Security Policy.
     """
-    spec = load_spec(spec)
-    if not isinstance(spec, Mapping):
-        raise TypeError("Vega-Lite spec must be a mapping or a JSON/YAML filename")
+
+    if is_altair_chart(spec):
+        spec = spec.to_dict()
+    else:
+        spec = load_spec(spec)
+        if not isinstance(spec, Mapping):
+            raise TypeError("Vega-Lite spec must be a mapping or a JSON/YAML filename")
     snapshot = jsonify(spec, context="Vega-Lite output")
-    snapshot.pop("data", None)
-    snapshot.pop("datasets", None)
+    if data is not None:
+        snapshot.pop("datasets", None)
+        snapshot["data"] = {"values": _records(data)}
     snapshot.setdefault("width", _DEFAULT_WIDTH)
     snapshot.setdefault("height", _DEFAULT_HEIGHT)
-    snapshot["data"] = {"values": _records(data)}
+    return _output(snapshot, offline=offline)
+
+
+def _output(spec, *, offline: bool):
+    """Wrap a complete Vega-Lite specification in the selected renderer."""
+    snapshot = jsonify(spec, context="Vega-Lite output")
     return (VegaliteOffline if offline else VegaliteInteractive)(snapshot)
 
 
