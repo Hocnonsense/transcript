@@ -12,7 +12,13 @@ dependencies = []
 [project.optional-dependencies]
 html = ["markdown-it-py>=3,<5", "pygments>=2.18,<3"]
 datavzrd = ["markdown-it-py>=3,<5", "pygments>=2.18,<3", "PyYAML>=6,<7"]
-vegalite = ["markdown-it-py>=3,<5", "pygments>=2.18,<3", "vl-convert-python>=1,<2", "PyYAML>=6,<7"]
+vegalite = [
+    "altair>=5,<7",
+    "markdown-it-py>=3,<5",
+    "pygments>=2.18,<3",
+    "vl-convert-python>=1,<2",
+    "PyYAML>=6,<7",
+]
 
 [project.scripts]
 snakedone = "snakedone.cli:main"
@@ -31,10 +37,15 @@ ruff = "*"
 pyright = "*"
 pandas = "*"
 polars = "*"
+altair = "*"
 datavzrd = "*"
 
 [tool.pixi.pypi-dependencies]
-snakedone = { path = ".", editable = true, extras = ["html", "datavzrd", "vegalite"] }
+snakedone = { path = ".", editable = true, extras = [
+    "html",
+    "datavzrd",
+    "vegalite",
+] }
 
 [tool.pixi.tasks]
 test = "pytest"
@@ -43,7 +54,7 @@ lint = "ruff check ."
 typecheck = "pyright"
 check = { depends-on = ["lint", "typecheck", "test"] }
 demo = "snakedone examples/demo.py"
-serve = "python examples/serve.py"
+demo-serve = "python examples/serve.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

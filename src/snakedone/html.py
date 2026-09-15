@@ -3,10 +3,12 @@
 import base64
 import binascii
 import gzip
+import io
 import json
 import re
 import struct
 import textwrap
+import tokenize
 from collections.abc import Callable
 from hashlib import sha256
 from html import escape
@@ -74,6 +76,11 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .doc-code, .doc-out { display: block; padding: 0 1rem; font: inherit; }
 .doc-code { min-width: fit-content; padding-top: .65rem;
             background: #f1f5f9; color: #172033; }
+.doc-line { position: relative; display: block; padding-left: 4ch; }
+.doc-line::before { position: absolute; left: 0; content: "... ";
+                    user-select: none; -webkit-user-select: none; }
+.doc-line:first-child::before { content: ">>> "; }
+.doc-line.multiline-string::before { content: ""; }
 .doc-out { padding-bottom: .65rem; }
 .doc-code + .doc-out { padding-top: .35rem; }
 .doc-code:only-child { padding-bottom: .65rem; }
@@ -188,10 +195,19 @@ def _output_html(
     output: str,
     reports: list[Report],
     ireport: str,
+    multiline_string_lines: set[int] | None = None,
 ):
     parts: list[str] = []
     blocks: list[str] = []
-    code_block = '<code class="doc-code">' + code_html.removesuffix("\n") + "</code>"
+    code_lines = code_html.removesuffix("\n").split("\n")
+    multiline_string_lines = multiline_string_lines or set()
+    prompted_code = "".join(
+        '<span class="doc-line'
+        + (" multiline-string" if lineno in multiline_string_lines else "")
+        + f'">{line}</span>'
+        for lineno, line in enumerate(code_lines, start=1)
+    )
+    code_block = '<code class="doc-code">' + prompted_code + "</code>"
 
     def flush_text():
         nonlocal code_block
@@ -337,6 +353,15 @@ def _script_html(source: str, highlight_python: Callable[[str], str]):
     )
 
 
+def _multiline_string_lines(source: str):
+    """Return physical lines inside multiline strings after their first line."""
+    string_interior_lines: set[int] = set()
+    for token in tokenize.generate_tokens(io.StringIO(source).readline):
+        if token.type == tokenize.STRING and token.start[0] != token.end[0]:
+            string_interior_lines.update(range(token.start[0] + 1, token.end[0] + 1))
+    return string_interior_lines
+
+
 def render(self: AstDocument, *, title: str = "snakedone document") -> str:
     """Render recorded content as offline HTML without executing the document."""
     try:
@@ -377,7 +402,19 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
             rendered = _external_links(markdown.render(prose))
             parts.append('<div class="doc-md">' + rendered + "</div>")
         for istatement, statement in enumerate(block.statements):
-            code = self.source[statement.start : statement.end]
+            line_start = self.source.rfind("\n", 0, statement.start) + 1
+            line_end = self.source.find("\n", statement.end)
+            if line_end == -1:
+                line_end = len(self.source)
+            physical_code = self.source[line_start:line_end]
+            multiline_string_lines = _multiline_string_lines(physical_code)
+            indent = self.source[line_start : statement.start]
+            code = "".join(
+                line if lineno in multiline_string_lines else line.removeprefix(indent)
+                for lineno, line in enumerate(
+                    physical_code.splitlines(keepends=True), start=1
+                )
+            )
             output = self.slot_output(statement)
             parts.append(
                 _output_html(
@@ -385,6 +422,7 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
                     output,
                     reports,
                     f"report-{iblock}-{istatement}",
+                    multiline_string_lines,
                 )
             )
         parts.append("</section>")
