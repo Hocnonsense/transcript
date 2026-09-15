@@ -12,6 +12,9 @@ _CDN = [
     "https://cdn.jsdelivr.net/npm/vega-embed@6",
 ]
 
+_DEFAULT_WIDTH = 800
+_DEFAULT_HEIGHT = 450
+
 _STYLE = """
 /* static and interactive Vega-Lite charts */
 .snakedone-chart { margin: .5rem 0; text-align: center; }
@@ -133,6 +136,8 @@ def vegalite(data, spec: ConfigType, *, offline: bool = False):
     snapshot = jsonify(spec, context="Vega-Lite output")
     snapshot.pop("data", None)
     snapshot.pop("datasets", None)
+    snapshot.setdefault("width", _DEFAULT_WIDTH)
+    snapshot.setdefault("height", _DEFAULT_HEIGHT)
     snapshot["data"] = {"values": _records(data)}
     return (VegaliteOffline if offline else VegaliteInteractive)(snapshot)
 
