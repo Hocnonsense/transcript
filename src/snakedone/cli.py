@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .document import parse
+from .renderers.label import set_cache
 from .snd import write
 
 
@@ -135,12 +136,15 @@ def py2snd_subprocess(args, target: Path):
 
 def snd2html(path: Path, target: Path):
     source = path.read_text(encoding="utf-8-sig")
+    previous_cache = set_cache({})
     try:
         document = parse(source, str(path))
         candidate = document.render_html(title=path.stem)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        write(target, candidate)
     except Exception as error:
         print(f"snakedone: {error}", file=sys.stderr)
         return 2
+    finally:
+        set_cache(previous_cache)
+    target.parent.mkdir(parents=True, exist_ok=True)
+    write(target, candidate)
     return 0

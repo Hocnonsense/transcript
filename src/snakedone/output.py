@@ -1,9 +1,9 @@
 """Snapshot explicitly selected rich outputs into portable record blocks."""
 
 import re
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from logging import warning
-from typing import Any, NamedTuple, Protocol, runtime_checkable
+from typing import NamedTuple, Protocol, runtime_checkable
 
 from .renderers import get
 
@@ -46,6 +46,7 @@ class Renderer(Protocol):
     version: tuple[int, ...] | None = None
     STYLE = ""
     """CSS needed by this renderer in exported HTML."""
+
     def __init__(self):
         """Wrap the Python object this renderer serializes."""
         ...
@@ -79,8 +80,12 @@ class Renderer(Protocol):
         ...
 
     @classmethod
-    def merge_children(cls, text: str, child_blocks: Sequence[str]):
-        """Return a new output node with the same renderer and text but new children."""
+    def render_node(cls, output: RecordedOutput, child_blocks: Iterable[str]):
+        """Render one output node after its child reports have been rendered.
+        This method is called recursively from ``RecordedOutput.to_report``
+         to produce the final HTML.
+        """
+        text = output.text
         for block in child_blocks:
             text += "\n" + block
         return text
@@ -189,7 +194,7 @@ class RecordedOutput(NamedTuple):
             child.to_report(f"{ireport}-{i}", reports).block
             for i, child in enumerate(self.children)
         )
-        html = self.renderer.merge_children(self.text, child_blocks)
+        html = self.renderer.render_node(self, child_blocks)
         report = Report(self._replace(text=html, children=()), ireport)
         reports.append(report)
         return report
@@ -219,41 +224,37 @@ def _version_ok(op, declared, current):
 def split_output(text: str):
     """Split recognized blocks while retaining ordinary text and future formats."""
     lines = text.splitlines(keepends=True)
-    cursor = 0
-    plain_start = 0
+    plain_start = cursor = 0
     while cursor < len(lines):
         header = _FENCE.fullmatch(lines[cursor])
         if not header:
             cursor += 1
             continue
-        end = cursor + 1
         close_fence = re.compile(r"^" + header.group("fence") + r"[ \t]*(?:\r?\n)?$")
-        while end < len(lines) and not close_fence.fullmatch(lines[end]):
-            end += 1
-        if end == len(lines):
+        for end, line in enumerate(lines[cursor + 1 :], start=cursor + 1):
+            if close_fence.fullmatch(line):
+                break
+        else:
             warning(f"Incomplete snakedone-output block: {lines[cursor].rstrip()}")
             yield "".join(lines[plain_start:])
             return
+        if plain_start < cursor:
+            yield "".join(lines[plain_start:cursor])
         body = "".join(lines[cursor + 1 : end]).removesuffix("\n")
         output, reason = RecordedOutput.validate(
             header.group("renderer"), body, header.group("op"), header.group("version")
         )
         if output is None:
             warning(f"Invalid snakedone-output block: {reason}")
-            yield "".join(lines[plain_start : end + 1])
-            cursor = end + 1
-            plain_start = cursor
-            continue
-        if plain_start < cursor:
-            yield "".join(lines[plain_start:cursor])
-        yield output
-        cursor = end + 1
-        plain_start = cursor
+            yield "".join(lines[cursor : end + 1])
+        else:
+            yield output
+        cursor = plain_start = end + 1
     if plain_start < len(lines):
         yield "".join(lines[plain_start:])
 
 
-def dataframe_csv(frame: Any):
+def dataframe_csv(frame):
     """Export pandas or polars through their public CSV methods, without imports."""
     if callable(getattr(frame, "to_csv", None)) and hasattr(frame, "index"):
         index = frame.index
