@@ -55,8 +55,21 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 
 /* docstring and code records */
 .module-docstring { display: flow-root; }
-.doctest-code { margin: .3rem 0; overflow: hidden; border-left: 3px solid #3984c6;
+.doctest-code { position: relative; margin: .3rem 0; overflow: hidden;
+                border-left: 3px solid #3984c6;
                 font: .9em/1.5 ui-monospace, monospace; }
+.doctest-code[data-boxed] { overflow: visible; }
+.doctest-code[data-boxed="false"] {
+  margin: 0; border: 0; border-radius: 0;
+}
+.doctest-code[data-boxed="false"] > .doc-text { display: none; }
+.output-box-toggle { position: absolute; left: -2.25rem; top: .3rem;
+                     width: 1.75rem; height: 1.75rem; cursor: pointer;
+                     color: #3984c6; border: 0; border-radius: .25rem;
+                     background: transparent;
+                     font: 700 .8rem/1 ui-monospace, monospace; }
+.output-box-toggle:hover { background: #3984c622; }
+.output-box-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 .doc-text { margin: 0; overflow-x: auto; font: inherit; }
 .doc-code, .doc-out { display: block; padding: 0 1rem; font: inherit; }
 .doc-code { min-width: fit-content; padding-top: .65rem;
@@ -102,6 +115,18 @@ document.querySelectorAll('main img').forEach(image => {
       toggleImage();
     }
   });
+});
+
+document.querySelectorAll('.doctest-code[data-boxed]').forEach(block => {
+  const toggle = block.querySelector(':scope > .output-box-toggle');
+  if (!toggle) return;
+  function setBoxed(boxed) {
+    block.dataset.boxed = String(boxed);
+    toggle.setAttribute('aria-expanded', String(boxed));
+    toggle.title = boxed ? 'Hide code and frame' : 'Show code and frame';
+  }
+  toggle.addEventListener('click', () => setBoxed(block.dataset.boxed !== 'true'));
+  setBoxed(block.dataset.boxed === 'true');
 });
 """
 
@@ -178,12 +203,14 @@ def _output_html(
         blocks.append(f'<pre class="doc-text">{code_block}</pre>')
         code_block = ""
 
-    ichunk = 0
-    for chunk in split_output(output):
+    report_rendered = False
+    for ichunk, chunk in enumerate(split_output(output)):
         if isinstance(chunk, RecordedOutput):
             flush_text()
-            blocks.append(chunk.to_report(f"{ireport}-{ichunk}", reports))
-            ichunk += 1
+            report_rendered = True
+            report = chunk.to_report(f"{ireport}-{ichunk}", reports)
+            boxed = report.boxed
+            blocks.append(report.block)
             continue
         for line in str(chunk).splitlines(keepends=True):
             png = _png_image(line)
@@ -206,7 +233,17 @@ def _output_html(
                 continue
             parts.append(escape(line))
     flush_text()
-    return f'<div class="doctest-code">{"".join(blocks)}</div>'
+    content = "".join(blocks)
+    if not report_rendered:
+        return f'<div class="doctest-code">{content}</div>'
+    boxed = ichunk != 0 or report.boxed
+    expanded = str(boxed).lower()
+    toggle = (
+        '<button class="output-box-toggle" type="button"'
+        f' aria-label="Show or hide code and frame" aria-expanded="{expanded}">'
+        '<span aria-hidden="true">&lt;/&gt;</span></button>'
+    )
+    return f'<div class="doctest-code" data-boxed="{expanded}">{toggle}{content}</div>'
 
 
 def _reports_payload(reports: list[Report]):

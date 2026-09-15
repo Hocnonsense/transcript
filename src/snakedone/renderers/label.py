@@ -100,7 +100,7 @@ class Label(Renderer):
         if caption:
             figure += f"<figcaption>{escape(caption)}</figcaption>"
         figure += "</figure>"
-        return cls._htmlout(figure, {}, (inner,))
+        return cls._htmlout(figure, {}, (inner,), boxed=inner.boxed)
 
     @classmethod
     def merge_children(cls, text, child_blocks):

@@ -46,7 +46,6 @@ class Renderer(Protocol):
     version: tuple[int, ...] | None = None
     STYLE = ""
     """CSS needed by this renderer in exported HTML."""
-
     def __init__(self):
         """Wrap the Python object this renderer serializes."""
         ...
@@ -63,9 +62,16 @@ class Renderer(Protocol):
         return self.to_snd().removesuffix("\n")
 
     @classmethod
-    def _htmlout(cls, text: str, files: dict[str, tuple[str, bytes]], children=()):
+    def _htmlout(
+        cls,
+        text: str,
+        files: dict[str, tuple[str, bytes]],
+        children=(),
+        *,
+        boxed=True,
+    ):
         """Quickly return a ``RecordedOutput`` for the given HTML and report files."""
-        return RecordedOutput(cls, text, files, children)
+        return RecordedOutput(cls, text, files, children, boxed)
 
     @classmethod
     def to_html(cls, sndata: str) -> RecordedOutput:
@@ -110,6 +116,10 @@ class Report:
         return self.chunk.files
 
     @property
+    def boxed(self):
+        return self.chunk.boxed
+
+    @property
     def block(self):
         return (
             '<div class="snakedone-report"'
@@ -130,6 +140,8 @@ class RecordedOutput(NamedTuple):
     """Report-relative file names mapped to their MIME type and byte content."""
     children: Sequence[RecordedOutput] = ()
     """Nested outputs substituted into the corresponding slots in ``text``."""
+    boxed: bool = True
+    """Initial state of the statement code and its surrounding output box."""
 
     @classmethod
     def validate(
@@ -174,13 +186,13 @@ class RecordedOutput(NamedTuple):
         Add id to childs for reference in `h_reports_payload`
         """
         child_blocks = (
-            child.to_report(f"{ireport}-{i}", reports)
+            child.to_report(f"{ireport}-{i}", reports).block
             for i, child in enumerate(self.children)
         )
         html = self.renderer.merge_children(self.text, child_blocks)
         report = Report(self._replace(text=html, children=()), ireport)
         reports.append(report)
-        return report.block
+        return report
 
 
 def _parse_version(value: str):
