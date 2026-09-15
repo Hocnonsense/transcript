@@ -18,6 +18,15 @@ if "snakedone":
     """
     label(measurements, "sample-a", "Sample A measurements")
 
+
+from pathlib import Path
+
+readme = Path(__file__).parent.parent / "README.md"
+
+if "snakedone":
+    Markdown(readme.read_text(encoding="utf-8"))
+
+
 if "snakedone":
     """
     The [measurements above](#sample-a) use the fallback renderer. A label can
