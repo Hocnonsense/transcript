@@ -1,10 +1,31 @@
 """Snapshot explicitly selected rich outputs into portable record blocks."""
 
 import re
+from collections.abc import Sequence
 from logging import warning
 from typing import Any, NamedTuple, Protocol, runtime_checkable
 
 from .renderers import get
+
+_FENCE = re.compile(
+    r"(?P<fence>```(`*))snakedone-output"
+    r"[ \t]+(?P<renderer>\w+)"
+    r"((?P<op>==|>=|<=|>|<|=)(?P<version>\d+(?:\.\d+)*))?"
+    r"[ \t]*\r?\n?$"
+)
+
+
+def fence(renderer: Renderer, data: str):
+    """Wrap serialized renderer *data* in a ``snakedone-output`` fence."""
+    header = renderer.name
+    version = getattr(renderer, "version", None)
+    if version is not None:
+        header += "=" + ".".join(str(part) for part in version)
+    body = data.rstrip("\n")
+    marker = "```"
+    while marker in body:
+        marker += "`"
+    return f"{marker}snakedone-output {header}\n{body}\n{marker}\n"
 
 
 @runtime_checkable
@@ -42,9 +63,21 @@ class Renderer(Protocol):
         return self.to_snd().removesuffix("\n")
 
     @classmethod
-    def to_html(cls, sndata: str) -> tuple[str, dict[str, tuple[str, bytes]]]:
-        """Validate stored *data* and return ``(html, files)``."""
+    def _htmlout(cls, text: str, files: dict[str, tuple[str, bytes]], children=()):
+        """Quickly return a ``RecordedOutput`` for the given HTML and report files."""
+        return RecordedOutput(cls, text, files, children)
+
+    @classmethod
+    def to_html(cls, sndata: str) -> RecordedOutput:
+        """Validate stored *data* and return a rendered output tree."""
         ...
+
+    @classmethod
+    def merge_children(cls, text: str, child_blocks: Sequence[str]):
+        """Return a new output node with the same renderer and text but new children."""
+        for block in child_blocks:
+            text += "\n" + block
+        return text
 
     runtime = None
     """Browser script serving the embedded report"""
@@ -53,50 +86,50 @@ class Renderer(Protocol):
     """Extra Content-Security-Policy sources for this renderer"""
 
 
-_FENCE = re.compile(
-    r"(?P<fence>```(`*))snakedone-output"
-    r"[ \t]+(?P<renderer>\w+)"
-    r"((?P<op>==|>=|<=|>|<|=)(?P<version>\d+(?:\.\d+)*))?"
-    r"[ \t]*\r?\n?$"
-)
+class Report:
+    """A report to embed in the HTML output.
 
+    The report is identified by its *renderer* name and a unique *id*.
+    The *files* dictionary maps file names to ``(mime, data)`` pairs.
+    """
 
-def dataframe_csv(frame: Any):
-    """Export pandas or polars through their public CSV methods, without imports."""
-    if callable(getattr(frame, "to_csv", None)) and hasattr(frame, "index"):
-        index = frame.index
-        include_index = index.name is not None or type(index).__name__ != "RangeIndex"
-        content = frame.to_csv(index=include_index, lineterminator="\n")
-    elif callable(getattr(frame, "write_csv", None)):
-        content = frame.write_csv(line_terminator="\n")
-    else:
-        raise TypeError("datavzrd expects a pandas or polars DataFrame")
-    if not isinstance(content, str):
-        raise TypeError("DataFrame CSV export must return a string")
-    return content
+    def __init__(self, chunk: RecordedOutput, id: str):
+        self.chunk = chunk
+        self.id = id
+        if self.files and not chunk.renderer.runtime:
+            raise RuntimeError(
+                f"Renderer {self.name!r} has report files but no offline HTML runtime"
+            )
 
+    @property
+    def name(self):
+        return self.chunk.renderer.name
 
-def fence(renderer: Renderer, data: str):
-    """Wrap serialized renderer *data* in a ``snakedone-output`` fence."""
-    header = renderer.name
-    version = getattr(renderer, "version", None)
-    if version is not None:
-        header += "=" + ".".join(str(part) for part in version)
-    body = data.rstrip("\n")
-    marker = "```"
-    while marker in body:
-        marker += "`"
-    return f"{marker}snakedone-output {header}\n{body}\n{marker}\n"
+    @property
+    def files(self):
+        return self.chunk.files
+
+    @property
+    def block(self):
+        return (
+            '<div class="doc-out"><div class="snakedone-report"'
+            f' data-snakedone-report="{self.id}"'
+            f' data-snakedone-renderer="{self.name}">'
+            f"{self.chunk.text}</div></div>"
+        )
 
 
 class RecordedOutput(NamedTuple):
-    """A rendered output
-    the HTML filling its slot and its report files.
-    """
+    """A rendered output and its recursively nested report nodes."""
 
     renderer: type[Renderer]
+    """Renderer class that owns this output and contributes its browser assets."""
     text: str
+    """Rendered HTML, with optional ``{{i}}`` slots for ``children[i]``."""
     files: dict[str, tuple[str, bytes]]
+    """Report-relative file names mapped to their MIME type and byte content."""
+    children: Sequence[RecordedOutput] = ()
+    """Nested outputs substituted into the corresponding slots in ``text``."""
 
     @classmethod
     def validate(
@@ -124,15 +157,30 @@ class RecordedOutput(NamedTuple):
                     f"{renderer.name} (supported: {op}{supported})"
                 )
         try:
-            text, files = renderer.to_html(data)
+            rendered = renderer.to_html(data)
         except Exception as error:
             return None, f"renderer {renderer.name} failed to render: {error}"
-        return cls(renderer, text, files), None
+        if not isinstance(rendered, RecordedOutput):
+            return None, f"renderer {renderer.name} did not return RecordedOutput"
+        return rendered, None
 
     def __repr__(self):
         return self.text.removesuffix("\n")
 
     __str__ = __repr__
+
+    def to_report(self, ireport: str, reports: list[Report]):
+        """Render *node*, substituting nested report blocks for child tokens.
+        Add id to childs for reference in `h_reports_payload`
+        """
+        child_blocks = (
+            child.to_report(f"{ireport}-{i}", reports)
+            for i, child in enumerate(self.children)
+        )
+        html = self.renderer.merge_children(self.text, child_blocks)
+        report = Report(self._replace(text=html, children=()), ireport)
+        reports.append(report)
+        return report.block
 
 
 def _parse_version(value: str):
@@ -191,3 +239,18 @@ def split_output(text: str):
         plain_start = cursor
     if plain_start < len(lines):
         yield "".join(lines[plain_start:])
+
+
+def dataframe_csv(frame: Any):
+    """Export pandas or polars through their public CSV methods, without imports."""
+    if callable(getattr(frame, "to_csv", None)) and hasattr(frame, "index"):
+        index = frame.index
+        include_index = index.name is not None or type(index).__name__ != "RangeIndex"
+        content = frame.to_csv(index=include_index, lineterminator="\n")
+    elif callable(getattr(frame, "write_csv", None)):
+        content = frame.write_csv(line_terminator="\n")
+    else:
+        raise TypeError("datavzrd expects a pandas or polars DataFrame")
+    if not isinstance(content, str):
+        raise TypeError("DataFrame CSV export must return a string")
+    return content

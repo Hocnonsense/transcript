@@ -180,7 +180,7 @@ class VegaliteOffline(_VegaliteBase):
         """Render stored data to a static SVG chart with no report files."""
         parsed = json.loads(data)
         cls._validate(parsed)
-        return (
+        return cls._htmlout(
             '<div class="snakedone-chart"><div class="snakedone-frame">'
             f"{cls._svg(parsed)}{_STATUS}</div></div>",
             {},
@@ -200,7 +200,7 @@ class VegaliteInteractive(_VegaliteBase):
         cls._validate(parsed)
         body = json.dumps(parsed, sort_keys=True, separators=(",", ":"))
         body = body.replace("<", "\\u003c")
-        return (
+        return cls._htmlout(
             '<div class="snakedone-chart">'
             f'<div class="snakedone-preview">{cls._svg(parsed)}</div>'
             f"{_STATUS}"

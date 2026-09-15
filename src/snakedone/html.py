@@ -13,7 +13,7 @@ from html import escape
 from typing import TYPE_CHECKING
 from urllib.parse import urlsplit
 
-from .output import RecordedOutput, split_output
+from .output import RecordedOutput, Report, split_output
 
 if TYPE_CHECKING:
     from .document import AstDocument
@@ -55,8 +55,7 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 
 /* docstring and code records */
 .module-docstring { display: flow-root; }
-.doctest { margin: .3rem 0; }
-.doctest-code { overflow: hidden; border-left: 3px solid #3984c6;
+.doctest-code { margin: .3rem 0; overflow: hidden; border-left: 3px solid #3984c6;
                 font: .9em/1.5 ui-monospace, monospace; }
 .doc-text { margin: 0; overflow-x: auto; font: inherit; }
 .doc-code, .doc-out { display: block; padding: 0 1rem; font: inherit; }
@@ -160,43 +159,11 @@ def _png_image(line: str) -> tuple[str, int, int] | None:
     return (uri, width, height) if width and height else None
 
 
-class Report:
-    """A report to embed in the HTML output.
-
-    The report is identified by its *renderer* name and a unique *id*.
-    The *files* dictionary maps file names to ``(mime, data)`` pairs.
-    """
-
-    def __init__(self, chunk: RecordedOutput, id: str):
-        self.chunk = chunk
-        self.id = id
-        if self.files and not chunk.renderer.runtime:
-            raise RuntimeError(
-                f"Renderer {self.name!r} has report files but no offline HTML runtime"
-            )
-
-    @property
-    def name(self):
-        return self.chunk.renderer.name
-
-    @property
-    def files(self):
-        return self.chunk.files
-
-    @property
-    def block(self):
-        return (
-            '<div class="doc-out"><div class="snakedone-report"'
-            f' data-snakedone-report="{self.id}"'
-            f' data-snakedone-renderer="{self.name}">'
-            f"{self.chunk.text}</div></div>"
-        )
-
-
 def _output_html(
     code_html: str,
     output: str,
     reports: list[Report],
+    ireport: str,
 ):
     parts: list[str] = []
     blocks: list[str] = []
@@ -212,12 +179,12 @@ def _output_html(
         blocks.append(f'<pre class="doc-text">{code_block}</pre>')
         code_block = ""
 
+    ichunk = 0
     for chunk in split_output(output):
         if isinstance(chunk, RecordedOutput):
             flush_text()
-            report = Report(chunk, f"report-{len(reports)}")
-            reports.append(report)
-            blocks.append(report.block)
+            blocks.append(chunk.to_report(f"{ireport}-{ichunk}", reports))
+            ichunk += 1
             continue
         for line in str(chunk).splitlines(keepends=True):
             png = _png_image(line)
@@ -358,9 +325,8 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
     position = self.position
     parts: list[str] = []
     reports: list[Report] = []
-
     cursor = 0
-    for block in self.blocks:
+    for iblock, block in enumerate(self.blocks):
         node = block.node
         assert node.end_lineno is not None and node.end_col_offset is not None
         start = position(node.lineno, node.col_offset)
@@ -374,13 +340,16 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
         if prose:
             rendered = _external_links(markdown.render(prose))
             parts.append('<div class="doc-md">' + rendered + "</div>")
-        for statement in block.statements:
+        for istatement, statement in enumerate(block.statements):
             code = self.source[statement.start : statement.end]
             output = self.slot_output(statement)
             parts.append(
-                '<section class="doctest">'
-                + _output_html(highlight_python(code), output, reports)
-                + "</section>"
+                _output_html(
+                    highlight_python(code),
+                    output,
+                    reports,
+                    f"report-{iblock}-{istatement}",
+                )
             )
         parts.append("</section>")
 
@@ -388,7 +357,7 @@ def render(self: AstDocument, *, title: str = "snakedone document") -> str:
     if script:
         parts.append(script)
     body = "\n".join(parts)
-    style, csp, tail = _page_resources(reports, origins=_image_origins(body))
+    style, csp, tail = _page_resources(reports, _image_origins(body))
 
     return f"""<!doctype html>
 <html lang="en">

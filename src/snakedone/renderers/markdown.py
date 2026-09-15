@@ -26,4 +26,4 @@ class Markdown(Renderer):
         from markdown_it import MarkdownIt
 
         markdown = MarkdownIt("commonmark", {"html": False}).enable("table")
-        return markdown.render(data), {}
+        return cls._htmlout(markdown.render(data), {})
