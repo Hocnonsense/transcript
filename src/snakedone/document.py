@@ -23,6 +23,7 @@ class AstDocument(NamedTuple):
     source: str
     tree: ast.Module
     position: Callable[[int, int], int]
+    """(line, column) -> character offset in the source."""
     regions: dict[int, Region]
 
     def indent_of(self, start: int):

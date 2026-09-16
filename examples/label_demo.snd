@@ -4,6 +4,8 @@ Jump to the [measurements](#sample-a) or the
 [quality decision](#sample-a-decision).
 """
 
+from pathlib import Path
+
 from snakedone import Markdown, label
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
@@ -26,8 +28,6 @@ if "snakedone":
     ````
     """
 
-
-from pathlib import Path
 
 readme = Path(__file__).parent.parent / "README.md"
 
@@ -267,10 +267,14 @@ if "snakedone":
     import pandas as pd
 
     frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
-    chart = alt.Chart(frame).mark_bar().encode(
-        x="sample:N",
-        y="score:Q",
-        tooltip=["sample:N", "score:Q"],
+    chart = (
+        alt.Chart(frame)
+        .mark_bar()
+        .encode(
+            x="sample:N",
+            y="score:Q",
+            tooltip=["sample:N", "score:Q"],
+        )
     )
 
     if "snakedone":

@@ -4,6 +4,8 @@ Jump to the [measurements](#sample-a) or the
 [quality decision](#sample-a-decision).
 """
 
+from pathlib import Path
+
 from snakedone import Markdown, label
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
@@ -18,8 +20,6 @@ if "snakedone":
     """
     label(measurements, "sample-a", "Sample A measurements")
 
-
-from pathlib import Path
 
 readme = Path(__file__).parent.parent / "README.md"
 

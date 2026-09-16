@@ -1,0 +1,257 @@
+"""Static CSS and JavaScript shipped with every exported page."""
+
+STYLE = """
+:root { color-scheme: light dark; --unit: 1.25rem; --body-max: 860px;
+        --side: 15rem; --side-rail: 2.25rem; }
+body { margin: 0; font: 17px/1.65 system-ui, sans-serif; }
+.page { max-width: 860px; margin: 3rem auto; padding: 0 1.25rem 0 3rem; }
+/* The body and navigate share one centered grid. The navigate keeps the same
+   top-right position at every width; only the body's reservation changes, so
+   nothing jumps. Below the breakpoint it floats over the body instead. */
+.page--navigate { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+                 gap: var(--unit); margin: 3rem auto;
+                 padding: 0 var(--unit);
+                 max-width: calc(var(--body-max) + var(--side) + 3 * var(--unit)); }
+.page--navigate > main { grid-area: 1 / 1; max-width: var(--body-max); }
+.page--navigate > .navigate { grid-area: 1 / 2; }
+.navigate { position: sticky; top: 3rem; align-self: start; z-index: 20;
+           width: var(--side); max-height: calc(100vh - 6rem);
+           overflow-y: auto; box-sizing: border-box;
+           padding-right: .75rem; border-right: 1px solid #8885;
+           font-size: .9rem; transition: width .2s ease; }
+.navigate-tabs { display: flex; gap: .25rem; margin-bottom: .5rem; }
+.navigate-tab { display: flex; align-items: center; flex: 1; min-width: 0;
+               border-bottom: 2px solid transparent; }
+.navigate-tab[data-active="true"] { border-bottom-color: #3984c6; }
+.navigate-tab-body { flex: 1; min-width: 0; padding: .15rem .25rem;
+                    background: none; border: 0; cursor: pointer;
+                    color: #888; font: inherit; text-align: left;
+                    white-space: nowrap; overflow: hidden;
+                    text-overflow: ellipsis; }
+.navigate-tab[data-active="true"] .navigate-tab-body {
+  color: inherit; font-weight: 600; }
+.navigate-tab-toggle { flex: none; width: 1.4rem; height: 1.4rem; display: grid;
+                      place-items: center; background: none; border: 0;
+                      cursor: pointer; border-radius: .25rem;
+                      font: 700 .9rem/1 ui-monospace, monospace; }
+.navigate-tab-toggle[aria-pressed="true"] { color: #3984c6; }
+.navigate-tab-toggle[aria-pressed="false"] { color: #888; }
+.navigate-eye { display: grid; width: 1rem; height: 1rem; }
+.navigate-eye svg { grid-area: 1 / 1; width: 100%; height: 100%; fill: none;
+                    stroke: currentColor; stroke-width: 1.5;
+                    stroke-linecap: round; stroke-linejoin: round; }
+.navigate-tab-toggle[aria-pressed="true"] .navigate-eye-closed,
+.navigate-tab-toggle[aria-pressed="false"] .navigate-eye-open { display: none; }
+.navigate-tab-toggle:hover { background: #3984c622; }
+.navigate-tab-body:focus-visible, .navigate-tab-toggle:focus-visible {
+  outline: 2px solid #3984c6; outline-offset: 2px; }
+/* Nothing open: a compact bordered box of vertical tabs, same at every width. */
+.navigate[data-collapsed="true"] { top: 3rem; width: var(--side-rail);
+                                  height: auto; max-height: calc(100vh - 6rem);
+                                  padding: .4rem .2rem;
+                                  border: 1px solid #8885; border-radius: .4rem;
+                                  background: canvas; box-shadow: none; }
+.navigate[data-collapsed="true"] .navigate-list { display: none; }
+.navigate[data-collapsed="true"] .navigate-tabs { flex-direction: column; gap: .3rem;
+                                                margin-bottom: 0; }
+.navigate[data-collapsed="true"] .navigate-tab { flex: none; border-bottom: 0;
+                                               border-left: 2px solid transparent; }
+.navigate[data-collapsed="true"] .navigate-tab-toggle { display: none; }
+.navigate[data-collapsed="true"] .navigate-tab-body { flex: none; padding: .4rem .1rem;
+                                                    writing-mode: vertical-rl; }
+.navigate ol { list-style: none; margin: 0; padding: 0; }
+.navigate li { margin: .1rem 0; }
+.navigate a { display: block; padding: .1rem .5rem; color: inherit;
+             text-decoration: none; border-left: 2px solid transparent; }
+.navigate a:hover { color: #3984c6; border-left-color: #3984c6; }
+.navigate .toc-l1 a { font-weight: 600; }
+.navigate .toc-l2 a { padding-left: 1.25rem; }
+.navigate .toc-l3 a { padding-left: 2rem; }
+.navigate .toc-l4 a, .navigate .toc-l5 a, .navigate .toc-l6 a { padding-left: 2.75rem; }
+.navigate .toc-label a { padding-left: 1.25rem; }
+.navigate .toc-label a::before { content: "◆ "; color: #888; font-size: .7em;
+                                vertical-align: .15em; }
+h1, h2, h3 { line-height: 1.25; }
+a { color: #3984c6; }
+code { font-family: ui-monospace, monospace; font-size: .9em; }
+blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid #8885; }
+table { border-collapse: collapse; }
+th, td { border: 1px solid #8885; padding: .35rem .7rem; }
+
+/* bordered boxes */
+.script-code, .doctest-code {
+  border: 1px solid #8885; border-radius: .4rem;
+}
+
+/* scripts */
+.script-block { position: relative; margin: 0; padding: 0; border: 0; }
+.script-block[open] { display: flow-root; }
+.script-block:not([open]) { height: 0; }
+.script-code { margin: 0 0 1.5rem; padding: 1rem; overflow-x: auto;
+               line-height: 1.5; }
+/* The toggle lives in the left gutter, whose width is the layout unit, so it
+   never takes space from the body. */
+.script-toggle { position: absolute; left: calc(-1 * var(--unit)); top: 0;
+                 width: var(--unit); height: var(--unit); display: grid;
+                 place-items: center; cursor: pointer; list-style: none;
+                 color: #3984c6; border-radius: .25rem; line-height: 1;
+                 font: 700 .6rem/1 ui-monospace, monospace; }
+.script-toggle::-webkit-details-marker { display: none; }
+.script-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+.script-toggle:hover, .script-block[open] > .script-toggle { background: #3984c622; }
+.script-block[open] > .script-toggle {
+  position: sticky; top: .5rem; left: auto; z-index: 1;
+  margin-left: calc(-1 * var(--unit)); margin-bottom: calc(-1 * var(--unit));
+}
+
+/* docstring and code records */
+.report-block { display: flow-root; }
+.doctest-code { position: relative; margin: .3rem 0; overflow: hidden;
+                border-left: 3px solid #3984c6;
+                font: .9em/1.5 ui-monospace, monospace; }
+.doctest-code[data-boxed] { overflow: visible; }
+.doctest-code[data-boxed="false"] {
+  margin: 0; border: 0; border-radius: 0;
+}
+.doctest-code[data-boxed="false"] > .doc-text { display: none; }
+.output-box-toggle { position: absolute; left: calc(-1 * var(--unit)); top: .3rem;
+                     width: var(--unit); height: var(--unit); cursor: pointer;
+                     color: #3984c6; border: 0; border-radius: .25rem;
+                     background: transparent;
+                     font: 700 .6rem/1 ui-monospace, monospace; }
+.output-box-toggle:hover { background: #3984c622; }
+.output-box-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+.doc-text { margin: 0; overflow-x: auto; font: inherit; }
+.doc-code, .doc-out { display: block; padding: 0 1rem; font: inherit; }
+.doc-code { min-width: fit-content; padding-top: .65rem;
+            background: #f1f5f9; color: #172033; }
+.doc-line { position: relative; display: block; padding-left: 4ch; }
+.doc-line::before { position: absolute; left: 0; content: "... ";
+                    user-select: none; -webkit-user-select: none; }
+.doc-line:first-child::before { content: ">>> "; }
+.doc-line.multiline-string::before { content: ""; }
+.doc-out { padding-bottom: .65rem; }
+.doc-code + .doc-out { padding-top: .35rem; }
+.doc-code:only-child { padding-bottom: .65rem; }
+.doc-out:only-child { padding-top: .65rem; }
+
+/* img */
+img { max-width: 100%; height: auto; }
+main img { display: block; margin: .35rem auto; max-height: 50vh;
+           object-fit: contain; cursor: zoom-in; }
+.recorded-image { width: min(100%, calc(50vh * var(--image-ratio))); }
+main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
+main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+
+@media (max-width: 920px) {
+  /* Below the body's limit the navigate floats over the text instead of taking
+     a column, so the body uses the full width and the navigate starts closed.
+     Its top-right position is unchanged, so it does not jump. */
+  .page--navigate { display: block; }
+  .page--navigate > main { margin: 0 auto; }
+  /* A collapsed box sits between the body and the right edge, so the body
+     yields its width; an opened panel just floats over the body. */
+  .page--navigate:has(.navigate[data-collapsed="true"]) > main {
+    margin-left: 0;
+    margin-right: calc(var(--side-rail) + var(--unit)); }
+  .navigate { position: fixed; top: 3rem; right: var(--unit); left: auto;
+             background: canvas; color: canvastext;
+             border: 1px solid #8885; border-radius: .4rem;
+             box-shadow: -2px 0 12px #0002; }
+}
+@media (prefers-color-scheme: dark) {
+  .doc-code { background: #202b3b; color: #e5eaf1; }
+}
+@media print {
+  .page { max-width: none; margin: 0; padding: 0; }
+  .page--navigate { display: block; }
+  .navigate { display: none; }
+  .script-toggle { display: none !important; }
+}
+"""
+
+IMAGE_SCRIPT = """
+document.querySelectorAll('main img').forEach(image => {
+  image.tabIndex = 0;
+  image.setAttribute('role', 'button');
+  image.setAttribute('aria-pressed', 'false');
+  image.title = 'Click to expand to text width';
+  function toggleImage() {
+    const expanded = image.classList.toggle('image-expanded');
+    image.setAttribute('aria-pressed', String(expanded));
+    image.title = expanded
+      ? 'Click to restore preview' : 'Click to expand to text width';
+  }
+  image.addEventListener('click', toggleImage);
+  image.addEventListener('keydown', event => {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleImage();
+    }
+  });
+});
+
+document.querySelectorAll('.doctest-code[data-boxed]').forEach(block => {
+  const toggle = block.querySelector(':scope > .output-box-toggle');
+  if (!toggle) return;
+  function setBoxed(boxed) {
+    block.dataset.boxed = String(boxed);
+    toggle.setAttribute('aria-expanded', String(boxed));
+    toggle.title = boxed ? 'Hide code and frame' : 'Show code and frame';
+  }
+  toggle.addEventListener('click', () => setBoxed(block.dataset.boxed !== 'true'));
+  setBoxed(block.dataset.boxed === 'true');
+});
+"""
+
+# One merged list holds every anchor in document order. A tab's toggle adds or
+# removes its type from the list; the tab body isolates that type. Types are
+# discovered from the markup, so a future "reference" tab needs no change here.
+NAVIGATE_SCRIPT = """
+document.querySelectorAll('.navigate').forEach(navigate => {
+  const tabs = Array.from(navigate.querySelectorAll('.navigate-tab'));
+  const list = navigate.querySelector('.navigate-list');
+  if (!list || tabs.length < 2) return;
+  const entries = Array.from(list.querySelectorAll('[data-snakedone-type]'));
+  function enabled() {
+    return list.dataset.snakedoneShow.split(/\\s+/).filter(Boolean);
+  }
+  function setEnabled(names) {
+    list.dataset.snakedoneShow = names.join(' ');
+    entries.forEach(entry => {
+      entry.hidden = !names.includes(entry.dataset.snakedoneType);
+    });
+    tabs.forEach(tab => {
+      const on = names.includes(tab.dataset.snakedoneType);
+      tab.dataset.active = String(on);
+      const toggle = tab.querySelector('.navigate-tab-toggle');
+      toggle.setAttribute('aria-pressed', String(on));
+    });
+    navigate.dataset.collapsed = String(names.length === 0);
+  }
+  tabs.forEach(tab => {
+    const type = tab.dataset.snakedoneType;
+    tab.querySelector('.navigate-tab-toggle').addEventListener('click', () => {
+      const names = enabled();
+      setEnabled(names.includes(type)
+        ? names.filter(name => name !== type) : [...names, type]);
+    });
+    tab.querySelector('.navigate-tab-body').addEventListener('click', () => {
+      setEnabled([type]);
+    });
+  });
+  // Below M + 3u the navigate floats over the text, so it opens automatically
+  // above that width and starts collapsed below it. The same breakpoint also
+  // lets a click on the page collapse the floating navigate again.
+  const narrow = window.matchMedia('(max-width: 920px)');
+  const firstType = tabs[0].dataset.snakedoneType;
+  function sync(event) {
+    setEnabled(event.matches ? [] : [firstType]);
+  }
+  sync(narrow);
+  narrow.addEventListener('change', sync);
+  document.addEventListener('click', event => {
+    if (narrow.matches && !navigate.contains(event.target)) setEnabled([]);
+  });
+});
+"""

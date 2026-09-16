@@ -40,8 +40,7 @@ _STYLE = """
 # A status hint next to every chart: ``offline`` (static preview), ``rendering``
 # (loading the runtime), ``interactive`` (the dynamic chart is live).
 _STATUS = (
-    '<span class="snakedone-status" data-state="offline" role="status">'
-    "offline</span>"
+    '<span class="snakedone-status" data-state="offline" role="status">offline</span>'
 )
 
 # The report starts from the static preview and upgrades it to an interactive
