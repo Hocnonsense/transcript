@@ -6,6 +6,7 @@ import struct
 from html import escape
 from io import BytesIO
 from pathlib import Path
+from typing import Any
 
 from ..output import Renderer
 from . import register
@@ -43,7 +44,7 @@ def _png_dimensions(data: bytes) -> tuple[int, int] | None:
     return None
 
 
-def _matplotlib_figure(value):
+def _matplotlib_figure(value) -> Any:
     """Return the Figure behind a Figure, Axes, Artist, or artist sequence."""
     if callable(getattr(value, "savefig", None)):
         return value
