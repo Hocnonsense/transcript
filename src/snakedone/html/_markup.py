@@ -1,9 +1,6 @@
 """Helpers that recognize and rewrite online resources in generated markup."""
 
-import base64
-import binascii
 import re
-import struct
 from urllib.parse import urlsplit
 
 _EXTERNAL_IMAGE = re.compile(r"^!\[(?P<alt>[^\]]*)\]\((?P<url>https?://[^)\s]+)\)\s*$")
@@ -33,26 +30,3 @@ def image_origins(html: str):
         parsed = urlsplit(match.group("url"))
         origins.add(f"{parsed.scheme}://{parsed.netloc}")
     return sorted(origins)
-
-
-def png_image(line: str) -> tuple[str, int, int] | None:
-    """Recognize a PNG data URI
-    return its URI, width, and height."""
-    uri = line.strip()
-    if uri.startswith("![](") and uri.endswith(")"):
-        uri = uri[4:-1]
-    prefix = "data:image/png;base64,"
-    if not uri.startswith(prefix):
-        return None
-    try:
-        payload = base64.b64decode(uri[len(prefix) :], validate=True)
-    except ValueError, binascii.Error:
-        return None
-    if (
-        len(payload) < 33
-        or not payload.startswith(b"\x89PNG\r\n\x1a\n")
-        or payload[12:16] != b"IHDR"
-    ):
-        return None
-    width, height = struct.unpack(">II", payload[16:24])
-    return (uri, width, height) if width and height else None

@@ -1,15 +1,17 @@
-"""A Python document recording text, a CSV table, a base64 PNG, and a Datavzrd table."""
+"""A Python document recording text, bitmap images, and a DataFrame table."""
 
-import base64
 import json
 import struct
 import zlib
 from pathlib import Path
 
+import matplotlib.pyplot as plt
 import pandas as pd
 
+from snakedone import image
 
-def png_data_uri(red: int):
+
+def png_bytes(red: int):
     """Encode a deterministic one-pixel RGB PNG using only the stdlib."""
 
     def chunk(kind: bytes, payload: bytes):
@@ -18,13 +20,21 @@ def png_data_uri(red: int):
             struct.pack(">I", len(payload)) + body + struct.pack(">I", zlib.crc32(body))
         )
 
-    png = (
+    return (
         b"\x89PNG\r\n\x1a\n"
         + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0))
         + chunk(b"IDAT", zlib.compress(bytes([0, red, 64, 128])))
         + chunk(b"IEND", b"")
     )
-    return "data:image/png;base64," + base64.b64encode(png).decode("ascii")
+
+
+def matplotlib_plot(value):
+    plt.figure(figsize=(6, 3))
+    plot = plt.plot([0, 1, 2], [0, value, 0], marker="o")
+    plt.title("Sample plot")
+    plt.xlabel("Step")
+    plt.ylabel("Value")
+    return plot
 
 
 data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-8"))
@@ -37,7 +47,6 @@ if "snakedone":
     message
 
 image_source = {"red": data["red"], "green": 64, "blue": 128}
-picture = f"![]({png_data_uri(image_source['red'])})"
 
 if "snakedone":
     """
@@ -46,7 +55,16 @@ if "snakedone":
     This tiny image is encoded directly from its RGB source data.
     """
     image_source
-    print(picture)
+    image(png_bytes(image_source["red"]), alt="A one-pixel RGB sample")
+
+
+if "snakedone":
+    """
+    ## Matplotlib plot
+
+    The plot is rendered as a PNG and embedded directly in the archive.
+    """
+    image(matplotlib_plot(data["value"]), alt="A line plot of the sample value")
 
 table = pd.DataFrame([data], columns=["label", "value"])
 

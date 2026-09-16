@@ -139,7 +139,6 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 img { max-width: 100%; height: auto; }
 main img { display: block; margin: .35rem auto; max-height: 50vh;
            object-fit: contain; cursor: zoom-in; }
-.recorded-image { width: min(100%, calc(50vh * var(--image-ratio))); }
 main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
 main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 

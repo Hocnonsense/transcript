@@ -214,8 +214,7 @@ class VegaliteOffline(_VegaliteBase):
         cls._validate(parsed)
         return cls._htmlout(
             '<div class="snakedone-chart"><div class="snakedone-frame">'
-            f"{cls._svg(parsed)}{_STATUS}</div></div>",
-            {},
+            f"{cls._svg(parsed)}{_STATUS}</div></div>"
         )
 
 
@@ -237,8 +236,7 @@ class VegaliteInteractive(_VegaliteBase):
             f'<div class="snakedone-preview">{cls._svg(parsed)}</div>'
             f"{_STATUS}"
             '<script type="application/json" class="snakedone-vegalite-spec">'
-            f"{body}</script></div>",
-            {},
+            f"{body}</script></div>"
         )
 
     runtime = _LOADER_SCRIPT

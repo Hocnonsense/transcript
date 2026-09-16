@@ -6,7 +6,7 @@ from collections.abc import Callable
 from html import escape
 
 from ..output import RecordedOutput, Report, split_output
-from ._markup import external_image, png_image
+from ._markup import external_image
 
 Highlighter = Callable[[str], str]
 """Turn Python source into syntax-highlighted HTML."""
@@ -78,16 +78,6 @@ def output_html(
             continue
         boxed = True
         for line in str(chunk).splitlines(keepends=True):
-            png = png_image(line)
-            if png is not None:
-                uri, width, height = png
-                parts.append(
-                    f'<img class="recorded-image" src="{escape(uri, quote=True)}"'
-                    f' width="{width}" height="{height}"'
-                    f' style="--image-ratio: {width / height}"'
-                    f' alt="Recorded PNG ({width} × {height} pixels)">'
-                )
-                continue
             external = external_image(line)
             if external is not None:
                 url, alt = external

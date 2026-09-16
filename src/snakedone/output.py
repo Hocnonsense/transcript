@@ -66,13 +66,13 @@ class Renderer(Protocol):
     def _htmlout(
         cls,
         text: str,
-        files: dict[str, tuple[str, bytes]],
+        files: dict[str, tuple[str, bytes]] | None = None,
         children=(),
         *,
         boxed=True,
     ):
         """Quickly return a ``RecordedOutput`` for the given HTML and report files."""
-        return RecordedOutput(cls, text, files, children, boxed)
+        return RecordedOutput(cls, text, files or {}, children, boxed)
 
     @classmethod
     def to_html(cls, sndata: str) -> RecordedOutput:
