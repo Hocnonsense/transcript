@@ -39,6 +39,7 @@ pandas = "*"
 polars = "*"
 altair = "*"
 datavzrd = "*"
+matplotlib = "*"
 
 [tool.pixi.pypi-dependencies]
 snakedone = { path = ".", editable = true, extras = [

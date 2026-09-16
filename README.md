@@ -31,7 +31,7 @@ snakedone examples/demo.snd --overwrite    # execute and update in place
 In brief, use `-o` / `--output` to choose another destination. `--diff` never updates an existing archive; `--overwrite` updates the input archive.
 `.py` files are never modified, and the archived `.snd` works the same as the original file.
 
-The [demo](examples/demo.py) reads the adjacent `data.json` and records text, a DataFrame table, RGB data, and an explicitly printed Markdown image.
+The [demo](examples/demo.py) reads the adjacent `data.json` and records text, a DataFrame table, RGB data, and images.
 
 ### Archive generation and comparison
 
@@ -162,7 +162,7 @@ Reports follow source order, alternating script code and report blocks.
 Script code starts collapsed and occupies no height in the document flow.
 
 CSV and other text outputs retain their original formatting.
-Standalone `![](data:image/png;base64,...)` lines become inline images, and Markdown image links render as online images.
+Use `image()` or `bitmap()` for embedded bitmap data, and Markdown image links render as online images.
 Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
 Rendering reads the archive without executing Python.
 
@@ -173,6 +173,31 @@ from snakedone import Markdown
 
 if "snakedone":
     Markdown("## Generated result\n\n- first\n- second")
+```
+
+### Bitmap images
+
+Use `bitmap()` to snapshot a PNG, JPEG, GIF, or WebP path, bytes, or binary IO object into the archive:
+
+```python
+from snakedone import bitmap
+
+if "snakedone":
+    bitmap("result.png", alt="Simulation result")
+```
+
+`image()` accepts all of the same static bitmap sources, and
+additionally accepts a Matplotlib `Figure`, `Axes`, artist, or the artist list returned by `plt.plot()`.
+
+```python
+import matplotlib.pyplot as plt
+
+from snakedone import image
+
+plot = plt.plot([0, 1, 2], [0, 1, 0])
+
+if "snakedone":
+    image(plot, alt="A line plot")
 ```
 
 ### Datavzrd tables
