@@ -230,10 +230,14 @@ import altair as alt
 import pandas as pd
 
 frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
-chart = alt.Chart(frame).mark_bar().encode(
-    x="sample:N",
-    y="score:Q",
-    tooltip=["sample:N", "score:Q"],
+chart = (
+    alt.Chart(frame)
+    .mark_bar()
+    .encode(
+        x="sample:N",
+        y="score:Q",
+        tooltip=["sample:N", "score:Q"],
+    )
 )
 
 if "snakedone":
@@ -277,7 +281,7 @@ if "snakedone":
 `id` must be a valid snakedone id (a letter followed by letters, digits, `_`, `.`, `:` or `-`).
 The label renders as a `<figure>` carrying that `id`, so ordinary Markdown links jump to it and the caption becomes a `<figcaption>`.
 A non-renderer Python value is wrapped with the built-in `code` renderer, which shows the value as a bare expression.
-
+If an `id` is reused for different archived content, the exporter warns, appends a numeric suffix to make the label unique, and notes the duplicate in its caption.
 
 ## Development
 
