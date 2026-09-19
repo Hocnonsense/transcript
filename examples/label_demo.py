@@ -6,7 +6,7 @@ Jump to the [measurements](#sample-a) or the
 
 from pathlib import Path
 
-from snakedone import Markdown, label
+from snakedone import markdown, label
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
 
@@ -24,7 +24,7 @@ if "snakedone":
 readme = Path(__file__).parent.parent / "README.md"
 
 if "snakedone":
-    Markdown(readme.read_text(encoding="utf-8"))
+    markdown(readme.read_text(encoding="utf-8"))
 
 
 if "snakedone":
@@ -33,6 +33,6 @@ if "snakedone":
     also wrap another renderer without changing its presentation.
     """
     label(
-        Markdown("## Quality decision\n\nSample A passed the quality threshold."),
+        markdown("## Quality decision\n\nSample A passed the quality threshold."),
         "sample-a-decision",
     )

@@ -165,13 +165,13 @@ Use `image()` or `bitmap()` for embedded bitmap data, and Markdown image links r
 Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
 Rendering reads the archive without executing Python.
 
-Wrap generated Markdown in `Markdown` when an expression's value should be rendered as document Markdown instead of plain text:
+Wrap generated Markdown in `markdown` when an expression's value should be rendered as document Markdown instead of plain text:
 
 ```python
-from snakedone import Markdown
+from snakedone import markdown
 
 if "snakedone":
-    Markdown("## Generated result\n\n- first\n- second")
+    markdown("## Generated result\n\n- first\n- second")
 ```
 
 ### Bitmap images
@@ -278,7 +278,7 @@ Alternatively, `vegalite(config, data=None)` accepts a custom Vega-Lite configur
 Wrap a value or a rich output with `label(value, id, caption="")` to give it a stable document anchor and an optional caption:
 
 ```python
-from snakedone import Markdown, label
+from snakedone import markdown, label
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
 
@@ -287,7 +287,7 @@ if "snakedone":
     See the [measurements](#table.1) and the
     [quality decision](#sample-a-decision).
     """
-    label(Markdown("## Decision\n\nSample A passed."), "sample-a-decision")
+    label(markdown("## Decision\n\nSample A passed."), "sample-a-decision")
     label(datavzrd(measurements, config), "table.1", "table.1 Sample A measurements")
 ```
 
@@ -432,13 +432,14 @@ For example, the [rule demo](examples/rule_demo.py) declares `r.wildcards(sample
 | `rule_demo-B-count.snd` | `--overwrite -o examples/rule_demo.html`                       | writes `examples/rule_demo.snd/.html`               | the concrete `-o` cannot become a pattern, so the declared `document` is dropped; execution uses defaults (A/score). |
 | `rule_demo-B-count.snd` | `--overwrite --html --wildcards sample=B feature=count`        | rewrites `rule_demo-B-count.snd/.html`              | re-executes with an explicit override and reproduces the B-count target.                                             |
 
-`input.document` is reserved for the document's own path; a user-declared `input.document` is rejected.
+In fact, it is recommended to run `snakedone examples/rule_demo.py -o rule_demo-A-score.html`, and from then on use the generated `.snd` as the template.
 
 ### Rule extraction
 
 An explicit rule name must match `[A-Za-z_][A-Za-z0-9_]*` and is rejected otherwise.
 The default document stem is normalized instead: invalid characters are replaced
 with `_`, and a leading digit is prefixed with `_`.
+`input.document` is reserved for the document's own path; a user-declared `input.document` is rejected.
 
 `snakedone report.py --snakefile Snakefile` writes the matching Snakefile rule into
 the target and `<target stem>.conda.yaml` next to it:

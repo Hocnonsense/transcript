@@ -4,11 +4,11 @@ from .execute import report
 from .renderers.bitmap import bitmap, image
 from .renderers.datavzrd import datavzrd
 from .renderers.label import code, label
-from .renderers.markdown import Markdown
+from .renderers.markdown import markdown
 from .renderers.vegalite import vegalite
 
 __all__ = [
-    "Markdown",
+    "markdown",
     "bitmap",
     "code",
     "datavzrd",

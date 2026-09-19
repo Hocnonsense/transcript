@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from snakedone import image, rule, Markdown
+from snakedone import image, rule, markdown
 
 metadata = pl.DataFrame(
     {
@@ -42,7 +42,7 @@ if "snakedone":
     value = metadata.filter(pl.col("sample") == r.wildcards.sample)[
         r.wildcards.feature
     ].item()
-    Markdown(
+    markdown(
         f'The output of this rule for sample "{r.wildcards.sample}" and feature "{r.wildcards.feature}" is:'
     )
     print("sample_lower:", r.params.sample_lower, ", value:", value)

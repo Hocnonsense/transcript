@@ -5,7 +5,7 @@ from . import register
 
 
 @register
-class Markdown(Renderer):
+class markdown(Renderer):
     """Mark a string output for normal Markdown rendering in exported HTML."""
 
     name = "markdown"
