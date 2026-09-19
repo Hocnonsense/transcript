@@ -86,7 +86,9 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 /* scripts */
 .script-block { position: relative; margin: 0; padding: 0; border: 0; }
 .script-block[open] { display: flow-root; }
-.script-block:not([open]) { height: 0; }
+/* A collapsed block shows only its gutter toggle, so it must still reserve a
+   row; otherwise its toggle overlaps the next block's toggle in the gutter. */
+.script-block:not([open]) { min-height: var(--unit); }
 .script-code { margin: 0 0 1.5rem; padding: 1rem; overflow-x: auto;
                line-height: 1.5; }
 /* The toggle lives in the left gutter, whose width is the layout unit, so it
@@ -106,19 +108,29 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 
 /* docstring and code records */
 .report-block { display: flow-root; }
+/* The border width is mirrored in custom properties so the absolutely
+   positioned toggle can cancel it; otherwise collapsing the box would shift
+   the toggle by the removed border. */
 .doctest-code { position: relative; margin: .3rem 0; overflow: hidden;
                 border-left: 3px solid #3984c6;
+                --box-border-left: 3px; --box-border-top: 1px;
                 font: .9em/1.5 ui-monospace, monospace; }
 .doctest-code[data-boxed] { overflow: visible; }
 .doctest-code[data-boxed="false"] {
   margin: 0; border: 0; border-radius: 0;
+  --box-border-left: 0px; --box-border-top: 0px;
+  /* The code is hidden but the gutter toggle is not; keep a row for it so a
+     report shorter than the toggle cannot spill into the next block. */
+  min-height: calc(var(--unit) + .3rem);
 }
 .doctest-code[data-boxed="false"] > .doc-text { display: none; }
-.output-box-toggle { position: absolute; left: calc(-1 * var(--unit)); top: .3rem;
-                     width: var(--unit); height: var(--unit); cursor: pointer;
-                     color: #3984c6; border: 0; border-radius: .25rem;
-                     background: transparent;
-                     font: 700 .6rem/1 ui-monospace, monospace; }
+.output-box-toggle {
+  position: absolute;
+  left: calc(-1 * var(--unit) - var(--box-border-left));
+  top: calc(.3rem - var(--box-border-top));
+  width: var(--unit); height: var(--unit); cursor: pointer;
+  color: #3984c6; border: 0; border-radius: .25rem;
+  background: transparent; font: 700 .6rem/1 ui-monospace, monospace; }
 .output-box-toggle:hover { background: #3984c622; }
 .output-box-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 .doc-text { margin: 0; overflow-x: auto; font: inherit; }
@@ -166,6 +178,7 @@ main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
   .page--navigate { display: block; }
   .navigate { display: none; }
   .script-toggle { display: none !important; }
+  .script-block:not([open]) { min-height: 0; }
 }
 """
 

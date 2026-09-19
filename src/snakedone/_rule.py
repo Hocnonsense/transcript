@@ -478,13 +478,40 @@ class DeclaredList:
             yield _entry(name, value)
 
 
+class _WildcardsView:
+    """The rule's wildcards: call to declare defaults, read to get values.
+
+    ``r.wildcards(sample="s1")`` records the defaults exactly once, while
+    ``r.wildcards.sample`` and ``r.wildcards["sample"]`` read the effective
+    value: declared defaults, then inferred captures, then ``--wildcards``.
+    """
+
+    def __init__(self, rule: Rule):
+        self._rule: Rule
+        object.__setattr__(self, "_rule", rule)
+
+    def __call__(self, **defaults: str):
+        return self._rule._declare_wildcards(**defaults)
+
+    def __getattr__(self, name: str):
+        if name.startswith("_"):
+            raise AttributeError(name)
+        return self._rule.resolve("{" + name + "}")
+
+    def __getitem__(self, name: str):
+        if not isinstance(name, str):
+            raise WorkflowError("wildcards key must be a name")
+        return getattr(self, name)
+
+    def __contains__(self, name: str):
+        return name in self._rule._effective_wildcards()
+
+
 class Rule:
     """One document's Snakemake interface."""
 
     def __init__(self, name: str | None = None):
-        if name is not None and not (
-            isinstance(name, str) and _RULE_NAME_RE.fullmatch(name)
-        ):
+        if name is not None and not (isinstance(name, str) and name.isidentifier()):
             raise WorkflowError(f"invalid rule name: {name!r}")
         self._name = name
         self._input = DeclaredList(self, "input")
@@ -495,6 +522,7 @@ class Rule:
         self._resources: dict[str, int | float | str] = {}
         self._conda: Conda | None = None
         self._wildcards: dict[str, str] | None = None
+        self._wildcards_view = _WildcardsView(self)
         self._inferred: dict[str, str] = {}
         """inferred wildcards from input patterns"""
         self._filename: str | None = getattr(
@@ -628,7 +656,12 @@ class Rule:
         self._conda = Conda(dependencies, pip=pip, channels=channels)
         return self._conda
 
-    def wildcards(self, **defaults: str):
+    @property
+    def wildcards(self):
+        """Call to declare defaults; read attributes for effective values."""
+        return self._wildcards_view
+
+    def _declare_wildcards(self, **defaults: str):
         """Record the interactive defaults; declare only one distinct set.
 
         Declaring defaults is the one sanctioned point where already-collected

@@ -4,6 +4,7 @@ import argparse
 import difflib
 import subprocess
 import sys
+import traceback
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -44,7 +45,7 @@ def get_parser():
     )
     parser.add_argument(
         "--wildcards",
-        action="append",
+        nargs="+",
         metavar="KEY=VALUE",
         help="wildcard value for a declared pattern; may be repeated",
     )
@@ -122,8 +123,8 @@ def write_smk(snd: Path, smk: Path, declared_src: Path):
     source = snd.read_text(encoding="utf-8-sig")
     try:
         declared = Rule.from_snd(source, declared_src)
-    except Exception as error:
-        print(f"snakedone: {error}", file=sys.stderr)
+    except Exception:
+        traceback.print_exc()
         return 2
     env = declared._conda
     directory = smk.parent
@@ -179,8 +180,8 @@ def py2snd(
             else:
                 target, html = found
         candidate = document.render_snd(blocks, outputs, declared)
-    except Exception as e:
-        print(f"snakedone: {e}", file=sys.stderr)
+    except Exception:
+        traceback.print_exc()
         return 2, None, False
     if create_missing and not target.exists():
         diff = False  # HTML export needs an archive to read.
@@ -218,8 +219,8 @@ def snd2html(snd: Path, html: Path):
     try:
         document = parse(source, str(snd))
         candidate = document.render_html(title=snd.stem)
-    except Exception as error:
-        print(f"snakedone: {error}", file=sys.stderr)
+    except Exception:
+        traceback.print_exc()
         return 2
     finally:
         set_cache(previous_cache)
@@ -244,7 +245,7 @@ def fresh_snd2html(snd: Path, html: Path):
     ]
     try:
         ret = subprocess.run(command, check=False).returncode
-    except OSError as error:
-        print(f"snakedone: {error}", file=sys.stderr)
+    except OSError:
+        traceback.print_exc()
         return 2
     return 128 - ret if ret < 0 else ret

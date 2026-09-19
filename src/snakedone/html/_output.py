@@ -51,7 +51,7 @@ def output_html(
     report_id: str,
     highlight_python: Highlighter,
 ):
-    code_block = "\n".join(
+    code_block = "".join(
         highlight_statement(physical_code, highlight_python)
         for physical_code in statements
     )

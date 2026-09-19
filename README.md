@@ -29,14 +29,14 @@ snakedone examples/demo.snd                # execute the archive and compare
 snakedone examples/demo.snd --overwrite    # execute and update in place
 ```
 
-In brief, use `-o` / `--output` to choose another destination. `--diff` never updates an existing archive; `--overwrite` updates the input archive.
+In brief, use `-o` / `--output` to choose another destination. `--diff` never updates an existing archive; `--overwrite` updates the resolved target.
 `.py` files are never modified, and an archived `.snd` can be used in place of the original `.py`.
 
 The [demo](examples/demo.py) reads the adjacent `data.json` and records text, a DataFrame table, RGB data, and images.
 
 ### Archive generation and comparison
 
-With the default output path:
+With the default output path (no `-o` and no rule-declared [document redirection](#output-redirection)):
 
 | Mode          | `.py` input                          | `.snd` input           |
 | ------------- | ------------------------------------ | ---------------------- |
@@ -47,7 +47,7 @@ With the default output path:
 `--diff` executes the input, prints a unified diff when recorded outputs differ, and is mutually exclusive with `--overwrite`.
 
 Without `-o` / `--output` given, execution writes the target when it differs from the input path and compares when they are the same.
-A document whose rule declares `output.document` or `log.document` uses that target instead; see [Output redirection](#output-redirection).
+A document whose rule declares `output.document` or `log.document` uses that target instead whenever the input executes, so a re-executed `.snd` can write a different target than the input archive.
 
 ### HTML export
 
@@ -355,7 +355,8 @@ assert b == Path("boo.yaml")  # the returned value is resolved as a path.
 assert r.input.a == Path("boo.tsv")  # wildcards now apply to every declaration.
 r.params.prefix = "haa-"  # raises: wildcard `haa` mismatches the previous `boo`.
 r.params.seed = 2  # raises: value does not match the declared pattern.
-r.params.seed2 = 2  # neither conflicts nor matches, so it is registered and written to the archive.
+# neither conflicts nor matches, so it is registered and written to the archive.
+r.params.seed2 = 2
 ```
 
 A concrete literal declared outside the block is inferred using script-side wildcard values only.
@@ -393,6 +394,7 @@ Other functions and custom objects are not supported.
 ### Runtime wildcards
 
 Same to Snakemake, wildcards are named `{placeholders}` in `input`/`output`/`log` patterns; defaults are declared once with `r.wildcards(sample="boo")`.
+Read the effective value with `r.wildcards.sample` (or `r.wildcards["sample"]`); like pattern resolution it reflects declared defaults, inferred captures, and `--wildcards` overrides, and an unknown name raises `WildcardError`.
 Assigning a concrete literal outside the block infers its pattern from the script-side wildcard values, so `r.output.report = "boo-1.tsv"` is recorded as `"{sample}-1.tsv"`.
 
 Pass `--wildcards KEY=VALUE` (repeatable) to `snakedone` to override the effective values for a single execution.
@@ -414,6 +416,21 @@ The archive target is chosen in this order:
 3. Otherwise the archive falls back to the document's sibling `<stem>.snd` (or the `.snd` itself when the input already is an archive).
 
 A declared `.html` document makes the effective target `.html`, which selects HTML export; see [HTML export](#html-export) for how `--html` and `--no-html` override this.
+
+The target follows the rule, not the input filename.
+An archive created with `-o` records the reconciled `document` pattern but neither the concrete name nor the `--wildcards` values, so re-executing it without `--wildcards` falls back to the recorded defaults.
+For example, the [rule demo](examples/rule_demo.py) declares `r.wildcards(sample="A", feature="score")`:
+
+| input file              | parameter                                                      | files changed on disk                               | behavior                                                                                                             |
+| ----------------------- | -------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `examples/rule_demo.py` | `-o rule_demo-B-count.html --wildcards sample=B feature=count` | writes `rule_demo-B-count.snd/.html`                | adds `document="rule_demo-{sample}-{feature}.html"` to the document.                                                 |
+| `rule_demo-B-count.snd` |                                                                | writes `rule_demo-A-score.snd/.html`, not B-count   | executes the archive and resolves the declared document with the recorded defaults (A/score).                        |
+| `rule_demo-B-count.snd` | `--diff`                                                       |                                                     | compares that re-execution against `rule_demo-A-score.snd`, not the input archive; exit 1 if missing target.         |
+| `rule_demo-B-count.snd` | `--overwrite --html`                                           | creates/overwrites `rule_demo-A-score.snd/.html`    | similar to above                                                                                                     |
+| `rule_demo-B-count.snd` | `--diff --html`                                                | create/check `rule_demo-A-score.snd`, write `.html` | creates a missing target archive, a difference against an existing archive still blocks export.                      |
+| `rule_demo-B-count.snd` | `--html`                                                       | renders `rule_demo-B-count.html`                    | renders the stored results directly without executing, so this one keeps the input name.                             |
+| `rule_demo-B-count.snd` | `--overwrite -o examples/rule_demo.html`                       | writes `examples/rule_demo.snd/.html`               | the concrete `-o` cannot become a pattern, so the declared `document` is dropped; execution uses defaults (A/score). |
+| `rule_demo-B-count.snd` | `--overwrite --html --wildcards sample=B feature=count`        | rewrites `rule_demo-B-count.snd/.html`              | re-executes with an explicit override and reproduces the B-count target.                                             |
 
 `input.document` is reserved for the document's own path; a user-declared `input.document` is rejected.
 
