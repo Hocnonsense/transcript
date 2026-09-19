@@ -30,6 +30,12 @@ class AstDocument(NamedTuple):
         source = self.source
         return source[source.rfind("\n", 0, start) + 1 : start]
 
+    def get_segment(self, context: ast.AST):
+        """Return the source segment for a node, or raise an error if not found."""
+        source = ast.get_source_segment(self.source, context)
+        assert source is not None
+        return source
+
     @property
     def blocks(self):
         """Compute all report blocks from the document's regions."""

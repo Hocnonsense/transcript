@@ -46,16 +46,16 @@ def line_offsets(source: str):
     return position
 
 
-def _span_start(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+def span_start(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
     return position(node.lineno, node.col_offset)
 
 
-def _span_end(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+def span_end(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
     assert node.end_lineno is not None and node.end_col_offset is not None
     return position(node.end_lineno, node.end_col_offset)
 
 
-def is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
+def _is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
     return (
         isinstance(node, ast.If)
         and isinstance(node.test, ast.Constant)
@@ -63,9 +63,14 @@ def is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
     )
 
 
-def with_has_marker(source: str, node: ast.With, position: Callable[[int, int], int]):
-    start = _span_start(node, position)
-    end = _span_start(node.body[0], position)
+def with_marker_text(source: str, node: ast.With, position: Callable[[int, int], int]):
+    """Return the ``(start, end, colon, comment)`` after a ``with`` header.
+
+    *comment* is the stripped text between the statement colon and the end of
+    its physical line, empty when there is none.
+    """
+    start = span_start(node, position)
+    end = span_start(node.body[0], position)
     tokens = list(tokenize.generate_tokens(io.StringIO(source[start:end]).readline))
     colon = None
     for token in tokens:
@@ -76,7 +81,14 @@ def with_has_marker(source: str, node: ast.With, position: Callable[[int, int], 
     if colon is None:
         raise ValueError(f"line {node.lineno}: could not find colon in with statement")
     after_colon = colon.line[colon.end[1] :].lstrip()
-    return start, end, colon, after_colon.strip() == REPORT_MARKER_COMMENT
+    return start, end, colon, after_colon.strip()
+
+
+def with_report_marker(
+    source: str, node: ast.With, position: Callable[[int, int], int]
+):
+    start, end, colon, comment = with_marker_text(source, node, position)
+    return start, end, colon, comment == REPORT_MARKER_COMMENT
 
 
 def _string_expr(node: ast.stmt):
@@ -140,17 +152,17 @@ class Region(NamedTuple):
                 if next_string is not None:
                     constant, value = next_string
                     slot = Slot(
-                        _span_start(constant, position),
-                        _span_end(constant, position),
+                        span_start(constant, position),
+                        span_end(constant, position),
                         value,
                     )
                     index += 1
-            start = _span_start(statement, position)
-            end = _span_end(statement, position)
+            start = span_start(statement, position)
+            end = span_end(statement, position)
             statements.append(Statement(statement, start, end, slot))
             index += 1
-        body_start = _span_start(body[0], position)
-        body_end = _span_end(body[-1], position)
+        body_start = span_start(body[0], position)
+        body_end = span_end(body[-1], position)
         return ReportBlock(node, body_start, body_end, markdown, statements)
 
 
@@ -164,9 +176,9 @@ def locate(source: str, filename: str):
     position = line_offsets(source)
     regions = {}
     for i, node in enumerate(tree.body):
-        if is_report_if(node):
+        if _is_report_if(node):
             regions[i] = Region(node, True)
         elif isinstance(node, ast.With) and len(node.items) == 1:
-            marker = with_has_marker(source, node, position)
+            marker = with_report_marker(source, node, position)
             regions[i] = Region(node, marker[-1])
     return tree, position, regions

@@ -9,9 +9,14 @@ import tokenize
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .parse import REPORT_MARKER_COMMENT, ReportBlock, with_has_marker
+from .parse import (
+    REPORT_MARKER_COMMENT,
+    ReportBlock,
+    with_report_marker,
+)
 
 if TYPE_CHECKING:
+    from ._rule import Rule
     from .document import AstDocument
 
 
@@ -63,7 +68,7 @@ def _strip_stale_markers(document: AstDocument, blocks: list[ReportBlock]):
         node = region.node
         if isinstance(node, ast.If) or id(region.node) in confirmed:
             continue
-        start, end, token, is_marker = with_has_marker(
+        start, end, token, is_marker = with_report_marker(
             document.source, node, document.position
         )
         if not is_marker:
@@ -74,14 +79,17 @@ def _strip_stale_markers(document: AstDocument, blocks: list[ReportBlock]):
 
 
 def render(
-    self: AstDocument, blocks: list[ReportBlock], outputs: list[list[str]]
-) -> str:
+    self: AstDocument,
+    blocks: list[ReportBlock],
+    outputs: list[list[str]],
+    declared: Rule | None = None,
+):
     """Rebuild output slots and markers using the captured execution results."""
 
     edits: list[tuple[int, int, str]] = [*_strip_stale_markers(self, blocks)]
     for block, output_block in zip(blocks, outputs):
         if isinstance(block.node, ast.With):
-            start, end, token, is_marker = with_has_marker(
+            start, end, token, is_marker = with_report_marker(
                 self.source, block.node, self.position
             )
             if not is_marker:
@@ -99,6 +107,8 @@ def render(
                     newline = len(self.source)
                 literal = "\n" + indent + _slot_literal(output, indent)
                 edits.append((newline, newline, literal))
+    if declared is not None:
+        edits.extend(declared.make_rule_block())
     result = self.source
     for start, end, replacement in sorted(edits, reverse=True):
         result = result[:start] + replacement + result[end:]

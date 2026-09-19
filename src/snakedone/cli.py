@@ -5,10 +5,14 @@ import difflib
 import subprocess
 import sys
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from .document import parse
 from .renderers.label import set_cache
 from .snd import write
+
+if TYPE_CHECKING:
+    from ._rule import Rule
 
 
 def get_parser():
@@ -27,10 +31,27 @@ def get_parser():
         action="store_false",
         help="force to write or overwrite .snd file",
     )
-    parser.add_argument(
+    group_html = parser.add_mutually_exclusive_group()
+    group_html.add_argument(
         "--html",
         action="store_true",
-        help="export HTML after a successful archive step; .snd alone is read directly",
+        help="force HTML export after a successful archive step",
+    )
+    group_html.add_argument(
+        "--no-html",
+        action="store_true",
+        help="write only the archive, ignoring a declared .html document",
+    )
+    parser.add_argument(
+        "--wildcards",
+        action="append",
+        metavar="KEY=VALUE",
+        help="wildcard value for a declared pattern; may be repeated",
+    )
+    parser.add_argument(
+        "--snakefile",
+        type=Path,
+        help="overwrite/create the file with the document's rule",
     )
     parser.add_argument(
         "-o",
@@ -43,45 +64,128 @@ def get_parser():
     return parser
 
 
+def _parse_wildcards(values, parser: argparse.ArgumentParser):
+    result: dict[str, str] = {}
+    for item in values or ():
+        key, separator, value = item.partition("=")
+        if not separator or not key:
+            parser.error(f"--wildcards expects KEY=VALUE, got {item!r}")
+        result[key] = value
+    return result
+
+
 def main(argv: list[str] | None = None):
     parser = get_parser()
     args = parser.parse_args(argv)
     path: Path = args.file.resolve()
     if path.suffix not in (".py", ".snd"):
         parser.error("input must end in .py or .snd")
-    make_html = args.html
-    if args.output is not None:
-        target: Path = args.output.resolve()
-        if target.suffix == ".html":
-            make_html = True
-            target = target.with_suffix(".snd")
-        elif target.suffix != ".snd":
-            target = target.with_suffix(target.suffix + ".snd")
+    wildcards = _parse_wildcards(args.wildcards, parser)
+    output = args.output
+    if output is not None and output.suffix not in (".snd", ".html"):
+        output = output.with_suffix(output.suffix + ".snd")
+    target = None if output is None else output.resolve()
+    output_html = output is not None and output.suffix == ".html"
+    # force_html and only_snd MAY both False if output is None, but never both True.
+    force_html = args.html or output_html
+    only_snd = args.no_html or (output is not None and not output_html)
+    if path.suffix == ".snd" and force_html and args.diff is None:
+        # The archive already exists; only the HTML needs rendering.
+        ret, snd, is_html, executed = 0, path, True, False
     else:
-        target = path.with_suffix(".snd")
-    if not make_html:
-        diff = path == target if args.diff is None else args.diff
-        ret = py2snd(path, target, diff)
-
-    # Plain archive export is offline; explicit execution flags still apply.
-    else:
-        ret = 0
-        if path.suffix != ".snd" or args.diff is not None:
-            ret = py2snd_subprocess(args, target)
-            path = target
-        if not ret:
-            ret = snd2html(path, target.with_suffix(".html"))
+        ret, snd, is_html = py2snd(path, output, args.diff, wildcards, force_html)
+        executed = True
+    if not ret and snd is not None:
+        if not only_snd and (force_html or is_html):
+            html_target = (
+                snd.with_suffix(".html")
+                if target is None
+                else target.with_suffix(".html")
+            )
+            if executed:
+                ret = fresh_snd2html(snd, html_target)
+            else:
+                ret = snd2html(snd, html_target)
+        if not ret and args.snakefile:
+            ret = write_smk(snd, args.snakefile, args.file)
     sys.exit(ret)
 
 
-def py2snd(path: Path, target: Path, diff: bool = False):
+def write_smk(snd: Path, smk: Path, declared_src: Path):
+    """Write a Snakefile rule for ``document`` into ``target``.
+
+    The rule is read statically from ``archive``'s canonical block; ``document``
+    is the source the rule's ``input.document`` and name are derived from.
+    """
+    from ._rule import Rule
+
+    source = snd.read_text(encoding="utf-8-sig")
+    try:
+        declared = Rule.from_snd(source, declared_src)
+    except Exception as error:
+        print(f"snakedone: {error}", file=sys.stderr)
+        return 2
+    env = declared._conda
+    directory = smk.parent
+    directory.mkdir(parents=True, exist_ok=True)
+    if env:
+        conda_path = directory / f"{smk.stem}.conda.yaml"
+        conda_path.write_text(env.to_yaml(), encoding="utf-8")
+    else:
+        conda_path = None
+    smk.write_text(declared.make_snakemake_rule(conda_path), encoding="utf-8")
+    return 0
+
+
+def get_document(declared: Rule | None, wildcards: dict[str, str] | None):
+    """Resolve the declared document to ``(archive, is_html)``, if any."""
+    if declared is None:
+        return None
+    found = declared.smk_target_document
+    if found is None:
+        return None
+    _, pattern = found
+    resolved = Path(declared.resolve(pattern, wildcards))
+    if resolved.suffix == ".html":
+        return resolved.with_suffix(".snd"), True
+    return resolved, False
+
+
+def py2snd(
+    path: Path,
+    output: Path | None,
+    diff: bool | None = None,
+    wildcards: dict[str, str] | None = None,
+    create_missing: bool = False,
+):
+    """Execute the document, resolve the archive target, and write the archive.
+
+    Returns ``(status, archive, is_html)`` where *is_html* says whether the
+    effective target was an ``.html`` document.
+    """
     source = path.read_text(encoding="utf-8-sig")
     try:
         document = parse(source, str(path))
-        candidate = document.render_snd(*document.execute(path))
+        blocks, outputs, declared = document.execute(path, wildcards)
+        if output is not None:
+            if declared is not None:
+                declared.smk_target_document = str(output), wildcards
+            target = output.resolve().with_suffix(".snd")
+            html = output.suffix == ".html"
+        else:
+            found = get_document(declared, wildcards)
+            if found is None:
+                target, html = path.with_suffix(".snd"), False
+            else:
+                target, html = found
+        candidate = document.render_snd(blocks, outputs, declared)
     except Exception as e:
         print(f"snakedone: {e}", file=sys.stderr)
-        return 2
+        return 2, None, False
+    if create_missing and not target.exists():
+        diff = False  # HTML export needs an archive to read.
+    elif diff is None:
+        diff = path == target
 
     if not target.exists():
         previous = ""
@@ -100,51 +204,47 @@ def py2snd(path: Path, target: Path, diff: bool = False):
                 tofile=f"{target} (generated)",
             )
         )
-        return int(updated)
+        return int(updated), target, html
     elif updated:
         write(target, candidate)
     else:
         target.touch()
-    return 0
+    return 0, target, html
 
 
-def py2snd_subprocess(args, target: Path):
-    if args.diff and not target.exists():
-        diff = []  # HTML export needs an archive to read.
-    else:
-        diff = {True: ["--diff"], False: ["--overwrite"], None: []}[args.diff]
-    try:
-        ret = subprocess.run(
-            [
-                sys.executable,
-                "-c",
-                "from snakedone.cli import main; main()",
-                args.file,
-                *diff,
-                "-o",
-                str(target),
-            ],
-            check=False,
-        ).returncode
-    except OSError as error:
-        print(f"snakedone: {error}", file=sys.stderr)
-        ret = 2
-    if ret < 0:
-        ret = 128 - ret
-    return ret
-
-
-def snd2html(path: Path, target: Path):
-    source = path.read_text(encoding="utf-8-sig")
+def snd2html(snd: Path, html: Path):
+    source = snd.read_text(encoding="utf-8-sig")
     previous_cache = set_cache({})
     try:
-        document = parse(source, str(path))
-        candidate = document.render_html(title=path.stem)
+        document = parse(source, str(snd))
+        candidate = document.render_html(title=snd.stem)
     except Exception as error:
         print(f"snakedone: {error}", file=sys.stderr)
         return 2
     finally:
         set_cache(previous_cache)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    write(target, candidate)
+    html.parent.mkdir(parents=True, exist_ok=True)
+    write(html, candidate)
     return 0
+
+
+def fresh_snd2html(snd: Path, html: Path):
+    """Render HTML from an archive in a fresh process.
+
+    The document already ran in this process; a child keeps its side effects
+    (``os.chdir``, ``sys.modules``, ...) away from the HTML renderer.
+    """
+    command = [
+        sys.executable,
+        "-c",
+        "from snakedone.cli import main; main()",
+        str(snd),
+        "-o",
+        str(html),
+    ]
+    try:
+        ret = subprocess.run(command, check=False).returncode
+    except OSError as error:
+        print(f"snakedone: {error}", file=sys.stderr)
+        return 2
+    return 128 - ret if ret < 0 else ret

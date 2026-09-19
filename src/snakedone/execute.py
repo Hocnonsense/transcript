@@ -11,7 +11,8 @@ import types
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from .parse import ReportBlock
+from . import _registry
+from .parse import ReportBlock, span_end, span_start
 
 if TYPE_CHECKING:
     from .document import AstDocument
@@ -27,11 +28,14 @@ def text(value: str):
 
 
 class ExecutionScope:
-    def __init__(self, path: Path):
+    def __init__(self, path: Path, wildcards: dict[str, str] | None = None):
         self.path = path
+        self.wildcards = dict(wildcards or {})
 
     def __enter__(self):
         filename = str(self.path)
+        self.registry_scope = _registry.Execution(self.wildcards)
+        self.registry_scope.__enter__()
         self.old_path, self.old_argv = sys.path, sys.argv
         sys.path = [str(self.path.parent), *self.old_path]
         sys.argv = [filename]
@@ -49,6 +53,7 @@ class ExecutionScope:
             sys.modules.pop("__main__", None)
         sys.path = self.old_path
         sys.argv = self.old_argv
+        self.registry_scope.__exit__(exc_type, exc, tb)
 
 
 class _Report:
@@ -64,7 +69,7 @@ class _Report:
 report = _Report()
 
 
-def execute(self: AstDocument, path: Path):
+def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = None):
     """Execute statements in order and capture dynamically identified reports."""
 
     filename = str(path)
@@ -169,17 +174,49 @@ def execute(self: AstDocument, path: Path):
     failures: list[BaseException] = []
     outputs: list[list[str]] = []
     blocks: list[ReportBlock] = []
-    with ExecutionScope(path) as namespace:
+    rule_not_set = True
+
+    with ExecutionScope(path, wildcards) as namespace:
         for i, node in enumerate(self.tree.body):
             if i not in self.regions:
                 exec_statement(node)
+                if rule_not_set:
+                    rule_not_set = check_namespace(self, node, namespace)
                 continue
-            if TYPE_CHECKING:
-                node = self.regions[i].node
             if isinstance(node, ast.With):
                 context = eval_expression(node.items[0].context_expr)
                 if context is not report:
+                    if context is _registry.current():
+                        if TYPE_CHECKING:
+                            context = _registry.current()
+                            assert context is not None
+                        context.set_lambdas(node)
                     with_normal(context, node)
+                    declared = _registry.current()
+                    if context is declared and declared is not None:
+                        declared.edit = (
+                            span_start(node, self.position),
+                            span_end(node, self.position),
+                            self.get_segment(node.items[0].context_expr),
+                        )
+                        if not rule_not_set:
+                            if not declared.target:
+                                raise NameError(
+                                    "Cannot trace the declared rule, please define "
+                                    "it as a global variable"
+                                )
+                            if namespace[declared.target] is not declared:
+                                # old name lost, try to find the new one
+                                rule_not_set = True
+                        if rule_not_set:
+                            optional_vars = node.items[0].optional_vars
+                            if not isinstance(optional_vars, ast.Name):
+                                raise NameError(
+                                    "snakedone.rule() must be assigned `as` a name "
+                                    "in the `with` statement"
+                                )
+                            declared.target = optional_vars.id
+                            rule_not_set = False
                     continue
                 optional_vars = node.items[0].optional_vars
             else:
@@ -187,6 +224,29 @@ def execute(self: AstDocument, path: Path):
                 optional_vars = None
             blocks.append(self.regions[i].parse_block(self.position))
             outputs.append(with_snakedone(context, blocks[-1], optional_vars))
+            if rule_not_set:
+                rule_not_set = check_namespace(self, node, namespace)
+        declared = _registry.current()
     if failures:
         raise failures[0]
-    return blocks, outputs
+    return blocks, outputs, declared
+
+
+def check_namespace(self: AstDocument, node: ast.stmt, namespace):
+    """Find the variable bound to the rule and record its archive insertion.
+
+    Return whether the rule is still unset.
+    """
+    declared = _registry.current()
+    if declared is None:
+        return True
+    for name, value in namespace.items():
+        if value is declared:
+            end = span_end(node, self.position)
+            newline = self.source.find("\n", end)
+            if newline == -1:
+                newline = len(self.source)
+            declared.target = name
+            declared.edit = (newline, newline, None)
+            return False
+    return False

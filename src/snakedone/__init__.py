@@ -15,5 +15,17 @@ __all__ = [
     "image",
     "label",
     "report",
+    "rule",
     "vegalite",
 ]
+
+
+def rule(name=None):
+    """Declare this document's Snakemake rule.
+
+    Requires the optional ``snakemake`` extra, imported on first call so that
+    ``import snakedone`` stays dependency-free.
+    """
+    from ._rule import rule as declare
+
+    return declare(name)
