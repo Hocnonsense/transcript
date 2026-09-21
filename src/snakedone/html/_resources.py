@@ -7,7 +7,13 @@ from hashlib import sha256
 from typing import TypedDict
 
 from ..output import Report
-from .assets import IMAGE_SCRIPT, NAVIGATE_SCRIPT, STYLE
+from ._assets import IMAGE_SCRIPT, NAVIGATE_SCRIPT, STYLE
+
+
+def _digest(script: str):
+    """Return the CSP ``sha256-`` source that allows an inline script."""
+    digest = base64.b64encode(sha256(script.encode()).digest()).decode()
+    return f"'sha256-{digest}'"
 
 
 class _PackagedFile(TypedDict):
@@ -16,7 +22,7 @@ class _PackagedFile(TypedDict):
     content: str
 
 
-def _package_files(reports: list[Report]) -> str:
+def _package_files(reports: list[Report]):
     """Package files in a JSON object with:
     - pool: dict[file_fingerprint, _PackagedFile]
     - reports: dict[name, file_fingerprint]
@@ -48,44 +54,39 @@ def _package_files(reports: list[Report]) -> str:
 def page_resources(reports: list[Report], origins: list[str]):
     """Return ``(styles, csp, scripts)`` for the exported page.
 
-    Styles from every renderer are collected;
-    scripts, the report payload, and CSP sources only collected
-      from renderers that ship a runtime,
-    since a renderer without one never executes in the browser.
+    Styles from every renderer are collected.  The core scripts, the report
+    payload, and every runtime are collected into *scripts*; a renderer without
+    a runtime never executes in the browser, so it contributes no script or CSP
+    source.
     """
 
     styles = [STYLE]
     runtimes = []
-    sources = [
-        "'sha256-" + base64.b64encode(sha256(script.encode()).digest()).decode() + "'"
-        for script in (IMAGE_SCRIPT, NAVIGATE_SCRIPT)
-    ]
+    sources = [_digest(script) for script in (IMAGE_SCRIPT, NAVIGATE_SCRIPT)]
     for renderer in {r.name: r.chunk.renderer for r in reports}.values():
         if renderer.STYLE:
             styles.append(renderer.STYLE)
         if renderer.runtime:
             runtimes.append(renderer.runtime)
             sources.extend(renderer.sources)
-    scripts = []
+    runtime_tags = []
     for runtime in dict.fromkeys(runtimes):
-        digest = base64.b64encode(sha256(runtime.encode()).digest()).decode()
-        sources.append(f"'sha256-{digest}'")
-        scripts.append(f"<script>{runtime}</script>")
-    if scripts:
+        sources.append(_digest(runtime))
+        runtime_tags.append(f"<script>{runtime}</script>")
+    if runtime_tags:
         # No runtime means nothing reads the payload; static renderers
         # already emit their final HTML into the report block.
         sources.extend(["blob:", "data:", "'unsafe-eval'"])
         image_src = "data: blob:"
-        script = (
+        payload = (
             '<script id="snakedone-reports" type="application/json">'
             + _package_files(reports)
-            + "</script>\n"
-            + "\n".join(scripts)
+            + "</script>"
         )
         font_frame_src = " font-src data: blob:; frame-src 'self' data: blob:;"
     else:
         image_src = "data:"
-        font_frame_src = script = ""
+        font_frame_src = payload = ""
     script_src = " ".join(dict.fromkeys(sources))
     if origins:
         image_src += " " + " ".join(origins)
@@ -95,4 +96,14 @@ def page_resources(reports: list[Report], origins: list[str]):
         f"script-src {script_src}; "
         "base-uri 'none'; form-action 'none'"
     )
-    return "\n".join(dict.fromkeys(styles)), csp, script
+    scripts = "\n".join(
+        part
+        for part in (
+            f"<script>{IMAGE_SCRIPT}</script>",
+            f"<script>{NAVIGATE_SCRIPT}</script>",
+            payload,
+            *runtime_tags,
+        )
+        if part
+    )
+    return "\n".join(dict.fromkeys(styles)), csp, scripts

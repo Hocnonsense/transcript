@@ -24,6 +24,9 @@ snakemake = ["snakemake>=9,<10"]
 [project.scripts]
 snakedone = "snakedone.cli:main"
 
+[tool.hatch.build]
+artifacts = ["src/snakedone/html/_assets/*.css", "src/snakedone/html/_assets/*.js"]
+
 [tool.hatch.build.targets.wheel]
 packages = ["src/snakedone"]
 

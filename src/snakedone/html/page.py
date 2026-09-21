@@ -8,7 +8,6 @@ from ._markup import external_links, image_origins
 from ._navigate import anchors, navigate_html
 from ._output import output_html, script_html
 from ._resources import page_resources
-from .assets import IMAGE_SCRIPT, NAVIGATE_SCRIPT
 
 if TYPE_CHECKING:
     from ..document import AstDocument
@@ -92,7 +91,7 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
 
     parts.append(script_html(self.source[cursor:], highlight_python))
     body, entries = anchors(parts)
-    style, csp, tail = page_resources(reports, image_origins(body))
+    style, csp, scripts = page_resources(reports, image_origins(body))
     navigate_class, navigate = navigate_html(entries)
 
     return f"""<!doctype html>
@@ -113,9 +112,7 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     {body}
    </main>
   </div>
-  <script>{IMAGE_SCRIPT}</script>
-  <script>{NAVIGATE_SCRIPT}</script>
-  {tail}
+  {scripts}
  </body>
 </html>
 """
