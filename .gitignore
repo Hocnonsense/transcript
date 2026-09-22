@@ -5,6 +5,9 @@
 !*release-please-config.json
 !*.py
 !*.js
+!*.css
+*.min.js
+*.min.css
 
 !src/
 !tests/

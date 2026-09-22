@@ -18,8 +18,17 @@ __all__ = [
 
 
 def _asset(name: str):
-    """Read a packaged asset as text."""
-    return files(__package__).joinpath(name).read_text(encoding="utf-8")
+    """Read a packaged asset, preferring its generated minified sibling.
+
+    ``tools/minify_assets.py`` writes the ``*.min.*`` files (``pixi run minify``
+    or the wheel build hook); falling back to the readable source keeps a tree
+    without them working.
+    """
+    root = files(__package__)
+    stem, suffix = name.rsplit(".", 1)
+    minified = root.joinpath(f"{stem}.min.{suffix}")
+    chosen = minified if minified.is_file() else root.joinpath(name)
+    return chosen.read_text(encoding="utf-8")
 
 
 STYLE = _asset("style.css")

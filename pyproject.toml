@@ -28,6 +28,10 @@ artifacts = ["src/snakedone/html/_assets/*.css", "src/snakedone/html/_assets/*.j
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/snakedone"]
+exclude = ["**/.gitignore"]
+
+[tool.hatch.build.hooks.custom]
+path = "tools/hatch_build.py"
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
@@ -44,6 +48,8 @@ polars = "*"
 altair = "*"
 datavzrd = "*"
 matplotlib = "*"
+esbuild = "*"
+hatchling = "*"
 
 [tool.pixi.pypi-dependencies]
 snakemake = ">=9.20"
@@ -56,10 +62,12 @@ snakedone = { path = ".", editable = true, extras = [
 [tool.pixi.tasks]
 test = "pytest"
 format = "ruff format ."
+minify = "python tools/minify_assets.py"
+build = "hatchling build"
 lint = "ruff check ."
 typecheck = "pyright"
 check = { depends-on = ["lint", "typecheck", "test"] }
-demo = "snakedone examples/demo.py --html"
+demo = { depends-on = ["minify"], cmd = "snakedone examples/demo.py --html" }
 demo-serve = "python examples/serve.py"
 
 [tool.pytest.ini_options]
