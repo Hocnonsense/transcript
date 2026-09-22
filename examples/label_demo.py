@@ -6,7 +6,7 @@ Jump to the [measurements](#sample-a) or the
 
 from pathlib import Path
 
-from snakedone import markdown, label
+from snakedone import label, markdown
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
 

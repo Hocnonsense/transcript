@@ -150,9 +150,7 @@ class Label(Renderer):
     def to_html(cls, data: str):
         """Render the wrapped output and place it inside a labelled figure."""
         id, caption, inner = cls.from_snd(data)
-        figure = (
-            f'<figure class="snakedone-label" data-snakedone-label="{id}">' + "{{0}}"
-        )
+        figure = f'<figure class="snakedone-label" data-snd-label="{id}">' + "{{0}}"
         if caption:
             figure += f"<figcaption>{escape(caption)}</figcaption>"
         figure += "</figure>"
@@ -164,8 +162,8 @@ class Label(Renderer):
         opening = f'<figure class="snakedone-label" id="{id}">'
         repeated = (
             '<figure class="snakedone-label snakedone-label-repeat"'
-            f' data-snakedone-label="{id}"'
-            f' data-snakedone-label-occurrence="{occurrence}">'
+            f' data-snd-label="{id}"'
+            f' data-snd-label-occurrence="{occurrence}">'
         )
         if not text.startswith(opening):
             raise ValueError(f"label {id!r} has an invalid rendered wrapper")
@@ -186,7 +184,7 @@ class Label(Renderer):
         if len(block) != 1:
             raise ValueError("labelled output must contain exactly one inner output")
         match = re.match(
-            r'<figure class="snakedone-label" data-snakedone-label="([^"]+)">',
+            r'<figure class="snakedone-label" data-snd-label="([^"]+)">',
             output.text,
         )
         if match is None:

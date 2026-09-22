@@ -82,7 +82,7 @@ def render(
     self: AstDocument,
     blocks: list[ReportBlock],
     outputs: list[list[str]],
-    declared: Rule | None = None,
+    job: Rule | None = None,
 ):
     """Rebuild output slots and markers using the captured execution results."""
 
@@ -107,8 +107,8 @@ def render(
                     newline = len(self.source)
                 literal = "\n" + indent + _slot_literal(output, indent)
                 edits.append((newline, newline, literal))
-    if declared is not None:
-        edits.extend(declared.make_rule_block())
+    if job is not None:
+        edits.extend(job.make_rule_block())
     result = self.source
     for start, end, replacement in sorted(edits, reverse=True):
         result = result[:start] + replacement + result[end:]

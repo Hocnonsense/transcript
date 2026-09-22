@@ -348,7 +348,7 @@
     show("root", new URL("index.html", origin));
   }
 
-  const selector = '[data-snakedone-report][data-snakedone-renderer="datavzrd"]';
+  const selector = '[data-snd-report][data-snd-renderer="datavzrd"]';
   for (const container of document.querySelectorAll(selector)) {
     try {
       createReport(await filesFor(container.dataset.snakedoneReport), container);

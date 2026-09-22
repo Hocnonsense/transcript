@@ -128,8 +128,8 @@ class Report:
     def block(self):
         return (
             '<div class="snakedone-report"'
-            f' data-snakedone-report="{self.id}"'
-            f' data-snakedone-renderer="{self.name}">'
+            f' data-snd-report="{self.id}"'
+            f' data-snd-renderer="{self.name}">'
             f"{self.chunk.text}</div>"
         )
 

@@ -4,6 +4,7 @@ import textwrap
 from html import escape
 from typing import TYPE_CHECKING
 
+from ._island import source_island
 from ._markup import external_links, image_origins
 from ._navigate import anchors, navigate_html
 from ._output import output_html, script_html
@@ -64,7 +65,11 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
         end = self.position(node.end_lineno, node.end_col_offset)
         parts.append(script_html(self.source[cursor:start], highlight_python))
         cursor = end
-        parts.append('<section class="report-block">')
+        parts.append(
+            '<section class="report-block"'
+            f' data-snd-start="{start}" data-snd-end="{end}"'
+            f' data-snd-line="{node.lineno}">'
+        )
         prose = textwrap.dedent(block.markdown).strip()
         if prose:
             parts.append(render_markdown(prose))
@@ -91,7 +96,8 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
 
     parts.append(script_html(self.source[cursor:], highlight_python))
     body, entries = anchors(parts)
-    style, csp, scripts = page_resources(reports, image_origins(body))
+    island = source_island(self.source)
+    style, csp, scripts = page_resources(reports, image_origins(body), island)
     navigate_class, navigate = navigate_html(entries)
 
     return f"""<!doctype html>

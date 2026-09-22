@@ -2,7 +2,7 @@ document.querySelectorAll('.navigate').forEach(navigate => {
   const tabs = Array.from(navigate.querySelectorAll('.navigate-tab'));
   const list = navigate.querySelector('.navigate-list');
   if (!list || tabs.length < 2) return;
-  const entries = Array.from(list.querySelectorAll('[data-snakedone-type]'));
+  const entries = Array.from(list.querySelectorAll('[data-snd-type]'));
   function enabled() {
     return list.dataset.snakedoneShow.split(/\s+/).filter(Boolean);
   }

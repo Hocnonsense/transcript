@@ -133,7 +133,7 @@ class Entry(NamedTuple):
             f"toc-heading toc-l{self.level}" if self.kind == "heading" else "toc-label"
         )
         return (
-            f'<li class="{css}" data-snakedone-type="{name}"{hidden}>'
+            f'<li class="{css}" data-snd-type="{name}"{hidden}>'
             f'<a href="#{escape(self.slug, quote=True)}">{escape(self.text)}</a></li>'
         )
 
@@ -175,7 +175,7 @@ def navigate_html(entries: list[Entry]):
     shown = {types[0][0]}
     items = "".join(entry.render(shown) for entry in entries)
     tabs = "".join(
-        f'<div class="navigate-tab" data-snakedone-type="{name}"'
+        f'<div class="navigate-tab" data-snd-type="{name}"'
         f' data-active="{str(name in shown).lower()}">'
         f'<button class="navigate-tab-body" type="button">{title}</button>'
         f'<button class="navigate-tab-toggle" type="button"'
@@ -188,6 +188,6 @@ def navigate_html(entries: list[Entry]):
     return "page page--navigate", (
         '<nav class="navigate" aria-label="Document outline" data-collapsed="false">'
         f'<div class="navigate-tabs">{tabs}</div>'
-        f'<ol class="navigate-list" data-snakedone-show="{" ".join(sorted(shown))}">'
+        f'<ol class="navigate-list" data-snd-show="{" ".join(sorted(shown))}">'
         f"{items}</ol></nav>"
     )

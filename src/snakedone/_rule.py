@@ -523,6 +523,8 @@ class Rule:
         self._conda: Conda | None = None
         self._wildcards: dict[str, str] | None = None
         self._wildcards_view = _WildcardsView(self)
+        self._job_wildcards: dict[str, str] = dict(_registry.wildcards())
+        """The job's wildcards: the runtime values of this execution."""
         self._inferred: dict[str, str] = {}
         """inferred wildcards from input patterns"""
         self._filename: str | None = getattr(
@@ -762,15 +764,15 @@ class Rule:
         return self._inferred | (self._wildcards or {})
 
     def _effective_wildcards(self, override: dict[str, str] | None = None):
-        """Runtime wildcard values: declared, registry, then *override*.
+        """Runtime wildcard values: declared, then the job's, then *override*.
 
-        The registry holds the live ``ExecutionScope`` values.  *override* lets a
-        caller outside the scope (the CLI after execution) supply the same
-        ``--wildcards`` values it passed to ``execute``; it wins over the
-        registry but never feeds back into inference or the declaration.
+        The rule captures the job wildcards of the execution that created it
+        (the ``--wildcards`` values passed to ``execute``).  Callers outside that
+        execution, such as the CLI after ``execute`` returns, read them back from
+        the rule instead of re-supplying ``--wildcards``.
         """
         if override is None:
-            override = _registry.wildcards()
+            override = self._job_wildcards
         return self._declared_wildcards() | override
 
     def _record(self, captured: dict[str, str]):
@@ -921,7 +923,7 @@ class Rule:
         yield start, end, header + "".join(body or [f"\n{TAB}pass"])
 
     @classmethod
-    def from_snd(cls, source: str, declared_src=None):
+    def from_snd(cls, source: str, filename=None):
         """Rebuild a rule from its canonical ``# snakedone:rule`` block."""
         tree = ast.parse(source)
         position = line_offsets(source)
@@ -931,8 +933,8 @@ class Rule:
                 match = _RULE_MARKER_RE.fullmatch(marker)
                 if match:
                     self = cls._from_node(node, match["name"])
-                    if declared_src is not None:
-                        self._filename = str(declared_src)
+                    if filename is not None:
+                        self._filename = str(filename)
                     return self
         raise WorkflowError(
             "No # snakedone:rule block found. "
@@ -1037,14 +1039,13 @@ class Rule:
         return ret
 
     @smk_target_document.setter
-    def smk_target_document(self, value: tuple[str, dict[str, str] | None]):
+    def smk_target_document(self, text: str):
         """Replace or drop the document declaration after execution.
 
         Used by the CLI to reconcile the recorded document with ``-o``.  This is
         the only path allowed to change the declaration outside the rule block.
         """
-        text, wildcards = value
-        pattern = _placeholderize(text, self._effective_wildcards(wildcards))
+        pattern = _placeholderize(text, self._effective_wildcards())
         if pattern == text:
             pattern = None  # a concrete -o cannot be recorded as a pattern
         if pattern is not None and Path(pattern).suffix not in (".snd", ".html"):
@@ -1180,7 +1181,7 @@ def rule(name: str | None = None):
     """Create and register the document's single rule."""
     if _registry.current() is not None:
         raise WorkflowError("snakedone.rule() can only be called once per document")
-    declared = Rule(name)
+    job = Rule(name)
     if _registry.executing():
-        _registry.set_current(declared)
-    return declared
+        _registry.set_current(job)
+    return job

@@ -144,6 +144,34 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .doc-code:only-child { padding-bottom: .65rem; }
 .doc-out:only-child { padding-top: .65rem; }
 
+/* source view */
+.report-block { position: relative; }
+.snd-view-toggle { position: absolute; right: 0; top: 0; z-index: 1;
+                   padding: .15rem .5rem; cursor: pointer;
+                   color: #3984c6; background: canvas;
+                   border: 1px solid #8885; border-radius: .25rem;
+                   font: 600 .75rem/1.4 system-ui, sans-serif; }
+.snd-view-toggle:hover { background: #3984c622; }
+.snd-view-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+.snd-source { display: none; margin: .3rem 0; padding: .65rem 1rem;
+              overflow-x: auto; border: 1px solid #8885; border-radius: .4rem;
+              font: .9em/1.5 ui-monospace, monospace;
+              background: #f1f5f9; color: #172033; }
+.report-block[data-snd-view="source"] > :not(.snd-view-toggle):not(.snd-source) {
+  display: none; }
+.report-block[data-snd-view="source"] > .snd-source { display: block; }
+.snd-line { display: block; white-space: pre; min-height: 1.5em; }
+.snd-line[data-line]::before { content: attr(data-line); display: inline-block;
+  width: 3.5ch; margin-right: 1ch; text-align: right;
+  color: #888; user-select: none; -webkit-user-select: none; }
+.snd-toolbar { position: fixed; right: var(--unit); bottom: var(--unit); z-index: 30;
+  display: flex; gap: .4rem; }
+.snd-toolbar button { padding: .3rem .7rem; cursor: pointer;
+  color: canvastext; background: canvas; border: 1px solid #8885;
+  border-radius: .25rem; box-shadow: 0 1px 4px #0003;
+  font: 600 .8rem/1.4 system-ui, sans-serif; }
+.snd-toolbar button:hover { background: #3984c622; }
+
 /* img */
 img { max-width: 100%; height: auto; }
 main img { display: block; margin: .35rem auto; max-height: 50vh;
@@ -176,4 +204,8 @@ main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
   .navigate { display: none; }
   .script-toggle { display: none !important; }
   .script-block:not([open]) { min-height: 0; }
+  .snd-toolbar, .snd-view-toggle { display: none !important; }
+  .report-block[data-snd-view="source"] > :not(.snd-view-toggle):not(.snd-source) {
+    display: block; }
+  .report-block[data-snd-view="source"] > .snd-source { display: none; }
 }

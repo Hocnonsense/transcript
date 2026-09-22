@@ -7,7 +7,7 @@ from hashlib import sha256
 from typing import TypedDict
 
 from ..output import Report
-from ._assets import IMAGE_SCRIPT, NAVIGATE_SCRIPT, STYLE
+from ._assets import IMAGE_SCRIPT, ISLAND_SCRIPT, NAVIGATE_SCRIPT, STYLE
 
 
 def _digest(script: str):
@@ -51,18 +51,26 @@ def _package_files(reports: list[Report]):
     return encoded.replace("<", "\\u003c").replace(">", "\\u003e")
 
 
-def page_resources(reports: list[Report], origins: list[str]):
+def page_resources(reports: list[Report], origins: list[str], island: str = ""):
     """Return ``(styles, csp, scripts)`` for the exported page.
 
-    Styles from every renderer are collected.  The core scripts, the report
-    payload, and every runtime are collected into *scripts*; a renderer without
-    a runtime never executes in the browser, so it contributes no script or CSP
-    source.
+    styles: map(renderers, .STYLE).
+    csp:
+      Content-Security-Policy that allows the page to run in a browser
+        without any external resources
+      defaults + island + report payload + map(renderers, .sources).
+    scripts: the core scripts, source island, report payload,
+      + map(renderers, .runtime) for renderers that need it.
+
+    a renderer without a runtime never executes in the browser,
+      so it contributes no script or CSP source.
     """
 
     styles = [STYLE]
     runtimes = []
-    sources = [_digest(script) for script in (IMAGE_SCRIPT, NAVIGATE_SCRIPT)]
+    sources = [
+        _digest(script) for script in (IMAGE_SCRIPT, NAVIGATE_SCRIPT, ISLAND_SCRIPT)
+    ]
     for renderer in {r.name: r.chunk.renderer for r in reports}.values():
         if renderer.STYLE:
             styles.append(renderer.STYLE)
@@ -101,6 +109,8 @@ def page_resources(reports: list[Report], origins: list[str]):
         for part in (
             f"<script>{IMAGE_SCRIPT}</script>",
             f"<script>{NAVIGATE_SCRIPT}</script>",
+            island,
+            f"<script>{ISLAND_SCRIPT}</script>",
             payload,
             *runtime_tags,
         )

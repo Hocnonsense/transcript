@@ -192,20 +192,20 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
                             assert context is not None
                         context.set_lambdas(node)
                     with_normal(context, node)
-                    declared = _registry.current()
-                    if context is declared and declared is not None:
-                        declared.edit = (
+                    job = _registry.current()
+                    if context is job and job is not None:
+                        job.edit = (
                             span_start(node, self.position),
                             span_end(node, self.position),
                             self.get_segment(node.items[0].context_expr),
                         )
                         if not rule_not_set:
-                            if not declared.target:
+                            if not job.target:
                                 raise NameError(
                                     "Cannot trace the declared rule, please define "
                                     "it as a global variable"
                                 )
-                            if namespace[declared.target] is not declared:
+                            if namespace[job.target] is not job:
                                 # old name lost, try to find the new one
                                 rule_not_set = True
                         if rule_not_set:
@@ -215,7 +215,7 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
                                     "snakedone.rule() must be assigned `as` a name "
                                     "in the `with` statement"
                                 )
-                            declared.target = optional_vars.id
+                            job.target = optional_vars.id
                             rule_not_set = False
                     continue
                 optional_vars = node.items[0].optional_vars
@@ -226,10 +226,10 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
             outputs.append(with_snakedone(context, blocks[-1], optional_vars))
             if rule_not_set:
                 rule_not_set = check_namespace(self, node, namespace)
-        declared = _registry.current()
+        job = _registry.current()
     if failures:
         raise failures[0]
-    return blocks, outputs, declared
+    return blocks, outputs, job
 
 
 def check_namespace(self: AstDocument, node: ast.stmt, namespace):
@@ -237,16 +237,16 @@ def check_namespace(self: AstDocument, node: ast.stmt, namespace):
 
     Return whether the rule is still unset.
     """
-    declared = _registry.current()
-    if declared is None:
+    job = _registry.current()
+    if job is None:
         return True
     for name, value in namespace.items():
-        if value is declared:
+        if value is job:
             end = span_end(node, self.position)
             newline = self.source.find("\n", end)
             if newline == -1:
                 newline = len(self.source)
-            declared.target = name
-            declared.edit = (newline, newline, None)
+            job.target = name
+            job.edit = (newline, newline, None)
             return False
     return False

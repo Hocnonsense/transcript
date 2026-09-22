@@ -7,7 +7,7 @@ strings the exporters embed.
 
 from importlib.resources import files
 
-__all__ = ["IMAGE_SCRIPT", "NAVIGATE_SCRIPT", "STYLE"]
+__all__ = ["IMAGE_SCRIPT", "ISLAND_SCRIPT", "NAVIGATE_SCRIPT", "STYLE"]
 
 
 def _asset(name: str) -> str:
@@ -18,3 +18,4 @@ def _asset(name: str) -> str:
 STYLE = _asset("style.css")
 IMAGE_SCRIPT = _asset("image.js")
 NAVIGATE_SCRIPT = _asset("navigate.js")
+ISLAND_SCRIPT = _asset("island.js")
