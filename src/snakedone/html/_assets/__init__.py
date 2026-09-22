@@ -7,10 +7,17 @@ strings the exporters embed.
 
 from importlib.resources import files
 
-__all__ = ["IMAGE_SCRIPT", "ISLAND_SCRIPT", "NAVIGATE_SCRIPT", "STYLE"]
+__all__ = [
+    "ASSET_SCRIPTS",
+    "IMAGE_SCRIPT",
+    "ISLAND_SCRIPT",
+    "NAVIGATE_SCRIPT",
+    "RENDER_SCRIPT",
+    "STYLE",
+]
 
 
-def _asset(name: str) -> str:
+def _asset(name: str):
     """Read a packaged asset as text."""
     return files(__package__).joinpath(name).read_text(encoding="utf-8")
 
@@ -18,4 +25,7 @@ def _asset(name: str) -> str:
 STYLE = _asset("style.css")
 IMAGE_SCRIPT = _asset("image.js")
 NAVIGATE_SCRIPT = _asset("navigate.js")
+RENDER_SCRIPT = _asset("render.js")
 ISLAND_SCRIPT = _asset("island.js")
+
+ASSET_SCRIPTS = (IMAGE_SCRIPT, NAVIGATE_SCRIPT, ISLAND_SCRIPT, RENDER_SCRIPT)

@@ -10,12 +10,11 @@ requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-html = ["markdown-it-py>=3,<5", "pygments>=2.18,<3"]
-datavzrd = ["markdown-it-py>=3,<5", "pygments>=2.18,<3", "PyYAML>=6,<7"]
+html = ["markdown-it-py>=3,<5"]
+datavzrd = ["markdown-it-py>=3,<5", "PyYAML>=6,<7"]
 vegalite = [
     "altair>=5,<7",
     "markdown-it-py>=3,<5",
-    "pygments>=2.18,<3",
     "vl-convert-python>=1,<2",
     "PyYAML>=6,<7",
 ]

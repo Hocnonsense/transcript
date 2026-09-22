@@ -7,13 +7,57 @@ from hashlib import sha256
 from typing import TypedDict
 
 from ..output import Report
-from ._assets import IMAGE_SCRIPT, ISLAND_SCRIPT, NAVIGATE_SCRIPT, STYLE
+from ._assets import ASSET_SCRIPTS, STYLE
+
+_BROWSER_RENDERERS = {
+    "cache": "snakedone-renderers-v1",
+    "resources": [
+        {
+            "name": "markdown-it",
+            "type": "script",
+            "global": "markdownit",
+            "url": "https://cdn.jsdelivr.net/npm/markdown-it@14.1.0/dist/markdown-it.min.js",
+            "integrity": (
+                "sha384-wLhprpjsmjc/XYIcF+LpMxd8yS1gss6jhevOp6F6zhiIoFK6AmHtm4bG"
+                "KtehTani"
+            ),
+        },
+        {
+            "name": "highlight.js",
+            "type": "script",
+            "global": "hljs",
+            "url": "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.12.0/build/highlight.min.js",
+            "integrity": (
+                "sha384-wjfDDhOPPdjtva8vWBhWeVprSpmxisEu5aYT3q1JyACqXpdKpo3PWZTM"
+                "Vq24MBix"
+            ),
+        },
+        {
+            "name": "highlight.js-default",
+            "type": "style",
+            "url": "https://cdn.jsdelivr.net/gh/highlightjs/cdn-release@11.12.0/build/styles/default.min.css",
+            "integrity": (
+                "sha384-4Y0nObtF3CbKnh+lpzmAVdAMtQXl+ganWiiv73RcGVdRdfVIya8Cao1"
+                "C8ZsVRRDz"
+            ),
+        },
+    ],
+}
 
 
 def _digest(script: str):
     """Return the CSP ``sha256-`` source that allows an inline script."""
     digest = base64.b64encode(sha256(script.encode()).digest()).decode()
     return f"'sha256-{digest}'"
+
+
+def _renderer_config():
+    encoded = json.dumps(_BROWSER_RENDERERS, separators=(",", ":"))
+    return (
+        '<script id="snakedone-renderers" type="application/json">'
+        + encoded.replace("<", "\\u003c").replace(">", "\\u003e")
+        + "</script>"
+    )
 
 
 class _PackagedFile(TypedDict):
@@ -68,9 +112,7 @@ def page_resources(reports: list[Report], origins: list[str], island: str = ""):
 
     styles = [STYLE]
     runtimes = []
-    sources = [
-        _digest(script) for script in (IMAGE_SCRIPT, NAVIGATE_SCRIPT, ISLAND_SCRIPT)
-    ]
+    sources = [*map(_digest, ASSET_SCRIPTS)]
     for renderer in {r.name: r.chunk.renderer for r in reports}.values():
         if renderer.STYLE:
             styles.append(renderer.STYLE)
@@ -84,7 +126,7 @@ def page_resources(reports: list[Report], origins: list[str], island: str = ""):
     if runtime_tags:
         # No runtime means nothing reads the payload; static renderers
         # already emit their final HTML into the report block.
-        sources.extend(["blob:", "data:", "'unsafe-eval'"])
+        sources.extend(["data:", "'unsafe-eval'"])
         image_src = "data: blob:"
         payload = (
             '<script id="snakedone-reports" type="application/json">'
@@ -95,6 +137,7 @@ def page_resources(reports: list[Report], origins: list[str], island: str = ""):
     else:
         image_src = "data:"
         font_frame_src = payload = ""
+    sources.append("blob:")
     script_src = " ".join(dict.fromkeys(sources))
     if origins:
         image_src += " " + " ".join(origins)
@@ -102,15 +145,15 @@ def page_resources(reports: list[Report], origins: list[str], island: str = ""):
         "default-src 'none'; style-src 'unsafe-inline'; "
         f"img-src {image_src};{font_frame_src} "
         f"script-src {script_src}; "
+        "connect-src https://cdn.jsdelivr.net; "
         "base-uri 'none'; form-action 'none'"
     )
     scripts = "\n".join(
         part
         for part in (
-            f"<script>{IMAGE_SCRIPT}</script>",
-            f"<script>{NAVIGATE_SCRIPT}</script>",
             island,
-            f"<script>{ISLAND_SCRIPT}</script>",
+            _renderer_config(),
+            *(f"<script>{script}</script>" for script in ASSET_SCRIPTS),
             payload,
             *runtime_tags,
         )

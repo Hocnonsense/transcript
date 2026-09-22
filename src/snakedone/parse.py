@@ -11,6 +11,8 @@ REPORT_MARKER_COMMENT = f"# {REPORT_MARKER}"
 
 
 class Slot(NamedTuple):
+    """A recorded output slot, which is a string literal following a code statement."""
+
     start: int
     end: int
     value: str
@@ -22,12 +24,19 @@ class Statement(NamedTuple):
     end: int
     slot: Slot | None
 
+    @property
+    def slot_range(self):
+        """Return the character range of the slot, or ``None`` when there is none."""
+        if self.slot is None:
+            return None
+        return self.slot.start, self.slot.end
+
 
 class ReportBlock(NamedTuple):
     node: ast.If | ast.With
     body_start: int
     body_end: int
-    markdown: str
+    markdown: None | tuple[int, int]
     statements: list[Statement]
 
 
@@ -46,13 +55,17 @@ def line_offsets(source: str):
     return position
 
 
-def span_start(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+def _span_start(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
     return position(node.lineno, node.col_offset)
 
 
-def span_end(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+def _span_end(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
     assert node.end_lineno is not None and node.end_col_offset is not None
     return position(node.end_lineno, node.end_col_offset)
+
+
+def span(node: ast.stmt | ast.expr, position: Callable[[int, int], int]):
+    return _span_start(node, position), _span_end(node, position)
 
 
 def _is_report_if(node: ast.stmt) -> TypeGuard[ast.If]:
@@ -69,8 +82,8 @@ def with_marker_text(source: str, node: ast.With, position: Callable[[int, int],
     *comment* is the stripped text between the statement colon and the end of
     its physical line, empty when there is none.
     """
-    start = span_start(node, position)
-    end = span_start(node.body[0], position)
+    start = _span_start(node, position)
+    end = _span_start(node.body[0], position)
     tokens = list(tokenize.generate_tokens(io.StringIO(source[start:end]).readline))
     colon = None
     for token in tokens:
@@ -122,11 +135,12 @@ class Region(NamedTuple):
                 f"line {node.lineno}: a report block body must start on the next line; "
                 "put the body on its own line"
             )
-        markdown = ""
+        markdown = None
         index = 0
         first = _string_expr(body[0])
         if first is not None:
-            _, markdown = first
+            constant, _ = first
+            markdown = span(constant, position)
             index = 1
         statements: list[Statement] = []
         previous_end_line = 0
@@ -151,18 +165,14 @@ class Region(NamedTuple):
                 next_string = _string_expr(body[index + 1])
                 if next_string is not None:
                     constant, value = next_string
-                    slot = Slot(
-                        span_start(constant, position),
-                        span_end(constant, position),
-                        value,
-                    )
+                    slot = Slot(*span(constant, position), value)
                     index += 1
-            start = span_start(statement, position)
-            end = span_end(statement, position)
+            start = _span_start(statement, position)
+            end = _span_end(statement, position)
             statements.append(Statement(statement, start, end, slot))
             index += 1
-        body_start = span_start(body[0], position)
-        body_end = span_end(body[-1], position)
+        body_start = _span_start(body[0], position)
+        body_end = _span_end(body[-1], position)
         return ReportBlock(node, body_start, body_end, markdown, statements)
 
 

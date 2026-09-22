@@ -531,7 +531,7 @@ class Rule:
             sys.modules.get("__main__"), "__file__", None
         )
         self._lambdas: dict[tuple[int, int], ast.Lambda] | None = None
-        self.edit: tuple[int, int, str | None] | None = None
+        self.edit: tuple[tuple[int, int], str | None] | None = None
         self.target: str | None = None
         self.with_declare: bool | None = None
         """``None`` before entering, ``True`` while inside, ``False`` after."""
@@ -908,7 +908,7 @@ class Rule:
     def make_rule_block(self, TAB="    "):
         if not self.edit:
             return
-        start, end, context_source = self.edit
+        (start, end), context_source = self.edit
         if not self.target:
             raise NameError("snakedone.rule() must be assigned to a name")
         prefix = "\n\n" if context_source is None else ""

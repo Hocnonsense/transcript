@@ -157,7 +157,9 @@ Unhandled execution errors prevent archive writes, leaving an existing archive i
 ## HTML reports
 
 Reports follow source order, alternating script code and report blocks.
-Markdown docstrings are rendered as Markdown, including headings, lists, links, fenced code, and tables.
+The page renders Markdown docstrings and highlights Python in the browser from the embedded archive.
+On first use it downloads pinned `markdown-it` and `highlight.js` assets from jsDelivr and stores them in cache.
+An internet connection is therefore required only while those assets are not cached.
 Script code starts collapsed and occupies no height in the document flow.
 
 CSV and other text outputs retain their original formatting.

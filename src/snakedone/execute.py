@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from . import _registry
-from .parse import ReportBlock, span_end, span_start
+from .parse import ReportBlock, span
 
 if TYPE_CHECKING:
     from .document import AstDocument
@@ -194,11 +194,8 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
                     with_normal(context, node)
                     job = _registry.current()
                     if context is job and job is not None:
-                        job.edit = (
-                            span_start(node, self.position),
-                            span_end(node, self.position),
-                            self.get_segment(node.items[0].context_expr),
-                        )
+                        rule_s, rule_e = span(node.items[0].context_expr, self.position)
+                        job.edit = span(node, self.position), self.source[rule_s:rule_e]
                         if not rule_not_set:
                             if not job.target:
                                 raise NameError(
@@ -232,7 +229,7 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
     return blocks, outputs, job
 
 
-def check_namespace(self: AstDocument, node: ast.stmt, namespace):
+def check_namespace(self: AstDocument, node: ast.stmt, namespace: dict):
     """Find the variable bound to the rule and record its archive insertion.
 
     Return whether the rule is still unset.
@@ -242,11 +239,11 @@ def check_namespace(self: AstDocument, node: ast.stmt, namespace):
         return True
     for name, value in namespace.items():
         if value is job:
-            end = span_end(node, self.position)
+            _, end = span(node, self.position)
             newline = self.source.find("\n", end)
             if newline == -1:
                 newline = len(self.source)
             job.target = name
-            job.edit = (newline, newline, None)
+            job.edit = (newline, newline), None
             return False
     return False
