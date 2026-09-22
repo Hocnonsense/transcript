@@ -165,6 +165,19 @@ Use `image()` or `bitmap()` for embedded bitmap data, and Markdown image links r
 Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
 Rendering reads the archive without executing Python.
 
+### Embedded source
+
+Exported page embeds the archive it was generated from.
+The **Export .snd** button downloads the embedded archive, and passing the `.html` back to `snakedone` writes the same text to a `.snd` file:
+
+```bash
+snakedone report.html               # (over)write report.snd next to the page
+snakedone report.html -o copy.snd   # write copy.snd instead
+```
+
+The `.snd` suffix is always used; an `.html` input never executes and never renders a new page.
+`--diff` and `--overwrite` flag works, and default is diff if `.snd` file exists.
+
 Wrap generated Markdown in `markdown` when an expression's value should be rendered as document Markdown instead of plain text:
 
 ```python

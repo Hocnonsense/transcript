@@ -78,19 +78,15 @@ def _parse_wildcards(values, parser: argparse.ArgumentParser):
     return result
 
 
-def html2snd(html: Path, snd: Path | None = None):
+def html2snd(html: Path, snd: Path | None = None, diff: bool | None = None):
     """Handle an exported ``.html`` input by extracting its embedded archive."""
     try:
         source = extract_html(html.read_text(encoding="utf-8-sig"))
     except Exception:
         traceback.print_exc()
         return 2
-    snd = snd or html.with_suffix(".snd")
-    if snd.suffix != ".snd":
-        snd = snd.with_suffix(".snd")
-    snd.parent.mkdir(parents=True, exist_ok=True)
-    write(snd, source)
-    return 0
+    snd = (snd or html).with_suffix(".snd")
+    return check_exist(snd, source, diff, snd.exists())
 
 
 def main(argv: list[str] | None = None):
@@ -104,7 +100,7 @@ def main(argv: list[str] | None = None):
         output = output.with_suffix(output.suffix + ".snd")
     target = None if output is None else output.resolve()
     if path.suffix == ".html":
-        sys.exit(html2snd(path, target))
+        sys.exit(html2snd(path, target, args.diff))
     output_html = output is not None and output.suffix == ".html"
     # force_html and only_snd MAY both False if output is None, but never both True.
     force_html = args.html or output_html
@@ -114,7 +110,10 @@ def main(argv: list[str] | None = None):
         ret, snd, is_html, executed = 0, path, True, False
     else:
         wildcards = _parse_wildcards(args.wildcards, parser)
-        ret, snd, is_html = py2snd(path, output, args.diff, wildcards, force_html)
+        ret = py2snd(path, output, wildcards)
+        if isinstance(ret, tuple):
+            snd, candidate, is_html = ret
+            ret = check_exist(snd, candidate, args.diff, path == snd, force_html)
         executed = True
     if not ret and snd is not None:
         if not only_snd and (force_html or is_html):
@@ -172,13 +171,7 @@ def get_document(job: Rule | None):
     return resolved, False
 
 
-def py2snd(
-    path: Path,
-    output: Path | None,
-    diff: bool | None = None,
-    wildcards: dict[str, str] | None = None,
-    create_missing: bool = False,
-):
+def py2snd(path: Path, output: Path | None, wildcards: dict[str, str] | None = None):
     """Execute the document, resolve the archive target, and write the archive.
 
     Returns ``(status, archive, is_html)`` where *is_html* says whether the
@@ -202,12 +195,21 @@ def py2snd(
         candidate = document.render_snd(blocks, outputs, job)
     except Exception:
         traceback.print_exc()
-        return 2, None, False
+        return 2
+    return target, candidate, html
+
+
+def check_exist(
+    target: Path,
+    candidate: str,
+    diff: bool | None = None,
+    default_diff=True,
+    create_missing=False,
+):
     if create_missing and not target.exists():
         diff = False  # HTML export needs an archive to read.
     elif diff is None:
-        diff = path == target
-
+        diff = default_diff
     if not target.exists():
         previous = ""
         if not diff:
@@ -225,12 +227,10 @@ def py2snd(
                 tofile=f"{target} (generated)",
             )
         )
-        return int(updated), target, html
+        return 1 if updated else 0
     elif updated:
         write(target, candidate)
-    else:
-        target.touch()
-    return 0, target, html
+    return 0
 
 
 def snd2html(snd: Path, html: Path):
