@@ -1,14 +1,19 @@
 """Snapshot explicitly selected rich outputs into portable record blocks."""
 
+from __future__ import annotations
+
 import re
 from collections.abc import Iterable, Sequence
 from logging import warning
-from typing import NamedTuple, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, NamedTuple, Protocol, runtime_checkable
 
 from .renderers import get
 
+if TYPE_CHECKING:
+    from .parse import Slot
+
 _FENCE = re.compile(
-    r"(?P<fence>```(`*))snakedone-output"
+    r"(?P<fence>[ \t]*```(`*))snakedone-output"
     r"[ \t]+(?P<renderer>\w+)"
     r"((?P<op>==|>=|<=|>|<|=)(?P<version>\d+(?:\.\d+)*))?"
     r"[ \t]*\r?\n?$"
@@ -72,12 +77,12 @@ class Renderer(Protocol):
         boxed=True,
         origins=(),
     ):
-        """Quickly return a ``RecordedOutput`` for the given HTML and report files."""
-        return RecordedOutput(cls, text, files or {}, children, boxed, origins)
+        """Quickly return a ``Rendered`` for the given HTML and report files."""
+        return Rendered(text, files or {}, children, boxed, origins)
 
     @classmethod
-    def to_html(cls, sndata: str) -> RecordedOutput:
-        """Validate stored *data* and return a rendered output tree."""
+    def to_html(cls, slot: Slot) -> Rendered:
+        """Validate stored *slot* and return a rendered output tree."""
         ...
 
     @classmethod
@@ -86,7 +91,7 @@ class Renderer(Protocol):
         This method is called recursively from ``RecordedOutput.to_report``
          to produce the final HTML.
         """
-        text = output.text
+        text = output.rendered.text
         for block in child_blocks:
             text += "\n" + block
         return text
@@ -105,9 +110,10 @@ class Report:
     The *files* dictionary maps file names to ``(mime, data)`` pairs.
     """
 
-    def __init__(self, chunk: RecordedOutput, id: str):
+    def __init__(self, chunk: RecordedOutput, id: str, span: tuple[int, int]):
         self.chunk = chunk
         self.id = id
+        self.span = span
         if self.files and not chunk.renderer.runtime:
             raise RuntimeError(
                 f"Renderer {self.name!r} has report files but no offline HTML runtime"
@@ -119,27 +125,26 @@ class Report:
 
     @property
     def files(self):
-        return self.chunk.files
+        return self.chunk.rendered.files
 
     @property
     def boxed(self):
-        return self.chunk.boxed
+        return self.chunk.rendered.boxed
 
     @property
     def block(self):
+        start, end = self.span
         return (
             '<div class="snakedone-report"'
-            f' data-snd-report="{self.id}"'
-            f' data-snd-renderer="{self.name}">'
-            f"{self.chunk.text}</div>"
+            f' data-snd-report="{self.id}" data-snd-renderer="{self.name}"'
+            f' data-snd-span="{start},{end}">'
+            f"{self.chunk.rendered.text}</div>"
         )
 
 
-class RecordedOutput(NamedTuple):
-    """A rendered output and its recursively nested report nodes."""
+class Rendered(NamedTuple):
+    """A renderer's output, before the archive gives it a position."""
 
-    renderer: type[Renderer]
-    """Renderer class that owns this output and contributes its browser assets."""
     text: str
     """Rendered HTML, with optional ``{{i}}`` slots for ``children[i]``."""
     files: dict[str, tuple[str, bytes]]
@@ -151,16 +156,28 @@ class RecordedOutput(NamedTuple):
     origins: tuple[str, ...] = ()
     """Online image origins this output can render, for the page's CSP."""
 
+
+class RecordedOutput(NamedTuple):
+    """A rendered output at one archive occurrence, with its body range."""
+
+    renderer: type[Renderer]
+    """Renderer class that owns this output and contributes its browser assets."""
+    rendered: Rendered
+    span: tuple[int, int]
+    """This output's body range relative to its parent."""
+
     @classmethod
     def validate(
         cls,
         renderer_name: str,
-        data: str,
+        body: Slot,
         op: str | None = None,
         version: str | None = None,
     ):
-        """Check that the stored *data* is valid for the named renderer and version.
-        Return ``(output, None)`` or ``(None, reason)`` for stored *data*.
+        """Render the stored *body* for the named renderer and version.
+
+        Return ``((renderer, rendered), None)`` on success
+        or ``(None, reason)`` for an unusable stored body.
         """
         if not isinstance(renderer_name, str) or not renderer_name:
             return None, f"requires a renderer name, got {renderer_name!r}"
@@ -177,28 +194,32 @@ class RecordedOutput(NamedTuple):
                     f"{renderer.name} (supported: {op}{supported})"
                 )
         try:
-            rendered = renderer.to_html(data)
+            rendered = renderer.to_html(body)
         except Exception as error:
             return None, f"renderer {renderer.name} failed to render: {error}"
-        if not isinstance(rendered, RecordedOutput):
-            return None, f"renderer {renderer.name} did not return RecordedOutput"
-        return rendered, None
+        if not isinstance(rendered, Rendered):
+            return None, f"renderer {renderer.name} did not return Rendered"
+        return (renderer, rendered), None
 
     def __repr__(self):
-        return self.text.removesuffix("\n")
+        return self.rendered.text.removesuffix("\n")
 
     __str__ = __repr__
 
-    def to_report(self, ireport: str, reports: list[Report]):
-        """Render *node*, substituting nested report blocks for child tokens.
-        Add id to childs for reference in `h_reports_payload`
+    def to_report(self, ireport: str, reports: list[Report], shift: int):
+        """Render this output, substituting nested report blocks for child tokens.
+
+        *shift* is the absolute archive start of this output's parent,
+        each child's range is relative to this output and is shifted by ``span[0]``.
         """
-        child_blocks = (
-            child.to_report(f"{ireport}-{i}", reports).block
-            for i, child in enumerate(self.children)
-        )
+        span = shift + self.span[0], shift + self.span[1]
+        child_blocks = [
+            child.to_report(f"{ireport}-{i}", reports, span[0]).block
+            for i, child in enumerate(self.rendered.children)
+        ]
         html = self.renderer.render_node(self, child_blocks)
-        report = Report(self._replace(text=html, children=()), ireport)
+        rendered = self.rendered._replace(text=html, children=())
+        report = Report(self._replace(rendered=rendered), ireport, span)
         reports.append(report)
         return report
 
@@ -224,37 +245,51 @@ def _version_ok(op, declared, current):
     return False
 
 
-def split_output(text: str):
-    """Split recognized blocks while retaining ordinary text and future formats."""
+def split_output(slot: Slot):
+    """Split output, retaining each recognized block's archive occurrence."""
+    text = slot.raw
     lines = text.splitlines(keepends=True)
-    plain_start = cursor = 0
-    while cursor < len(lines):
-        header = _FENCE.fullmatch(lines[cursor])
+    starts: list[int] = []
+    cursor = 0
+    for line in lines:
+        starts.append(cursor)
+        cursor += len(line)
+    plain_start = index = 0
+    while index < len(lines):
+        header = _FENCE.fullmatch(lines[index])
         if not header:
-            cursor += 1
+            index += 1
             continue
         close_fence = re.compile(r"^" + header.group("fence") + r"[ \t]*(?:\r?\n)?$")
-        for end, line in enumerate(lines[cursor + 1 :], start=cursor + 1):
-            if close_fence.fullmatch(line):
+        for end in range(index + 1, len(lines)):
+            if close_fence.fullmatch(lines[end]):
                 break
         else:
-            warning(f"Incomplete snakedone-output block: {lines[cursor].rstrip()}")
-            yield "".join(lines[plain_start:])
+            warning(f"Incomplete snakedone-output block: {lines[index].rstrip()}")
+            yield slot.dedent(lines[plain_start:])
             return
-        if plain_start < cursor:
-            yield "".join(lines[plain_start:cursor])
-        body = "".join(lines[cursor + 1 : end]).removesuffix("\n")
+        if plain_start < index:
+            yield slot.dedent(lines[plain_start:index])
+        body_start = (
+            starts[index + 1]
+            if index + 1 < len(lines)
+            else starts[index] + len(lines[index])
+        )
+        body_end = starts[end]
+        while body_end > body_start and text[body_end - 1] in "\r\n":
+            body_end -= 1
+        body = slot.slice(body_start, body_end)
         output, reason = RecordedOutput.validate(
             header.group("renderer"), body, header.group("op"), header.group("version")
         )
         if output is None:
             warning(f"Invalid snakedone-output block: {reason}")
-            yield "".join(lines[cursor : end + 1])
+            yield slot.dedent(lines[index : end + 1])
         else:
-            yield output
-        cursor = plain_start = end + 1
+            yield RecordedOutput(*output, (body_start, body_end))
+        plain_start = index = end + 1
     if plain_start < len(lines):
-        yield "".join(lines[plain_start:])
+        yield slot.dedent(lines[plain_start:])
 
 
 def dataframe_csv(frame):

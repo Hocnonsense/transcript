@@ -103,83 +103,96 @@
     }
   }
 
-  const REPORT_INDENT = '    ';
+  const markdownLiteral = (function () {
+    function hasContent(text) {
+      for (let index = 0; index < text.length; index += 1) {
+        const code = text.charCodeAt(index);
+        // Treat anything outside ASCII indentation whitespace as content.
+        if (code !== 32 && code !== 9 && code !== 13) return true;
+      }
+      return false;
+    }
+    /** Strip the fixed report-block indent and trim blank edges, unlike `textwrap.dedent`. */
+    function dedent(text, REPORT_INDENT = '    ') {
+      if (!text) return '';
+      const lines = text.split('\n');
+      let first = 0;
+      while (first < lines.length && !hasContent(lines[first])) first += 1;
+      if (first === lines.length) return '';
+      let last = lines.length;
+      while (last > first && !hasContent(lines[last - 1])) last -= 1;
 
-  function decodeEscapes(raw) {
-    // Recover the exact string from its Python literal form. Both the machine
-    // escaping used for slots (`_escape_slot`) and hand-written docstrings use
-    // the same set here: `\\`, `\"`, `\'`, `\r`, `\t`, `\xNN`; LF stays literal.
-    let out = '';
-    let index = 0;
-    while (index < raw.length) {
-      const char = raw[index];
-      if (char !== '\\' || index + 1 >= raw.length) {
-        out += char;
-        index += 1;
-        continue;
-      }
-      const next = raw[index + 1];
-      if (next === '\\' || next === '"' || next === "'") {
-        out += next;
-        index += 2;
-        continue;
-      }
-      if (next === 'r') { out += '\r'; index += 2; continue; }
-      if (next === 't') { out += '\t'; index += 2; continue; }
-      if (next === 'x') {
-        const hex = raw.slice(index + 2, index + 4);
-        if (/^[0-9a-fA-F]{2}$/.test(hex)) {
-          out += String.fromCharCode(parseInt(hex, 16));
-          index += 4;
-          continue;
+      const indent = REPORT_INDENT.length;
+      const output = [];
+      for (let index = first; index < last; index += 1) {
+        const line = lines[index];
+        if (!hasContent(line)) {
+          output.push('');
+        } else if (line.startsWith(REPORT_INDENT)) {
+          output.push(line.slice(indent));
+        } else {
+          output.push(line);
         }
       }
-      out += char; // unknown escape: keep the backslash verbatim
-      index += 1;
+      return output.join('\n');
     }
-    return out;
-  }
 
-  function dedent(text) {
-    // Strip the fixed report-block indent and trim blank edges. Content
-    // indentation beyond the block indent is preserved, unlike `textwrap.dedent`.
-    if (!text) return '';
-    const lines = text.split('\n');
-    let first = 0;
-    while (first < lines.length && !/\S/.test(lines[first])) first += 1;
-    if (first === lines.length) return '';
-    let last = lines.length;
-    while (last > first && !/\S/.test(lines[last - 1])) last -= 1;
-    const output = [];
-    for (let index = first; index < last; index += 1) {
-      const line = lines[index];
-      if (!/\S/.test(line)) {
-        output.push('');
-      } else if (line.startsWith(REPORT_INDENT)) {
-        output.push(line.slice(REPORT_INDENT.length));
-      } else {
-        output.push(line);
+    function isHexPair(text) {
+      if (text.length !== 2) return false;
+      for (let index = 0; index < 2; index += 1) {
+        const code = text.charCodeAt(index);
+        const ok = (code >= 48 && code <= 57)  // 0-9
+          || (code >= 65 && code <= 70)        // A-F
+          || (code >= 97 && code <= 102);      // a-f
+        if (!ok) return false;
       }
+      return true;
     }
-    return output.join('\n');
-  }
+    /** Recover the exact string from its Python literal form.
+     *  Both the machine escaping used for slots (`_escape_slot`)
+     *   and hand-written docstrings use the same set here:
+     *  `\\`, `\"`, `\'`, `\r`, `\t`, `\xNN`; LF stays literal. */
+    function decodeEscapes(raw) {
+      // Fast path: nothing to unescape.
+      if (raw.indexOf('\\') === -1) return raw;
 
-  /** Extract the prose from a Markdown string literal: ignore the r/u prefix
-   *  and delimiters, then decode the shared escape set and the block indent. */
-  function markdownLiteral(raw) {
-    const match = raw.match(/^[rRuU]*("""|'''|"|')/);
-    if (!match) throw new Error('invalid markdown string literal');
-    const delimiter = match[1];
-    const body = raw.endsWith(delimiter)
-      ? raw.slice(match[0].length, raw.length - delimiter.length)
-      : raw.slice(match[0].length);
-    return dedent(decodeEscapes(body));
-  }
-
-  /** Recover the string passed to `markdown()` from its archived fence body. */
-  function slotLiteral(raw) {
-    return dedent(decodeEscapes(raw));
-  }
+      let out = '';
+      let start = 0;
+      let index = raw.indexOf('\\');
+      while (index !== -1) {
+        if (index + 1 >= raw.length) break; // trailing backslash stays literal
+        const next = raw[index + 1];
+        let replacement = null;
+        let advance = 2;
+        if (next === '\\' || next === '"' || next === "'") {
+          replacement = next;
+        } else if (next === 'r') {
+          replacement = '\r';
+        } else if (next === 't') {
+          replacement = '\t';
+        } else if (next === 'x') {
+          const hex = raw.slice(index + 2, index + 4);
+          if (isHexPair(hex)) {
+            replacement = String.fromCharCode(parseInt(hex, 16));
+            advance = 4;
+          }
+        }
+        if (replacement === null) {
+          // Unknown escape: keep the backslash verbatim, advance one char.
+          index += 1;
+        } else {
+          out += raw.slice(start, index) + replacement;
+          index += advance;
+          start = index;
+        }
+        index = raw.indexOf('\\', index);
+      }
+      out += raw.slice(start);
+      return out;
+    }
+    /** Recover the string passed to `markdown()` from its archived fence body. */
+    return raw => dedent(decodeEscapes(raw));
+  })();
 
   function lineRanges(text) {
     // Decode `data-snd-string-lines` (e.g. "1,4-5") into a set of 1-based lines.
@@ -503,7 +516,7 @@
       .forEach(node => node.remove());
   }
 
-  function initMarkdownRegion(node, start, end, markdown, decode) {
+  function initMarkdownRegion(node, { start, end }, markdown, decode) {
     // A markdown region is either a docstring or a `markdown()` output; both are
     // sliced from the island, decoded to the exact string, and rendered here.
     const literal = decode(source.slice(start, end));
@@ -550,37 +563,19 @@
     wireMarkdown(state);
   }
 
-  function markdownBodySpan(slotStart, slotEnd) {
-    // Locate the `snakedone-output markdown` fence body inside a slot literal,
-    // so a markdown() output can be rendered and annotated against its source.
-    const text = source.slice(slotStart, slotEnd);
-    const header = /^[ \t]*(`{3,})snakedone-output[ \t]+markdown\b[^\n]*\n/m.exec(text);
-    if (!header) return null;
-    const bodyStart = header.index + header[0].length;
-    // The closing fence has exactly the opening run of backticks, so a fenced
-    // code block inside the Markdown body cannot terminate it early.
-    const close = new RegExp(`^[ \\t]*${header[1]}[ \\t]*\\r?\\n?$`, 'm')
-      .exec(text.slice(bodyStart));
-    if (!close) return null;
-    let end = slotStart + bodyStart + close.index;
-    while (end > slotStart + bodyStart
-      && (source[end - 1] === '\n' || source[end - 1] === '\r')) {
-      end -= 1;
-    }
-    return { start: slotStart + bodyStart, end };
+  function markdownSpan(node) {
+    // `data-snd-span` is the archive range `start,end` the server recorded.
+    const [start, end] = node.dataset.sndSpan.split(',');
+    return [Number(start), Number(end)];
   }
 
   function initMarkdownOutputs(markdown) {
     document.querySelectorAll(
-      '.snakedone-report[data-snd-renderer="markdown"]').forEach(node => {
-        const slot = node.closest('[data-snd-slot-start]');
-        if (!slot || node.sndMdState) return;
-        const span = markdownBodySpan(
-          Number(slot.dataset.sndSlotStart), Number(slot.dataset.sndSlotEnd));
-        if (span) {
-          initMarkdownRegion(node, span.start, span.end, markdown, slotLiteral);
-        }
-      });
+      '.snakedone-report[data-snd-renderer="markdown"][data-snd-span]'
+    ).forEach(node => {
+      if (node.sndMdState) return;
+      initMarkdownRegion(node, markdownSpan(node), markdown, markdownLiteral);
+    });
   }
 
   function showRendered(state) {
@@ -1090,9 +1085,8 @@
       await loadResources(config.resources);
 
       const markdown = window.markdownit('commonmark', { html: false }).enable('table');
-      document.querySelectorAll('.doc-md[data-snd-md-start]').forEach(node =>
-        initMarkdownRegion(node, Number(node.dataset.sndMdStart), Number(node.dataset.sndMdEnd),
-          markdown, markdownLiteral));
+      document.querySelectorAll('.doc-md[data-snd-span]').forEach(node =>
+        initMarkdownRegion(node, markdownSpan(node), markdown, markdownLiteral));
       initMarkdownOutputs(markdown);
       document.querySelectorAll('.doc-code[data-snd-start]').forEach(renderCode);
       document.querySelectorAll('.script-block[data-snd-start]').forEach(renderScript);

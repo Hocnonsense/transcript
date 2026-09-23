@@ -6,7 +6,7 @@ from typing import NamedTuple
 
 from .execute import execute as _execute
 from .html import render as _render_html
-from .parse import Region, Statement, locate
+from .parse import Region, locate
 from .snd import render as _render_snd
 
 
@@ -34,22 +34,10 @@ class AstDocument(NamedTuple):
     def blocks(self):
         """Compute all report blocks from the document's regions."""
         return [
-            region.parse_block(self.position)
+            region.parse_block(self.source, self.position)
             for region in self.regions.values()
             if region.kind == "if" or region.marker
         ]
-
-    def slot_output(self, statement: Statement):
-        """Read a recorded output slot, removing only its archive indentation."""
-        if statement.slot is None:
-            return ""
-        output = statement.slot.value
-        indent = self.indent_of(statement.start)
-        if indent:
-            output = "".join(
-                line.removeprefix(indent) for line in output.splitlines(keepends=True)
-            )
-        return output.removeprefix("\n")
 
     execute = _execute
     render_snd = _render_snd

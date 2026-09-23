@@ -219,7 +219,7 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
             else:
                 context = report
                 optional_vars = None
-            blocks.append(self.regions[i].parse_block(self.position))
+            blocks.append(self.regions[i].parse_block(self.source, self.position))
             outputs.append(with_snakedone(context, blocks[-1], optional_vars))
             if rule_not_set:
                 rule_not_set = check_namespace(self, node, namespace)

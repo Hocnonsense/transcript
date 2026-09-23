@@ -100,7 +100,7 @@ def render(
             indent = self.indent_of(statement.start)
             if statement.slot is not None:
                 literal = _slot_literal(output, indent) if output else ""
-                edits.append((statement.slot.start, statement.slot.end, literal))
+                edits.append((*statement.slot.literal, literal))
             elif output:
                 newline = self.source.find("\n", statement.end)
                 if newline == -1:

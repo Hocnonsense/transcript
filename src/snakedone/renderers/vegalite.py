@@ -208,9 +208,9 @@ class VegaliteOffline(_VegaliteBase):
     name = "vegalite_offline"
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         """Render stored data to a static SVG chart with no report files."""
-        parsed = json.loads(data)
+        parsed = json.loads(slot.value)
         cls._validate(parsed)
         return cls._htmlout(
             '<div class="snakedone-chart"><div class="snakedone-frame">'
@@ -225,9 +225,9 @@ class VegaliteInteractive(_VegaliteBase):
     name = "vegalite_interactive"
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         """Return the static preview plus the spec the browser runtime embeds."""
-        parsed = json.loads(data)
+        parsed = json.loads(slot.value)
         cls._validate(parsed)
         body = json.dumps(parsed, sort_keys=True, separators=(",", ":"))
         body = body.replace("<", "\\u003c")

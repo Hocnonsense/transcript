@@ -27,11 +27,11 @@ class markdown(Renderer):
         return self.obj
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         """Mark the slot for the browser runtime; the server emits no HTML.
 
         The online image origins are carried on the output so the page CSP can
         allow them without re-reading the archive.
         """
-        origins = tuple(markdown_image_origins(data))
+        origins = tuple(markdown_image_origins(slot.value))
         return cls._htmlout("", boxed=False, origins=origins)

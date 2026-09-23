@@ -45,8 +45,8 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
                 markdown_image_origins(self.source[markdown_start:markdown_end])
             )
             parts.append(
-                f'<div class="doc-md" data-snd-md-start="{markdown_start}"'
-                f' data-snd-md-end="{markdown_end}"></div>'
+                f'<div class="doc-md"'
+                f' data-snd-span="{markdown_start},{markdown_end}"></div>'
             )
         pending_codes: list[tuple[int, int, set[int]]] = []
         last_istatement = len(block.statements) - 1
@@ -59,14 +59,10 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
                 line_end = len(self.source)
             stringlines = _multiline_string_lines(self.source[line_start:line_end])
             pending_codes.append((line_start, line_end, stringlines))
-            output = self.slot_output(statement)
-            if output or istatement == last_istatement:
+            output = statement.slot
+            if (output is not None and output.value) or istatement == last_istatement:
                 report_id = f"report-{iblock}-{istatement}"
-                parts.append(
-                    output_html(
-                        pending_codes, output, statement.slot_range, reports, report_id
-                    )
-                )
+                parts.append(output_html(pending_codes, output, reports, report_id))
                 pending_codes = []
         parts.append("</section>")
 
@@ -74,7 +70,9 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     body, entries = anchors(parts)
     island = source_island(self.source)
     origins.update(
-        image_origin for report in reports for image_origin in report.chunk.origins
+        image_origin
+        for report in reports
+        for image_origin in report.chunk.rendered.origins
     )
     style, csp, scripts = page_resources(reports, sorted(origins), island)
     navigate_class, navigate = navigate_html(entries)

@@ -145,9 +145,9 @@ class Datavzrd(Renderer):
         return body
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         """Validate stored data, then return its inner HTML and report files."""
-        parsed = cls._validate(data)
+        parsed = cls._validate(slot.value)
         return cls._htmlout("", cls._build(parsed))
 
     @classmethod

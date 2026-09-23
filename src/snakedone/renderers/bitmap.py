@@ -129,9 +129,9 @@ class Bitmap(Renderer):
         )
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         try:
-            snapshot = json.loads(data)
+            snapshot = json.loads(slot.value)
             mime = snapshot["mime"]
             encoded = snapshot["data"]
             alt = snapshot["alt"]

@@ -2,11 +2,12 @@
 
 import ast
 import re
-from collections.abc import Callable
+from collections.abc import Iterable
 from html import escape
 from logging import warning
 
 from ..output import RecordedOutput, Renderer, split_output
+from ..parse import Slot
 from . import register
 
 _ID = re.compile(r"[A-Za-z][A-Za-z0-9_.:-]*\Z")
@@ -34,10 +35,10 @@ class CodeRenderer(Renderer):
         return self.text
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         return cls._htmlout(
             '<pre class="doc-text"><samp class="doc-out">'
-            + escape(data)
+            + escape(slot.value)
             + "</samp></pre>",
             {},
         )
@@ -56,25 +57,41 @@ def set_cache(new=None):
     return old
 
 
+def get_inner(content_iter: Iterable[str | RecordedOutput]):
+    content = list(content_iter)
+    if len(content) != 1:
+        raise ValueError(
+            "labelled output must contain exactly one renderer output after the header"
+        )
+    (inner,) = content
+    if not isinstance(inner, RecordedOutput):
+        raise ValueError(
+            "labelled output must contain a renderer output after the header"
+        )
+    return inner
+
+
 def get_cached_inner(
-    id: str, caption: str, data: str, get_inner: Callable[[], RecordedOutput]
+    id: str, caption: str, data: str, content_iter: Iterable[str | RecordedOutput]
 ):
     assigned_id = id
     i = 0
-    inner = None
+    found = None
     if _cache is not None:
         while (cached := _cache.get(assigned_id)) is not None:
             if cached[0] == data:
-                inner = cached[1]
+                found = cached
                 break
             i += 1
             assigned_id = f"{id}.{i}"
-    if inner is None:
-        inner = get_inner()
+    if found is None:
+        inner = get_inner(content_iter)
         if _cache is not None:
             _cache[assigned_id] = (data, inner, 0)
+    else:
+        inner = found[1]
     if i:
-        if cached is None:
+        if found is None:
             warning(f"label {id!r} has different content; using {assigned_id!r}")
         if caption:
             caption += f" (duplicate {i} of label {id})"
@@ -111,9 +128,11 @@ class Label(Renderer):
         return "\n".join([self.id + " " + repr(self.caption), self.inner.to_snd()])
 
     @classmethod
-    def from_snd(cls, data: str):
-        """Parse a label, reusing its cached inner output when possible."""
-        content_iter = split_output(data)
+    def from_snd(cls, slot: Slot):
+        """Parse a label, reusing its cached inner output when possible.
+        The decoded body is only used as the cache key.
+        """
+        content_iter = split_output(slot)
         try:
             header = next(content_iter)
         except StopIteration:
@@ -129,32 +148,17 @@ class Label(Renderer):
             raise ValueError(f"label id must be a valid snakedone id, got {id!r}")
         if not isinstance(caption, str):
             raise ValueError("label caption must decode to a string")
-
-        def get_inner():
-            content = list(content_iter)
-            if len(content) != 1:
-                raise ValueError(
-                    "labelled output must contain exactly one renderer output "
-                    "after the header"
-                )
-            (inner,) = content
-            if not isinstance(inner, RecordedOutput):
-                raise ValueError(
-                    "labelled output must contain a renderer output after the header"
-                )
-            return inner
-
-        return get_cached_inner(id, caption, data, get_inner)
+        return get_cached_inner(id, caption, slot.value, content_iter)
 
     @classmethod
-    def to_html(cls, data: str):
+    def to_html(cls, slot):
         """Render the wrapped output and place it inside a labelled figure."""
-        id, caption, inner = cls.from_snd(data)
+        id, caption, inner = cls.from_snd(slot)
         figure = f'<figure class="snakedone-label" data-snd-label="{id}">' + "{{0}}"
         if caption:
             figure += f"<figcaption>{escape(caption)}</figcaption>"
         figure += "</figure>"
-        return cls._htmlout(figure, {}, (inner,), boxed=inner.boxed)
+        return cls._htmlout(figure, {}, (inner,), boxed=inner.rendered.boxed)
 
     @classmethod
     def _repeat_html(cls, text: str, id: str, occurrence: int):
@@ -185,13 +189,13 @@ class Label(Renderer):
             raise ValueError("labelled output must contain exactly one inner output")
         match = re.match(
             r'<figure class="snakedone-label" data-snd-label="([^"]+)">',
-            output.text,
+            output.rendered.text,
         )
         if match is None:
             raise ValueError("labelled output has an invalid figure template")
         id = match.group(1)
         opening = match.group(0)
-        text = output.text.replace(
+        text = output.rendered.text.replace(
             opening, f'<figure class="snakedone-label" id="{id}">', 1
         )
         if _cache is not None:

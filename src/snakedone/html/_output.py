@@ -3,6 +3,7 @@
 from html import escape
 
 from ..output import RecordedOutput, Report, split_output
+from ..parse import Slot
 
 
 def _ranges(numbers: set[int]):
@@ -43,54 +44,51 @@ def statement_html(span: tuple[int, int, set[int]]):
 
 def output_html(
     statements: list[tuple[int, int, set[int]]],
-    output: str,
-    slot: tuple[int, int] | None,
+    output: Slot | None,
     reports: list[Report],
     report_id: str,
 ):
-    code_block = "".join(map(statement_html, statements))
+    code_block = [*map(statement_html, statements)]
 
     def flush_text():
-        nonlocal code_block
         if parts:
-            code_block += f'<samp class="doc-out">{"".join(parts)}</samp>'
+            code_block.append(f'<samp class="doc-out">{"".join(parts)}</samp>')
             parts.clear()
         elif not code_block:
             return
-        blocks.append(f'<pre class="doc-text">{code_block}</pre>')
-        code_block = ""
+        blocks.append('<pre class="doc-text">{}</pre>'.format("".join(code_block)))
+        code_block.clear()
 
     parts: list[str] = []
     blocks: list[str] = []
     boxed = True
-    for ichunk, chunk in enumerate(split_output(output)):
-        if isinstance(chunk, RecordedOutput):
-            flush_text()
-            report = chunk.to_report(f"{report_id}-{ichunk}", reports)
-            blocks.append(report.block)
-            boxed = ichunk != 0 or report.boxed
-            continue
-        boxed = True
-        for line in str(chunk).splitlines(keepends=True):
-            parts.append(escape(line))
+    if output is None:
+        text = ""
+    else:
+        text = output.value
+        chunks = split_output(output)
+        for ichunk, chunk in enumerate(chunks):
+            if isinstance(chunk, RecordedOutput):
+                flush_text()
+                report = chunk.to_report(f"{report_id}-{ichunk}", reports, output.start)
+                blocks.append(report.block)
+                boxed = ichunk != 0 or report.boxed
+                continue
+            if str(chunk):
+                boxed = True
+            for line in str(chunk).splitlines(keepends=True):
+                parts.append(escape(line))
     flush_text()
     content = "".join(blocks)
-    slot_data = ""
-    if slot is not None:
-        start, end = slot
-        slot_data = f' data-snd-slot-start="{start}" data-snd-slot-end="{end}"'
-    if not output:
-        return f'<div class="doctest-code"{slot_data}>{content}</div>'
+    if not text:
+        return f'<div class="doctest-code">{content}</div>'
     expanded = str(boxed).lower()
     toggle = (
         '<button class="output-box-toggle" type="button"'
         f' aria-label="Show or hide code and frame" aria-expanded="{expanded}">'
         '<span aria-hidden="true">&lt;/&gt;</span></button>'
     )
-    return (
-        f'<div class="doctest-code" data-boxed="{expanded}"{slot_data}>'
-        f"{toggle}{content}</div>"
-    )
+    return f'<div class="doctest-code" data-boxed="{expanded}">{toggle}{content}</div>'
 
 
 def script_html(start: int, end: int):

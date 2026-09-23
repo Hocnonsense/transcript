@@ -2,6 +2,7 @@
 
 import ast
 import io
+import re
 import tokenize
 from collections.abc import Callable
 from typing import NamedTuple, TypeGuard
@@ -9,13 +10,61 @@ from typing import NamedTuple, TypeGuard
 REPORT_MARKER = "snakedone"
 REPORT_MARKER_COMMENT = f"# {REPORT_MARKER}"
 
+_STRING_PREFIXES = "rRbBuUfF"
+_ESCAPE = re.compile(r"\\([\\\"'rt]|x[0-9a-fA-F]{2})")
+_ESCAPE_TEXT = {"\\": "\\", '"': '"', "'": "'", "r": "\r", "t": "\t"}
+
+
+def _decode_escapes(raw: str):
+    """Reverse the shared escape set (``\\``, quotes, ``\\r``, ``\\t``, ``\\xNN``).
+    LF and unknown escapes stays literal.
+
+    Mirrors the browser runtime's ``decodeEscapes`` and ``snd._escape_slot``,
+    the set that appears in machine-generated slot literals.
+    """
+
+    if "\\" not in raw:
+        return raw
+
+    def replace(match: re.Match):
+        escape = match.group(1)
+        if escape[0] == "x":
+            return chr(int(escape[1:], 16))
+        return _ESCAPE_TEXT[escape]
+
+    return _ESCAPE.sub(replace, raw)
+
 
 class Slot(NamedTuple):
-    """A recorded output slot, which is a string literal following a code statement."""
+    """A recorded output body and its coordinates in the source."""
 
+    raw: str
+    """the text inside the string delimiters"""
     start: int
-    end: int
-    value: str
+    """absolute offset of .raw in the source"""
+    indent: str
+    literal: tuple[int, int]
+    """the whole string-literal span, to replace during py2snd"""
+
+    @property
+    def end(self):
+        return self.start + len(self.raw)
+
+    @property
+    def shift(self):
+        """How far the literal delimiters extend beyond the body on each side."""
+        return self.literal[0] - self.start, self.literal[1] - self.end
+
+    def dedent(self, text: list[str]):
+        return "".join(_decode_escapes(line.removeprefix(self.indent)) for line in text)
+
+    @property
+    def value(self):
+        """The decoded text with its archive indentation removed."""
+        return self.dedent(self.raw.splitlines(keepends=True)).removeprefix("\n")
+
+    def slice(self, start, end):
+        return self.__class__(self.raw[start:end], 0, self.indent, (0, end - start))
 
 
 class Statement(NamedTuple):
@@ -24,19 +73,12 @@ class Statement(NamedTuple):
     end: int
     slot: Slot | None
 
-    @property
-    def slot_range(self):
-        """Return the character range of the slot, or ``None`` when there is none."""
-        if self.slot is None:
-            return None
-        return self.slot.start, self.slot.end
-
 
 class ReportBlock(NamedTuple):
     node: ast.If | ast.With
     body_start: int
     body_end: int
-    markdown: None | tuple[int, int]
+    markdown: tuple[int, int] | None
     statements: list[Statement]
 
 
@@ -110,8 +152,22 @@ def _string_expr(node: ast.stmt):
         and isinstance(node.value, ast.Constant)
         and isinstance(node.value.value, str)
     ):
-        return node.value, node.value.value
+        return node.value
     return None
+
+
+def _string_interior(source: str, span: tuple[int, int]):
+    """Return the span of a string literal's content, between its delimiters."""
+    start, end = span
+    index = start
+    while index < end and source[index] in _STRING_PREFIXES:
+        index += 1
+    quote = source[index]
+    run = 0
+    while index + run < end and source[index + run] == quote:
+        run += 1
+    width = 3 if run >= 3 else 1
+    return index + width, end - width
 
 
 class Region(NamedTuple):
@@ -124,7 +180,7 @@ class Region(NamedTuple):
     def kind(self):
         return "if" if isinstance(self.node, ast.If) else "with"
 
-    def parse_block(self, position: Callable[[int, int], int]):
+    def parse_block(self, source: str, position: Callable[[int, int], int]):
         """Compute a block from its region; called when a report block is reached."""
         node = self.node
         body = node.body
@@ -139,8 +195,7 @@ class Region(NamedTuple):
         index = 0
         first = _string_expr(body[0])
         if first is not None:
-            constant, _ = first
-            markdown = span(constant, position)
+            markdown = _string_interior(source, span(first, position))
             index = 1
         statements: list[Statement] = []
         previous_end_line = 0
@@ -160,14 +215,21 @@ class Region(NamedTuple):
                     "not supported in report blocks; put each statement on its own line"
                 )
             previous_end_line = statement.end_lineno or 0
+            start = _span_start(statement, position)
+            line_start = source.rfind("\n", 0, start) + 1
+            indent = source[line_start:start]
             slot = None
             if index + 1 < len(body):
-                next_string = _string_expr(body[index + 1])
-                if next_string is not None:
-                    constant, value = next_string
-                    slot = Slot(*span(constant, position), value)
+                constant = _string_expr(body[index + 1])
+                if constant is not None:
+                    literal = span(constant, position)
+                    slot_start, slot_end = _string_interior(source, literal)
+                    if slot_start < slot_end and source[slot_start] == "\n":
+                        slot_start += 1
+                    slot = Slot(
+                        source[slot_start:slot_end], slot_start, indent, literal
+                    )
                     index += 1
-            start = _span_start(statement, position)
             end = _span_end(statement, position)
             statements.append(Statement(statement, start, end, slot))
             index += 1
