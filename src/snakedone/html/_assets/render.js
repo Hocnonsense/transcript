@@ -205,13 +205,18 @@
     return result;
   }
 
+  function sourceSpan(node) {
+    // `data-snd-span` is the source range `start,end` the server recorded.
+    const [start, end] = node.dataset.sndSpan.split(',');
+    return [Number(start), Number(end)];
+  }
+
   function codeLines(node) {
     // Rebuild one physical statement from the island. Shared indentation is
     // stripped before highlighting, except on continuation lines of a multiline
     // string, which keep their indentation and drop the `>>>` prompt. The
     // server precomputes which lines those are (`data-snd-string-lines`).
-    const start = Number(node.dataset.sndStart);
-    const end = Number(node.dataset.sndEnd);
+    const [start, end] = sourceSpan(node);
     const raw = source.slice(start, end);
     const lines = raw.split('\n');
     const indent = (lines.find(line => line.trim()) || '').match(/^[ \t]*/)[0];
@@ -248,8 +253,7 @@
     // Semicolons between adjacent document expressions are only separators, so
     // a region that holds nothing else is dropped instead of showing an empty
     // toggle.
-    const start = Number(node.dataset.sndStart);
-    const end = Number(node.dataset.sndEnd);
+    const [start, end] = sourceSpan(node);
     return source.slice(start, end).replace(/^[\r\n]+|[\r\n]+$/g, '');
   }
 
@@ -563,18 +567,12 @@
     wireMarkdown(state);
   }
 
-  function markdownSpan(node) {
-    // `data-snd-span` is the archive range `start,end` the server recorded.
-    const [start, end] = node.dataset.sndSpan.split(',');
-    return [Number(start), Number(end)];
-  }
-
   function initMarkdownOutputs(markdown) {
     document.querySelectorAll(
       '.snakedone-report[data-snd-renderer="markdown"][data-snd-span]'
     ).forEach(node => {
       if (node.sndMdState) return;
-      initMarkdownRegion(node, markdownSpan(node), markdown, markdownLiteral);
+      initMarkdownRegion(node, sourceSpan(node), markdown, markdownLiteral);
     });
   }
 
@@ -1086,10 +1084,11 @@
 
       const markdown = window.markdownit('commonmark', { html: false }).enable('table');
       document.querySelectorAll('.doc-md[data-snd-span]').forEach(node =>
-        initMarkdownRegion(node, markdownSpan(node), markdown, markdownLiteral));
+        initMarkdownRegion(node, sourceSpan(node), markdown, markdownLiteral));
       initMarkdownOutputs(markdown);
-      document.querySelectorAll('.doc-code[data-snd-start]').forEach(renderCode);
-      document.querySelectorAll('.script-block[data-snd-start]').forEach(renderScript);
+
+      document.querySelectorAll('.doc-code[data-snd-span]').forEach(renderCode);
+      document.querySelectorAll('.script-block[data-snd-span]').forEach(renderScript);
       outline();
       document.documentElement.dataset.sndRendered = 'true';
       document.dispatchEvent(new CustomEvent('snakedone-rendered'));

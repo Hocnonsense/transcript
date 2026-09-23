@@ -36,10 +36,7 @@ def statement_html(span: tuple[int, int, set[int]]):
     start, end, string_lines = span
     string_lines = _ranges(string_lines)
     encoded = f' data-snd-string-lines="{string_lines}"' if string_lines else ""
-    return (
-        f'<code class="doc-code" data-snd-start="{start}" data-snd-end="{end}"'
-        f"{encoded}></code>"
-    )
+    return f'<code class="doc-code" data-snd-span="{start},{end}"{encoded}></code>'
 
 
 def output_html(
@@ -100,7 +97,4 @@ def script_html(start: int, end: int):
     """
     if start == end:
         return ""
-    return (
-        f'<details class="script-block" data-snd-start="{start}"'
-        f' data-snd-end="{end}"></details>'
-    )
+    return f'<details class="script-block" data-snd-span="{start},{end}"></details>'
