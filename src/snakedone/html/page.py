@@ -38,11 +38,7 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
         end = self.position(node.end_lineno, node.end_col_offset)
         parts.append(script_html(cursor, start))
         cursor = end
-        parts.append(
-            '<section class="report-block"'
-            f' data-snd-start="{start}" data-snd-end="{end}"'
-            f' data-snd-line="{node.lineno}">'
-        )
+        parts.append('<section class="report-block">')
         if block.markdown is not None:
             markdown_start, markdown_end = block.markdown
             markdown_origins.update(

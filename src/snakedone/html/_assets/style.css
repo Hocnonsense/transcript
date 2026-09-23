@@ -146,26 +146,7 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .doc-code:only-child { padding-bottom: .65rem; }
 .doc-out:only-child { padding-top: .65rem; }
 
-/* source view */
-.report-block { position: relative; }
-.snd-view-toggle { position: absolute; right: 0; top: 0; z-index: 1;
-                   padding: .15rem .5rem; cursor: pointer;
-                   color: #3984c6; background: canvas;
-                   border: 1px solid #8885; border-radius: .25rem;
-                   font: 600 .75rem/1.4 system-ui, sans-serif; }
-.snd-view-toggle:hover { background: #3984c622; }
-.snd-view-toggle:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
-.snd-source { display: none; margin: .3rem 0; padding: .65rem 1rem;
-              overflow-x: auto; border: 1px solid #8885; border-radius: .4rem;
-              font: .9em/1.5 ui-monospace, monospace;
-              background: #f1f5f9; color: #172033; }
-.report-block[data-snd-view="source"] > :not(.snd-view-toggle):not(.snd-source) {
-  display: none; }
-.report-block[data-snd-view="source"] > .snd-source { display: block; }
-.snd-line { display: block; white-space: pre; min-height: 1.5em; }
-.snd-line[data-line]::before { content: attr(data-line); display: inline-block;
-  width: 3.5ch; margin-right: 1ch; text-align: right;
-  color: #888; user-select: none; -webkit-user-select: none; }
+/* export toolbar */
 .snd-toolbar { position: fixed; right: var(--unit); bottom: var(--unit); z-index: 30;
   display: flex; gap: .4rem; }
 .snd-toolbar button { padding: .3rem .7rem; cursor: pointer;
@@ -173,6 +154,74 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
   border-radius: .25rem; box-shadow: 0 1px 4px #0003;
   font: 600 .8rem/1.4 system-ui, sans-serif; }
 .snd-toolbar button:hover { background: #3984c622; }
+
+/* markdown source view and inline review (prototype) */
+.doc-md { position: relative; }
+/* A markdown() output is prose, not code: drop the monospace box font so it
+   reads like the document's own Markdown. */
+.doctest-code:has(> .snakedone-report[data-snd-renderer="markdown"]) {
+  font: inherit; }
+.snd-md-source[hidden], .snd-md-rendered[hidden] { display: none; }
+/* Floating source popup: body width, wrapping, and it never replaces the
+   rendered Markdown underneath. */
+.snd-md-source { position: absolute; left: 0; right: 0; z-index: 4;
+  margin: 0; padding: .65rem 1rem; max-height: 40vh; overflow: auto;
+  border: 1px solid #8885; border-radius: .4rem;
+  box-shadow: 0 8px 24px #0003;
+  font: .9em/1.5 ui-monospace, monospace;
+  background: #f1f5f9; color: #172033;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.snd-line { display: block; white-space: pre-wrap; overflow-wrap: anywhere;
+  min-height: 1.5em; }
+.snd-line[hidden] { display: none; }
+.snd-line[data-line]::before { content: attr(data-line); display: inline-block;
+  width: 3.5ch; margin-right: 1ch; text-align: right;
+  color: #888; user-select: none; -webkit-user-select: none; }
+.snd-md-overlay { position: absolute; inset: 0; width: 100%; height: 100%;
+  overflow: visible; pointer-events: none; z-index: 5; }
+.snd-md-box { fill: #3984c61a; stroke: #3984c680; stroke-width: 3;
+  filter: drop-shadow(0 1px 2px #0002); }
+.snd-md-box-active { fill: #3984c633; stroke: #3984c6; }
+.snd-md-wave { fill: none; stroke: #3984c6; stroke-width: 1.6;
+  stroke-linecap: round; }
+.snd-md-controls { position: absolute; inset: 0; pointer-events: none;
+  z-index: 6; }
+.snd-md-controls > * { position: absolute; pointer-events: auto; }
+.snd-md-trigger, .snd-md-confirm {
+  padding: .15rem .45rem; cursor: pointer; color: #3984c6; background: canvas;
+  border: 1px solid #8885; border-radius: .25rem; box-shadow: 0 1px 4px #0003;
+  font: 600 .75rem/1.2 system-ui, sans-serif; }
+.snd-md-confirm { padding: 0; width: 1.15rem; height: 1.15rem;
+  display: grid; place-items: center; border-radius: 50%; }
+.snd-md-trigger:hover, .snd-md-confirm:hover { background: #3984c622; }
+.snd-md-trigger:focus-visible, .snd-md-confirm:focus-visible,
+/* A bookmark tab, hidden until the pointer is over its box. */
+.snd-md-badge:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
+.snd-md-badge { width: 1.15rem; height: 1.45rem; padding: 0; border: 0;
+  background: #3984c6; color: #fff; cursor: pointer;
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 68%, 0 100%);
+  font: 700 .7rem/1.45 system-ui, sans-serif; display: grid;
+  place-items: center; box-shadow: 0 1px 3px #0004; }
+.snd-md-badge[hidden] { display: none; }
+.snd-md-badge:hover { background: #2f6ea8; }
+/* Transparent hit area; the vertical line sits on the boundary and the two
+   triangles stick out above and below the text line instead of over it. */
+.snd-md-handle { width: 1.1rem; height: 1.9rem;
+  transform: translate(-50%, -50%); background: transparent;
+  cursor: ew-resize; touch-action: none; z-index: 2; }
+.snd-md-handle-line { position: absolute; left: 50%; top: .3rem; bottom: .3rem;
+  width: 2px; margin-left: -1px; background: #3984c6; border-radius: 1px;
+  box-shadow: 0 0 3px #0005; }
+.snd-md-handle-tri { position: absolute; left: 50%; width: 0; height: 0;
+  border-left: 4px solid transparent; border-right: 4px solid transparent; }
+.snd-md-handle-top { top: 0; margin-left: -4px; border-top: 5px solid #3984c6; }
+.snd-md-handle-bottom { bottom: 0; margin-left: -4px; border-bottom: 5px solid #3984c6; }
+.snd-md-menu { display: flex; flex-direction: column; background: canvas;
+  border: 1px solid #8885; border-radius: .25rem;
+  box-shadow: 0 2px 8px #0003; z-index: 1; }
+.snd-md-menu button { padding: .25rem .6rem; background: none; border: 0;
+  cursor: pointer; color: canvastext; font: inherit; text-align: left; }
+.snd-md-menu button:hover { background: #3984c622; }
 
 /* img */
 img { max-width: 100%; height: auto; }
@@ -199,6 +248,7 @@ main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 }
 @media (prefers-color-scheme: dark) {
   .doc-code { background: #202b3b; color: #e5eaf1; }
+  .snd-md-source { background: #202b3b; color: #e5eaf1; }
 }
 @media print {
   .page { max-width: none; margin: 0; padding: 0; }
@@ -206,8 +256,8 @@ main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
   .navigate { display: none; }
   .script-toggle { display: none !important; }
   .script-block:not([open]) { min-height: 0; }
-  .snd-toolbar, .snd-view-toggle { display: none !important; }
-  .report-block[data-snd-view="source"] > :not(.snd-view-toggle):not(.snd-source) {
-    display: block; }
-  .report-block[data-snd-view="source"] > .snd-source { display: none; }
+  .snd-toolbar { display: none !important; }
+  .snd-md-controls, .snd-md-overlay { display: none !important; }
+  .snd-md-source { display: none !important; }
+  .snd-md-rendered { display: block !important; }
 }
