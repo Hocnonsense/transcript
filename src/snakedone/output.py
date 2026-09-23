@@ -70,9 +70,10 @@ class Renderer(Protocol):
         children=(),
         *,
         boxed=True,
+        origins=(),
     ):
         """Quickly return a ``RecordedOutput`` for the given HTML and report files."""
-        return RecordedOutput(cls, text, files or {}, children, boxed)
+        return RecordedOutput(cls, text, files or {}, children, boxed, origins)
 
     @classmethod
     def to_html(cls, sndata: str) -> RecordedOutput:
@@ -147,6 +148,8 @@ class RecordedOutput(NamedTuple):
     """Nested outputs substituted into the corresponding slots in ``text``."""
     boxed: bool = True
     """Initial state of the statement code and its surrounding output box."""
+    origins: tuple[str, ...] = ()
+    """Online image origins this output can render, for the page's CSP."""
 
     @classmethod
     def validate(

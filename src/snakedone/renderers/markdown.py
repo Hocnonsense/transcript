@@ -1,5 +1,11 @@
-"""Renderer for output that should be interpreted as ordinary Markdown."""
+"""Renderer for output that should be interpreted as ordinary Markdown.
 
+The Markdown source is archived verbatim;
+the exported page renders it in the browser from the embedded archive,
+so the server keeps no HTML here.
+"""
+
+from ..html.markup import markdown_image_origins
 from ..output import Renderer
 from . import register
 
@@ -22,8 +28,10 @@ class markdown(Renderer):
 
     @classmethod
     def to_html(cls, data: str):
-        """Render stored Markdown with the document's normal Markdown settings."""
-        from markdown_it import MarkdownIt
+        """Mark the slot for the browser runtime; the server emits no HTML.
 
-        markdown = MarkdownIt("commonmark", {"html": False}).enable("table")
-        return cls._htmlout(markdown.render(data), boxed=False)
+        The online image origins are carried on the output so the page CSP can
+        allow them without re-reading the archive.
+        """
+        origins = tuple(markdown_image_origins(data))
+        return cls._htmlout("", boxed=False, origins=origins)

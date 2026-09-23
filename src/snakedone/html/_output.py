@@ -3,7 +3,6 @@
 from html import escape
 
 from ..output import RecordedOutput, Report, split_output
-from ._markup import external_image
 
 
 def _ranges(numbers: set[int]):
@@ -73,14 +72,6 @@ def output_html(
             continue
         boxed = True
         for line in str(chunk).splitlines(keepends=True):
-            external = external_image(line)
-            if external is not None:
-                url, alt = external
-                parts.append(
-                    f'<img src="{escape(url, quote=True)}"'
-                    f' alt="{escape(alt, quote=True)}" loading="lazy">'
-                )
-                continue
             parts.append(escape(line))
     flush_text()
     content = "".join(blocks)

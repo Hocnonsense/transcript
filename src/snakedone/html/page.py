@@ -6,10 +6,10 @@ from html import escape
 from typing import TYPE_CHECKING
 
 from ._island import source_island
-from ._markup import image_origins, markdown_image_origins
 from ._navigate import anchors, navigate_html
 from ._output import output_html, script_html
 from ._resources import page_resources
+from .markup import markdown_image_origins
 
 if TYPE_CHECKING:
     from ..document import AstDocument
@@ -29,7 +29,7 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     """Render recorded content as offline HTML without executing the document."""
     parts: list[str] = []
     reports: list[Report] = []
-    markdown_origins: set[str] = set()
+    origins: set[str] = set()
     cursor = 0
     for iblock, block in enumerate(self.blocks):
         node = block.node
@@ -41,7 +41,7 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
         parts.append('<section class="report-block">')
         if block.markdown is not None:
             markdown_start, markdown_end = block.markdown
-            markdown_origins.update(
+            origins.update(
                 markdown_image_origins(self.source[markdown_start:markdown_end])
             )
             parts.append(
@@ -73,8 +73,10 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     parts.append(script_html(cursor, len(self.source)))
     body, entries = anchors(parts)
     island = source_island(self.source)
-    origins = sorted({*image_origins(body), *markdown_origins})
-    style, csp, scripts = page_resources(reports, origins, island)
+    origins.update(
+        image_origin for report in reports for image_origin in report.chunk.origins
+    )
+    style, csp, scripts = page_resources(reports, sorted(origins), island)
     navigate_class, navigate = navigate_html(entries)
 
     return f"""<!doctype html>

@@ -103,52 +103,69 @@
     }
   }
 
+  const REPORT_INDENT = '    ';
+
+  function decodeEscapes(raw) {
+    // Recover the exact string from its Python literal form. Both the machine
+    // escaping used for slots (`_escape_slot`) and hand-written docstrings use
+    // the same set here: `\\`, `\"`, `\'`, `\r`, `\t`, `\xNN`; LF stays literal.
+    let out = '';
+    let index = 0;
+    while (index < raw.length) {
+      const char = raw[index];
+      if (char !== '\\' || index + 1 >= raw.length) {
+        out += char;
+        index += 1;
+        continue;
+      }
+      const next = raw[index + 1];
+      if (next === '\\' || next === '"' || next === "'") {
+        out += next;
+        index += 2;
+        continue;
+      }
+      if (next === 'r') { out += '\r'; index += 2; continue; }
+      if (next === 't') { out += '\t'; index += 2; continue; }
+      if (next === 'x') {
+        const hex = raw.slice(index + 2, index + 4);
+        if (/^[0-9a-fA-F]{2}$/.test(hex)) {
+          out += String.fromCharCode(parseInt(hex, 16));
+          index += 4;
+          continue;
+        }
+      }
+      out += char; // unknown escape: keep the backslash verbatim
+      index += 1;
+    }
+    return out;
+  }
+
   function dedent(text) {
-    // Reproduce `textwrap.dedent(...).strip()`: remove the longest common
-    // leading whitespace, normalise whitespace-only lines, then trim.
+    // Strip the fixed report-block indent and trim blank edges. Content
+    // indentation beyond the block indent is preserved, unlike `textwrap.dedent`.
     if (!text) return '';
     const lines = text.split('\n');
-    const length = lines.length;
-
-    // Skip leading blank lines; if the whole string is blank, we're done.
     let first = 0;
-    while (first < length && !/\S/.test(lines[first])) first += 1;
-    if (first === length) return '';
-
-    // Skip trailing blank lines.
-    let last = length;
+    while (first < lines.length && !/\S/.test(lines[first])) first += 1;
+    if (first === lines.length) return '';
+    let last = lines.length;
     while (last > first && !/\S/.test(lines[last - 1])) last -= 1;
-
-    // Longest common leading whitespace across the non-blank lines.
-    let prefix = null;
-    for (let index = first; index < last; index += 1) {
-      const line = lines[index];
-      if (!/\S/.test(line)) continue;
-      const leading = line.match(/^[ \t]*/)[0];
-      if (prefix === null) {
-        prefix = leading;
-      } else {
-        const max = Math.min(prefix.length, leading.length);
-        let size = 0;
-        while (size < max && prefix.charCodeAt(size) === leading.charCodeAt(size)) size += 1;
-        prefix = prefix.slice(0, size);
-      }
-      if (prefix.length === 0) break; // nothing left to shrink
-    }
-    const cut = prefix ? prefix.length : 0;
-
-    // Build the result in one pass.
     const output = [];
     for (let index = first; index < last; index += 1) {
       const line = lines[index];
-      output.push(/\S/.test(line) ? line.slice(cut) : '');
+      if (!/\S/.test(line)) {
+        output.push('');
+      } else if (line.startsWith(REPORT_INDENT)) {
+        output.push(line.slice(REPORT_INDENT.length));
+      } else {
+        output.push(line);
+      }
     }
     return output.join('\n');
   }
 
-  /** Extract the prose from a Markdown string literal.
-   *  Ignore prefixes (r/u), only escape `\\`, `\'`, `\"`.
-   *  CommonMark then applies its own punctuation escapes to the result. */
+  /** Extract the prose from a Markdown string literal: ignore the r/u prefix
+   *  and delimiters, then decode the shared escape set and the block indent. */
   function markdownLiteral(raw) {
     const match = raw.match(/^[rRuU]*("""|'''|"|')/);
     if (!match) throw new Error('invalid markdown string literal');
@@ -156,24 +173,12 @@
     const body = raw.endsWith(delimiter)
       ? raw.slice(match[0].length, raw.length - delimiter.length)
       : raw.slice(match[0].length);
+    return dedent(decodeEscapes(body));
+  }
 
-    let index = body.indexOf('\\');
-    if (index === -1) return dedent(body);  // no backslashes to unescape
-    // Walk from one backslash to the next, splicing whole runs at a time.
-    let decoded = '';
-    let start = 0;
-    while (index !== -1) {
-      const next = body[index + 1];
-      if (next === '\\' || next === '"' || next === "'") {
-        decoded += body.slice(start, index) + next;
-        index += 2;
-      } else {
-        index += 1;
-      }
-      start = index;
-      index = body.indexOf('\\', index);
-    }
-    return dedent(decoded + body.slice(start));
+  /** Recover the string passed to `markdown()` from its archived fence body. */
+  function slotLiteral(raw) {
+    return dedent(decodeEscapes(raw));
   }
 
   function lineRanges(text) {
@@ -498,10 +503,10 @@
       .forEach(node => node.remove());
   }
 
-  function initMarkdownRegion(node, start, end, renderFn) {
-    // A markdown region is either a docstring (rendered here from the island)
-    // or a server-rendered `markdown()` output (its children are kept as is).
-    const literal = source.slice(start, end);
+  function initMarkdownRegion(node, start, end, markdown, decode) {
+    // A markdown region is either a docstring or a `markdown()` output; both are
+    // sliced from the island, decoded to the exact string, and rendered here.
+    const literal = decode(source.slice(start, end));
     const state = {
       node,
       mdStart: start,
@@ -522,12 +527,8 @@
       controls: document.createElement('div'),
     };
     state.rendered.className = 'snd-md-rendered';
-    if (renderFn) {
-      state.rendered.innerHTML = renderFn(literal);
-      externalLinks(state.rendered);
-    } else {
-      while (node.firstChild) state.rendered.appendChild(node.firstChild);
-    }
+    state.rendered.innerHTML = markdown.render(literal);
+    externalLinks(state.rendered);
 
     state.source.className = 'snd-md-source';
     state.source.hidden = true;
@@ -551,7 +552,7 @@
 
   function markdownBodySpan(slotStart, slotEnd) {
     // Locate the `snakedone-output markdown` fence body inside a slot literal,
-    // so a server-rendered markdown() output can be annotated against its source.
+    // so a markdown() output can be rendered and annotated against its source.
     const text = source.slice(slotStart, slotEnd);
     const header = /^[ \t]*(`{3,})snakedone-output[ \t]+markdown\b[^\n]*\n/m.exec(text);
     if (!header) return null;
@@ -569,14 +570,16 @@
     return { start: slotStart + bodyStart, end };
   }
 
-  function initMarkdownOutputs() {
+  function initMarkdownOutputs(markdown) {
     document.querySelectorAll(
       '.snakedone-report[data-snd-renderer="markdown"]').forEach(node => {
         const slot = node.closest('[data-snd-slot-start]');
         if (!slot || node.sndMdState) return;
         const span = markdownBodySpan(
           Number(slot.dataset.sndSlotStart), Number(slot.dataset.sndSlotEnd));
-        if (span) initMarkdownRegion(node, span.start, span.end, null);
+        if (span) {
+          initMarkdownRegion(node, span.start, span.end, markdown, slotLiteral);
+        }
       });
   }
 
@@ -1089,8 +1092,8 @@
       const markdown = window.markdownit('commonmark', { html: false }).enable('table');
       document.querySelectorAll('.doc-md[data-snd-md-start]').forEach(node =>
         initMarkdownRegion(node, Number(node.dataset.sndMdStart), Number(node.dataset.sndMdEnd),
-          literal => markdown.render(markdownLiteral(literal))));
-      initMarkdownOutputs();
+          markdown, markdownLiteral));
+      initMarkdownOutputs(markdown);
       document.querySelectorAll('.doc-code[data-snd-start]').forEach(renderCode);
       document.querySelectorAll('.script-block[data-snd-start]').forEach(renderScript);
       outline();
