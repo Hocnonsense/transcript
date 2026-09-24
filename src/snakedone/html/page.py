@@ -66,7 +66,8 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
                 pending_codes = []
         parts.append("</section>")
 
-    parts.append(script_html(cursor, len(self.source)))
+    content_end = len(self.source) if self.review is None else self.review.start
+    parts.append(script_html(cursor, content_end))
     body, entries = anchors(parts)
     island = source_island(self.source)
     origins.update(

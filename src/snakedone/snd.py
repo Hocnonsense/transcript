@@ -20,9 +20,9 @@ if TYPE_CHECKING:
     from .document import AstDocument
 
 
-def _escape_slot(content: str):
+def escape_slot(content: str):
     """Escape *content* so it can be embedded in a ``\"\"\"...\"\"\"`` literal.
-    i.e., `'\"\"\"' + _escape_slot(content) + '\"\"\"'` is a valid Python string.
+    i.e., `'\"\"\"' + escape_slot(content) + '\"\"\"'` is a valid Python string.
 
     - Backslashes, CR, TAB and non-printable controls are escaped.
     - LF is preserved as a literal newline.
@@ -48,7 +48,7 @@ def _slot_literal(output: str, prefix: str):
     The parsed-back value is ``"\\n" + prefix-each-line(output) [+ "\\n" + prefix]``,
     so it does NOT round-trip to *output*.
     """
-    content = _escape_slot(output)
+    content = escape_slot(output)
     inner = textwrap.indent(content, prefix, lambda line: line.rstrip("\r\n") != "")
     if content.endswith("\n"):
         return f'"""\n{inner}{prefix}"""'
@@ -109,10 +109,17 @@ def render(
                 edits.append((newline, newline, literal))
     if job is not None:
         edits.extend(job.make_rule_block())
-    result = self.source
+    body = self.source_without_review
+    result = body
     for start, end, replacement in sorted(edits, reverse=True):
         result = result[:start] + replacement + result[end:]
     result = result.rstrip("\n") + "\n"
+    if self.review is not None:
+        block = self.review.to_block(body.rstrip("\n") + "\n", result)
+        if block is None:
+            block = self.source[self.review.start : self.review.end]
+        if block:
+            result = result + "\n" + block + "\n"
     ast.parse(result)  # Never publish a non-Python archive.
     return result
 
