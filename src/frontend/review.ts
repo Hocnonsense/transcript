@@ -132,28 +132,30 @@ function diffText(original: string, modified: string) {
   return slots;
 }
 
-/** In-place modification range: the box text minus its common prefix and
- *  suffix with the baseline. The middle is the modification range: *del* is
- *  what the baseline lost and *ins* is what the current text gained. */
-function diffTrim(original: string, modified: string) {
-  const max = Math.min(original.length, modified.length);
-  let prefix = 0;
-  while (prefix < max
-    && original.charCodeAt(prefix) === modified.charCodeAt(prefix)) {
-    prefix += 1;
+/** The changed part of an alignment, in baseline coordinates. Uses the same
+ *  character alignment as the diff highlighting, so a range drawn from it
+ *  spans exactly the runs that get highlighted; *revised* is the added text
+ *  (the modified side of the non-equal runs). */
+function diffInfo(original: string, modified: string) {
+  let offset = 0;
+  let start = -1;
+  let end = 0;
+  let revised = '';
+  for (const slot of diffText(original, modified)) {
+    if (slot.kind === 'equal') {
+      offset += slot.orig.length;
+      continue;
+    }
+    if (start === -1) start = offset;
+    if (slot.kind === 'del') {
+      offset += slot.orig.length;
+      end = offset;
+    } else {
+      end = offset;
+      revised += slot.mod;
+    }
   }
-  let suffix = 0;
-  while (suffix < max - prefix
-    && original.charCodeAt(original.length - 1 - suffix)
-    === modified.charCodeAt(modified.length - 1 - suffix)) {
-    suffix += 1;
-  }
-  return {
-    prefix,
-    suffix,
-    del: original.slice(prefix, original.length - suffix),
-    ins: modified.slice(prefix, modified.length - suffix),
-  };
+  return { start, end, revised };
 }
 
 /** A red vertical bar marking where the baseline lost characters. The element
@@ -282,6 +284,9 @@ export class MarkdownReview {
   commentInput: HTMLTextAreaElement;
   svg: SVGSVGElement;
   controls: HTMLDivElement;
+  actions: HTMLDivElement;
+  editAction: HTMLButtonElement;
+  deleteAction: HTMLButtonElement;
 
   constructor(node: any, literal: string) {
     this.node = node;
@@ -303,9 +308,16 @@ export class MarkdownReview {
     });
     this.comment = element('label', 'snd-md-comment', { hidden: true },
       this.commentInput);
+    // The popup's top-right corner carries the modify/delete actions.
+    this.editAction = element('button', '', { type: 'button', textContent: 'Edit' });
+    this.deleteAction = element('button', '', { type: 'button', textContent: 'Delete' });
+    this.editAction.addEventListener('click', () => this.beginEdit());
+    this.deleteAction.addEventListener('click', () => this.deleteEditing());
+    this.actions = element('div', 'snd-md-actions', {},
+      this.editAction, this.deleteAction);
     this.popup = element('form', 'snd-md-popup',
       { hidden: true, noValidate: true },
-      this.source, this.alignRows, this.comment);
+      this.actions, this.source, this.alignRows, this.comment);
     this.popup.addEventListener('submit', event => event.preventDefault());
     this.rendered = element('div', 'snd-md-rendered');
     this.svg = svgElement('snd-md-overlay');
@@ -408,8 +420,27 @@ export class MarkdownReview {
   }
 
   clearTransient() {
-    // Keep the per-annotation badges; drop only the floating trigger and menu.
-    this.controls.querySelectorAll('.snd-md-trigger, .snd-md-menu').forEach(node => node.remove());
+    // Keep the per-annotation badges; drop only the floating trigger.
+    this.controls.querySelectorAll('.snd-md-trigger').forEach(node => node.remove());
+  }
+
+  /** The range an annotation is drawn at. A modified annotation is shown only
+   *  over the region that actually changed — its baseline range minus the
+   *  common prefix and suffix with the edited text. */
+  displayRange(annotation: any) {
+    if (!annotation.modified) return annotation.chosen;
+    // The baseline (`annotation.original`) is the whole source line(s); the
+    // diff runs are relative to that, so anchor them at the line start. This
+    // uses the same alignment as the highlighting, so the box spans exactly
+    // the runs drawn in the edit box.
+    const line = fullLines(this.literal, annotation.chosen.start, annotation.chosen.end);
+    const info = diffInfo(annotation.original || '', annotation.text || '');
+    const start = line.start + Math.max(info.start, 0);
+    const end = line.start + info.end;
+    if (end > start) return { start, end };
+    // A pure insertion has no width in the baseline; mark the insertion point.
+    const point = Math.min(Math.max(start, line.start), Math.max(line.end - 1, line.start));
+    return { start: point, end: point + 1 };
   }
 
   showRendered() {
@@ -423,7 +454,8 @@ export class MarkdownReview {
     this.controls.replaceChildren();
     this.svg.replaceChildren();
     this.annotations.forEach(annotation => {
-      const range = this.literalToRange(annotation.chosen.start, annotation.chosen.end);
+      const display = this.displayRange(annotation);
+      const range = this.literalToRange(display.start, display.end);
       if (!range) return;
       const bands = this.drawBox(range, 'snd-md-box');
       if (!bands) return;
@@ -439,11 +471,15 @@ export class MarkdownReview {
     badge.type = 'button';
     badge.className = 'snd-md-badge';
     badge.textContent = '⋯';
-    badge.title = 'Mark Up';
+    // Hovering shows what the annotation carries: its comment, else the added
+    // text of the change runs, as found by the same alignment as the box.
+    const revised = annotation.modified
+      ? diffInfo(annotation.original || '', annotation.text || '').revised : '';
+    badge.title = annotation.body || revised || annotation.text || 'Mark Up';
     badge.sndAnnotation = annotation;
     badge.addEventListener('click', event => {
       event.stopPropagation();
-      this.openMenu(annotation, badge);
+      this.openAnnotation(annotation);
     });
     this.controls.appendChild(badge);
     const width = badge.offsetWidth;
@@ -453,48 +489,27 @@ export class MarkdownReview {
     badge.hidden = true;
   }
 
-  openMenu(annotation: any, badge: HTMLButtonElement) {
-    this.controls.querySelectorAll('.snd-md-menu').forEach(node => node.remove());
-    const menu = document.createElement('div');
-    menu.className = 'snd-md-menu';
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.textContent = 'edit';
-    edit.addEventListener('click', () => {
-      menu.remove();
-      this.editing = annotation;
-      this.openSource(annotation.chosen.start, annotation.chosen.end,
-        this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
-        'edit');
-    });
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.textContent = 'delete';
-    remove.addEventListener('click', () => {
-      const index = this.annotations.indexOf(annotation);
-      if (index !== -1) this.annotations.splice(index, 1);
-      this.showRendered();
-    });
-    menu.append(edit);
-    if (annotation.modified) {
-      // A committed modification can be reviewed against the original text.
-      const compare = document.createElement('button');
-      compare.type = 'button';
-      compare.textContent = 'compare';
-      compare.title = 'align original vs modified';
-      compare.addEventListener('click', () => {
-        menu.remove();
-        this.editing = annotation;
-        this.openSource(annotation.chosen.start, annotation.chosen.end,
-          this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
-          'align');
-      });
-      menu.append(compare);
-    }
-    menu.append(remove);
-    menu.style.left = badge.style.left;
-    menu.style.top = `calc(${badge.style.top} + 1.4rem)`;
-    this.controls.appendChild(menu);
+  /** Open the read view: the diff (when the text changed) plus the comment,
+   *  with modify/delete in the popup's top-right. */
+  openAnnotation(annotation: any) {
+    this.editing = annotation;
+    this.openSource(annotation.chosen.start, annotation.chosen.end,
+      this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
+      'view');
+  }
+
+  beginEdit() {
+    const annotation = this.editing;
+    if (!annotation) return;
+    this.openSource(annotation.chosen.start, annotation.chosen.end,
+      this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
+      'edit');
+  }
+
+  deleteEditing() {
+    const index = this.annotations.indexOf(this.editing);
+    if (index !== -1) this.annotations.splice(index, 1);
+    this.showRendered();
   }
 
   anchorTopForRange(start: number, end: number) {
@@ -532,12 +547,15 @@ export class MarkdownReview {
     this.initSession(start, end, mode);
     this.placePopup(anchorTop);
     // Focus after the popup is placed, without letting the browser scroll the
-    // page. A range session focuses the box so the pre-selected range is
-    // painted between the delimiters; Show Source keeps the comment box.
-    if (this.session && !this.session.whole) {
-      this.sourceInput.focus({ preventScroll: true });
-    } else if (this.session && !this.session.annotation) {
-      this.commentInput.focus({ preventScroll: true });
+    // page. Edit sessions focus the box so the pre-selected range is painted
+    // between the delimiters; a fresh Show Source keeps the comment box; the
+    // read view stays unfocused.
+    if (this.session && this.session.mode === 'edit') {
+      if (!this.session.whole) {
+        this.sourceInput.focus({ preventScroll: true });
+      } else if (!this.session.annotation) {
+        this.commentInput.focus({ preventScroll: true });
+      }
     }
   }
 
@@ -600,31 +618,33 @@ export class MarkdownReview {
 
   /** Renders the current box text under the transparent textarea. The common
    *  prefix and suffix with the baseline stay plain; the middle (the
-   *  modification range) is the inserted text with a background, preceded by a
-   *  deletion marker when the baseline lost characters. */
+   *  unchanged runs stay plain, so only what was actually added or removed is
+   *  highlighted. A deletion has no character to draw, so a red bar marks its
+   *  position. */
   renderSourceFill() {
     const session = this.session;
     if (!session) return;
     const text = this.sourceInput.value;
-    const diff = diffTrim(session.original, text);
     this.sourceFill.replaceChildren();
     // `replaceChildren` drops any previous markers from the DOM; forget the
     // cached references so `updateMarkers` rebuilds instead of restyling
     // detached nodes.
     this.markers = null;
-    if (diff.prefix) {
-      this.sourceFill.append(document.createTextNode(text.slice(0, diff.prefix)));
-    }
-    if (diff.del) this.sourceFill.appendChild(delMark());
-    if (diff.ins) {
-      const span = document.createElement('span');
-      span.className = 'snd-diff-ins';
-      span.textContent = diff.ins;
-      this.sourceFill.appendChild(span);
-    }
-    if (diff.prefix + diff.ins.length < text.length) {
-      this.sourceFill.append(document.createTextNode(
-        text.slice(diff.prefix + diff.ins.length)));
+    if (session.text === session.original) {
+      this.sourceFill.append(document.createTextNode(text));
+    } else {
+      for (const slot of diffText(session.original, text)) {
+        if (slot.kind === 'equal') {
+          this.sourceFill.append(document.createTextNode(slot.mod));
+        } else if (slot.kind === 'del') {
+          this.sourceFill.appendChild(delMark());
+        } else {
+          const span = document.createElement('span');
+          span.className = 'snd-diff-ins';
+          span.textContent = slot.mod;
+          this.sourceFill.appendChild(span);
+        }
+      }
     }
     this.sourceFill.scrollTop = this.sourceInput.scrollTop;
     this.sourceFill.scrollLeft = this.sourceInput.scrollLeft;
@@ -807,10 +827,16 @@ export class MarkdownReview {
   modVisibility() {
     const session = this.session;
     if (!session) return;
-    const aligned = session.mode === 'align';
-    this.source.hidden = aligned;
-    this.alignRows.hidden = !aligned;
-    this.comment.hidden = aligned;
+    const view = session.mode === 'view';
+    const modified = !!(session.annotation && session.annotation.modified);
+    // Read view: the diff (only when modified) plus the comment, no editing.
+    // Edit view: the original box plus the comment.
+    this.source.hidden = view;
+    this.alignRows.hidden = !(view && modified);
+    this.comment.hidden = false;
+    this.commentInput.readOnly = view;
+    this.editAction.hidden = !view;
+    this.deleteAction.hidden = !session.annotation;
   }
 
   /** True when a fresh annotation would carry neither a comment nor a text
@@ -1024,6 +1050,7 @@ export class MarkdownReview {
     });
     this.sourceInput.addEventListener('keydown', event => {
       if (event.isComposing) return;
+      if (!this.session || this.session.mode !== 'edit') return;
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault();
         this.confirmAnnotation();
@@ -1034,6 +1061,7 @@ export class MarkdownReview {
     });
     this.commentInput.addEventListener('keydown', event => {
       if (event.isComposing) return;
+      if (!this.session || this.session.mode !== 'edit') return;
       if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
         event.preventDefault();
         this.confirmAnnotation();
@@ -1041,7 +1069,7 @@ export class MarkdownReview {
         && !event.ctrlKey && !event.metaKey) {
         // Commit the draft as 已编辑, then the default keypress appends a
         // new line while staying in edit mode.
-        if (this.session) this.session.committed = trimEnd(this.commentInput.value);
+        this.session.committed = trimEnd(this.commentInput.value);
       }
     });
   }

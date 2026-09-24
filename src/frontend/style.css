@@ -192,17 +192,19 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .snd-md-badge:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 .snd-md-badge { width: 1.15rem; height: 1.45rem; padding: 0; border: 0;
   background: #3984c6; color: #fff; cursor: pointer;
-  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 68%, 0 100%);
+  /* A bookmark tab: no swallowtail, the bottom is a shallow downward point. */
+  clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
   font: 700 .7rem/1.45 system-ui, sans-serif; display: grid;
   place-items: center; box-shadow: 0 1px 3px #0004; }
 .snd-md-badge[hidden] { display: none; }
 .snd-md-badge:hover { background: #2f6ea8; }
-.snd-md-menu { display: flex; flex-direction: column; background: canvas;
-  border: 1px solid #8885; border-radius: .25rem;
-  box-shadow: 0 2px 8px #0003; z-index: 1; }
-.snd-md-menu button { padding: .25rem .6rem; background: none; border: 0;
-  cursor: pointer; color: canvastext; font: inherit; text-align: left; }
-.snd-md-menu button:hover { background: #3984c622; }
+/* Modify/delete actions in the popup's top-right corner. */
+.snd-md-actions { display: flex; justify-content: flex-end; gap: .35rem; }
+.snd-md-actions button { padding: .15rem .55rem; cursor: pointer;
+  color: #3984c6; background: canvas; border: 1px solid #8885;
+  border-radius: .25rem; font: 600 .75rem/1.2 system-ui, sans-serif; }
+.snd-md-actions button:hover { background: #3984c622; }
+.snd-md-actions button:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 /* The original-text box: a transparent textarea over a diff-highlighting fill
    keeps the caret visible while it marks what is new relative to the baseline. */
 .snd-md-source { position: relative; max-height: 40vh; overflow: hidden;
@@ -278,6 +280,7 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
   caret-color: #3984c6; }
 .snd-md-comment textarea:focus { outline: none; border-color: #3984c6;
   box-shadow: 0 0 0 2px #3984c622; }
+.snd-md-comment textarea[readonly] { background: #8881; caret-color: transparent; }
 
 /* img */
 img { max-width: 100%; height: auto; }
