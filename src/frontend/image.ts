@@ -1,4 +1,4 @@
-document.querySelectorAll('main img').forEach(image => {
+document.querySelectorAll<HTMLImageElement>('main img').forEach(image => {
   image.tabIndex = 0;
   image.setAttribute('role', 'button');
   image.setAttribute('aria-pressed', 'false');
@@ -10,7 +10,7 @@ document.querySelectorAll('main img').forEach(image => {
       ? 'Click to restore preview' : 'Click to expand to text width';
   }
   image.addEventListener('click', toggleImage);
-  image.addEventListener('keydown', event => {
+  image.addEventListener('keydown', (event: KeyboardEvent) => {
     if (event.key === 'Enter' || event.key === ' ') {
       event.preventDefault();
       toggleImage();
@@ -18,8 +18,8 @@ document.querySelectorAll('main img').forEach(image => {
   });
 });
 
-document.querySelectorAll('.doctest-code[data-boxed]').forEach(block => {
-  const toggle = block.querySelector(':scope > .output-box-toggle');
+document.querySelectorAll<HTMLElement>('.doctest-code[data-boxed]').forEach(block => {
+  const toggle = block.querySelector<HTMLButtonElement>(':scope > .output-box-toggle');
   if (!toggle) return;
   function setBoxed(boxed) {
     block.dataset.boxed = String(boxed);

@@ -494,6 +494,10 @@ pixi run check
 `pixi run check` runs pytest, Ruff, and Pyright.
 Use `pixi run format` to format the code.
 
+Browser sources live in `src/frontend` as TypeScript and CSS.
+`pixi run frontend-build` generates the `snakedone.min.js` and `style.min.css` assets embedded by the Python package; tests and package builds run this automatically.
+Development and source builds require esbuild; installed wheels only use their packaged minified assets.
+
 ### Terminology
 
 ```text

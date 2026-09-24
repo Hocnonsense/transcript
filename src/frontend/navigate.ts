@@ -1,15 +1,15 @@
 (function () {
-  function wire(navigate) {
+  function wire(navigate: HTMLElement) {
     if (navigate.dataset.sndWired === 'true') return;
     navigate.dataset.sndWired = 'true';
-    const tabs = Array.from(navigate.querySelectorAll('.navigate-tab'));
-    const list = navigate.querySelector('.navigate-list');
+    const tabs = Array.from(navigate.querySelectorAll<HTMLElement>('.navigate-tab'));
+    const list = navigate.querySelector<HTMLElement>('.navigate-list');
     if (!list) return;
-    const entries = Array.from(list.querySelectorAll('[data-snd-type]'));
+    const entries = Array.from(list.querySelectorAll<HTMLElement>('[data-snd-type]'));
     function enabled() {
       return (list.dataset.sndShow || '').split(/\s+/).filter(Boolean);
     }
-    function setEnabled(names) {
+    function setEnabled(names: string[]) {
       list.dataset.sndShow = names.join(' ');
       entries.forEach(entry => {
         entry.hidden = !names.includes(entry.dataset.sndType);
@@ -36,18 +36,19 @@
     if (!tabs.length) return;
     const narrow = window.matchMedia('(max-width: 920px)');
     const firstType = tabs[0].dataset.sndType;
-    function sync(event) {
+    function sync(event: MediaQueryList | MediaQueryListEvent) {
       setEnabled(event.matches ? [] : [firstType]);
     }
     sync(narrow);
     narrow.addEventListener('change', sync);
     document.addEventListener('click', event => {
-      if (narrow.matches && !navigate.contains(event.target)) setEnabled([]);
+      if (narrow.matches && event.target instanceof Node
+        && !navigate.contains(event.target)) setEnabled([]);
     });
   }
 
   function initialize() {
-    document.querySelectorAll('.navigate').forEach(wire);
+    document.querySelectorAll<HTMLElement>('.navigate').forEach(wire);
   }
 
   window.snakedoneInitNavigate = initialize;

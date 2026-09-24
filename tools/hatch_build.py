@@ -1,25 +1,18 @@
-"""Build hook: minify the browser assets before packaging.
+"""Build hook: compile the browser assets before packaging.
 
-``*.min.*`` files are generated artifacts and are not committed.  Building in an
-environment that has ``esbuild`` on ``PATH`` (the Pixi environment) regenerates
-them so the wheel embeds the minified assets; an isolated build without esbuild
-falls back to the readable sources, which the exporter still accepts.
+Source builds require ``esbuild`` and always refresh the committed ``*.min.*``
+assets from TypeScript and CSS before the wheel or sdist is assembled. Installed
+wheels only contain the compiled assets and do not need ``esbuild`` at runtime.
 """
 
 import subprocess
 import sys
 from pathlib import Path
-from shutil import which
 
 from hatchling.builders.hooks.plugin.interface import BuildHookInterface
 
 
 class CustomBuildHook(BuildHookInterface):
     def initialize(self, version, build_data):
-        if which("esbuild") is None:
-            self.app.display_warning(
-                "esbuild not found on PATH; building with unminified assets"
-            )
-            return
-        script = Path(__file__).resolve().with_name("minify_assets.py")
+        script = Path(__file__).resolve().with_name("build_frontend.py")
         subprocess.run([sys.executable, str(script)], check=True)

@@ -49,6 +49,7 @@ altair = "*"
 datavzrd = "*"
 matplotlib = "*"
 esbuild = "*"
+typescript = ">=5,<6"
 hatchling = "*"
 
 [tool.pixi.pypi-dependencies]
@@ -60,14 +61,16 @@ snakedone = { path = ".", editable = true, extras = [
 ] }
 
 [tool.pixi.tasks]
-test = "pytest"
+frontend-build = "python tools/build_frontend.py"
+frontend-typecheck = "tsc -p src/frontend/tsconfig.json"
+frontend = { depends-on = ["frontend-typecheck", "frontend-build"] }
 format = "ruff format ."
-minify = "python tools/minify_assets.py"
-build = "hatchling build"
 lint = "ruff check ."
 typecheck = "pyright"
-check = { depends-on = ["lint", "typecheck", "test"] }
-demo = { depends-on = ["minify"], cmd = "snakedone examples/demo.py --html" }
+build = "hatchling build"
+test = { depends-on = ["frontend-build"], cmd = "pytest" }
+check = { depends-on = ["lint", "typecheck", "frontend-typecheck", "test"] }
+demo = { depends-on = ["frontend-build"], cmd = "snakedone examples/demo.py --html" }
 demo-serve = "python examples/serve.py"
 
 [tool.pytest.ini_options]
