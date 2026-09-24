@@ -1,5 +1,5 @@
 import { markdownLiteral } from './literal';
-import { lineIndex, wireMarkdown } from './review';
+import { MarkdownReview } from './review';
 import { loadResources } from './resources';
 
 function lineRanges(text) {
@@ -210,93 +210,18 @@ function outline(document: Document) {
     });
   }
 
-  /** Map every rendered text node to a literal offset, in document order,
-   *  so selections and annotations can be translated both ways. */
-  const alignMarkdown = (() => {
-    function escapeRegExp(text) {
-      return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    }
-    /** Search given text in the source markdown text, starting from the specified offset.
-     *
-     * tolerating collapsed whitespace (markdown joins soft line breaks with a space).
-    */
-    function findInSource(source, text, from) {
-      const trimmed = text.trim();
-      if (!trimmed) return null;
-      const pattern = trimmed.split(/\s+/).map(escapeRegExp).join('\\s+');
-      const re = new RegExp(pattern, 'g');
-      re.lastIndex = from; let match = re.exec(source);
-      if (!match) {
-        if (from !== 0) { re.lastIndex = 0; match = re.exec(source); }
-        if (!match) return null;
-      }
-      return { start: match.index, end: match.index + match[0].length };
-    }
-
-    return (state) => {
-      const entries = [];
-      const walker = document.createTreeWalker(state.rendered, NodeFilter.SHOW_TEXT);
-      let cursor = 0;
-      let node;
-      while ((node = walker.nextNode())) {
-        const text = node.nodeValue;
-        if (!text || !/\S/.test(text)) continue;
-        const found = findInSource(state.literal, text, cursor);
-        if (!found) continue;
-        const lead = (text.match(/^\s*/) || [''])[0].length;
-        entries.push({ node, start: found.start, end: found.end, lead });
-        cursor = found.end;
-      }
-      state.entries = entries;
-    }
-  })()
-
   function initMarkdownRegion(node, markdown) {
     // A markdown region is either a docstring or a `markdown()` output; both are
     // sliced from the island, decoded to the exact string, and rendered here.
+    // The review class builds the popup DOM, maps the rendered text to the
+    // literal, and binds its own interactions.
     const [start, end] = sourceSpan(node)
     const literal = markdownLiteral(source.slice(start, end));
-    const state = {
-      node,
-      mdStart: start,
-      mdEnd: end,
-      literal,
-      lines: literal.split('\n'),
-      mdLine: lineIndex(source, start) + 1,
-      entries: [],
-      annotations: [],
-      view: 'rendered',
-      selection: null,
-      editing: null,
-      drag: null,
-      selecting: false,
-      rendered: document.createElement('div'),
-      source: document.createElement('pre'),
-      svg: document.createElementNS('http://www.w3.org/2000/svg', 'svg'),
-      controls: document.createElement('div'),
-    };
-    state.rendered.className = 'snd-md-rendered';
-    state.rendered.innerHTML = markdown.render(literal);
-    externalLinks(state.rendered);
-
-    state.source.className = 'snd-md-source';
-    state.source.hidden = true;
-    state.lines.forEach((text, index) => {
-      const line = document.createElement('span');
-      line.className = 'snd-line';
-      line.dataset.line = String(state.mdLine + index);
-      line.textContent = text;
-      state.source.appendChild(line);
-    });
-
-    state.svg.setAttribute('class', 'snd-md-overlay');
-    state.controls.className = 'snd-md-controls';
-    node.style.position = 'relative';
-    node.replaceChildren(state.rendered, state.source, state.svg, state.controls);
-    node.dataset.sndMdView = 'rendered';
-    node.sndMdState = state;
-    alignMarkdown(state);
-    wireMarkdown(state);
+    const region = new MarkdownReview(node, literal);
+    region.rendered.innerHTML = markdown.render(literal);
+    externalLinks(region.rendered);
+    region.align();
+    region.wire();
   }
 
   function showError(error) {

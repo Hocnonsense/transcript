@@ -161,22 +161,17 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
    reads like the document's own Markdown. */
 .doctest-code:has(> .snakedone-report[data-snd-renderer="markdown"]) {
   font: inherit; }
-.snd-md-source[hidden], .snd-md-rendered[hidden] { display: none; }
-/* Floating source popup: body width, wrapping, and it never replaces the
-   rendered Markdown underneath. */
-.snd-md-source { position: absolute; left: 0; right: 0; z-index: 4;
-  margin: 0; padding: .65rem 1rem; max-height: 40vh; overflow: auto;
+.snd-md-popup[hidden], .snd-md-rendered[hidden] { display: none; }
+.snd-md-source[hidden], .snd-diff-align[hidden],
+.snd-md-comment[hidden] { display: none !important; }
+/* Floating popup: the editable original-text box plus the comment. Body
+   width, wrapping, and it never replaces the rendered Markdown underneath. */
+.snd-md-popup { position: absolute; left: 0; right: 0; z-index: 4;
+  margin: 0; padding: .65rem 1rem; display: flex; flex-direction: column;
+  gap: .5rem;
   border: 1px solid #8885; border-radius: .4rem;
   box-shadow: 0 8px 24px #0003;
-  font: .9em/1.5 ui-monospace, monospace;
-  background: #f1f5f9; color: #172033;
-  white-space: pre-wrap; overflow-wrap: anywhere; }
-.snd-line { display: block; white-space: pre-wrap; overflow-wrap: anywhere;
-  min-height: 1.5em; }
-.snd-line[hidden] { display: none; }
-.snd-line[data-line]::before { content: attr(data-line); display: inline-block;
-  width: 3.5ch; margin-right: 1ch; text-align: right;
-  color: #888; user-select: none; -webkit-user-select: none; }
+  background: #f1f5f9; color: #172033; }
 .snd-md-overlay { position: absolute; inset: 0; width: 100%; height: 100%;
   overflow: visible; pointer-events: none; z-index: 5; }
 .snd-md-box { fill: #3984c61a; stroke: #3984c680; stroke-width: 3;
@@ -187,14 +182,12 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .snd-md-controls { position: absolute; inset: 0; pointer-events: none;
   z-index: 6; }
 .snd-md-controls > * { position: absolute; pointer-events: auto; }
-.snd-md-trigger, .snd-md-confirm {
-  padding: .15rem .45rem; cursor: pointer; color: #3984c6; background: canvas;
-  border: 1px solid #8885; border-radius: .25rem; box-shadow: 0 1px 4px #0003;
+.snd-md-trigger { padding: .15rem .45rem; cursor: pointer; color: #3984c6;
+  background: canvas; border: 1px solid #8885; border-radius: .25rem;
+  box-shadow: 0 1px 4px #0003;
   font: 600 .75rem/1.2 system-ui, sans-serif; }
-.snd-md-confirm { padding: 0; width: 1.15rem; height: 1.15rem;
-  display: grid; place-items: center; border-radius: 50%; }
-.snd-md-trigger:hover, .snd-md-confirm:hover { background: #3984c622; }
-.snd-md-trigger:focus-visible, .snd-md-confirm:focus-visible,
+.snd-md-trigger:hover { background: #3984c622; }
+.snd-md-trigger:focus-visible,
 /* A bookmark tab, hidden until the pointer is over its box. */
 .snd-md-badge:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 .snd-md-badge { width: 1.15rem; height: 1.45rem; padding: 0; border: 0;
@@ -204,24 +197,87 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
   place-items: center; box-shadow: 0 1px 3px #0004; }
 .snd-md-badge[hidden] { display: none; }
 .snd-md-badge:hover { background: #2f6ea8; }
-/* Transparent hit area; the vertical line sits on the boundary and the two
-   triangles stick out above and below the text line instead of over it. */
-.snd-md-handle { width: 1.1rem; height: 1.9rem;
-  transform: translate(-50%, -50%); background: transparent;
-  cursor: ew-resize; touch-action: none; z-index: 2; }
-.snd-md-handle-line { position: absolute; left: 50%; top: .3rem; bottom: .3rem;
-  width: 2px; margin-left: -1px; background: #3984c6; border-radius: 1px;
-  box-shadow: 0 0 3px #0005; }
-.snd-md-handle-tri { position: absolute; left: 50%; width: 0; height: 0;
-  border-left: 4px solid transparent; border-right: 4px solid transparent; }
-.snd-md-handle-top { top: 0; margin-left: -4px; border-top: 5px solid #3984c6; }
-.snd-md-handle-bottom { bottom: 0; margin-left: -4px; border-bottom: 5px solid #3984c6; }
 .snd-md-menu { display: flex; flex-direction: column; background: canvas;
   border: 1px solid #8885; border-radius: .25rem;
   box-shadow: 0 2px 8px #0003; z-index: 1; }
 .snd-md-menu button { padding: .25rem .6rem; background: none; border: 0;
   cursor: pointer; color: canvastext; font: inherit; text-align: left; }
 .snd-md-menu button:hover { background: #3984c622; }
+/* The original-text box: a transparent textarea over a diff-highlighting fill
+   keeps the caret visible while it marks what is new relative to the baseline. */
+.snd-md-source { position: relative; max-height: 40vh; overflow: hidden;
+  border: 1px solid #8885; border-radius: .25rem; }
+.snd-md-source:focus-within { border-color: #3984c6;
+  box-shadow: 0 0 0 2px #3984c622; }
+.snd-diff-fill { position: absolute; inset: 0; margin: 0;
+  padding: .35rem .5rem; overflow: hidden; pointer-events: none;
+  font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  color: #172033; }
+.snd-diff-input { position: relative; z-index: 1; display: block;
+  box-sizing: border-box; width: 100%; resize: none; border: 0;
+  padding: .35rem .5rem; margin: 0;
+  font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: #3984c6; }
+.snd-diff-input::selection { background: #3984c633; }
+.snd-diff-input:focus { outline: none; }
+/* The raised middle is the modification range: insertions get a background and
+   a red vertical bar marks characters the baseline lost. */
+.snd-diff-ins { background: #28a74526; border-radius: .15rem;
+  text-decoration: overline; text-decoration-color: #2e7d32;
+  text-decoration-thickness: .12em; }
+.snd-diff-del { background: #c6282818; border-radius: .15rem;
+  text-decoration: underline; text-decoration-color: #c62828;
+  text-decoration-thickness: .12em; }
+.snd-diff-del-mark { display: inline-block; width: 2px; margin: 0 -1px;
+  height: 1.15em; vertical-align: -0.15em; border-radius: 1px;
+  background: #c62828; }
+/* The reviewed range is delimited while the text is unmodified. Each end is a
+   zero-width anchor at a character boundary; the bar and its two triangles are
+   drawn outside the line (a v above, a ^ below, sharp corners facing each
+   other), so nothing is covered or shifted. Dragging an end adjusts the range. */
+.snd-diff-mark { position: absolute; width: 0; pointer-events: none;
+  color: #3984c6; }
+.snd-diff-mark-body { position: absolute; left: -1px; top: 0; bottom: 0;
+  width: 2px; background: currentColor; border-radius: 1px; }
+.snd-diff-mark-tri { position: absolute; left: 0; width: 0; height: 0; }
+.snd-diff-mark-top { top: 0; transform: translate(-50%, -100%);
+  border-top: .44rem solid currentColor;
+  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
+.snd-diff-mark-bottom { bottom: 0; transform: translate(-50%, 100%);
+  border-bottom: .44rem solid currentColor;
+  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
+/* The opposite row marks a missing run with a red bar plus a small v above and
+   ^ below, all outside the line and pointing at the gap between the two
+   characters. It is zero-width, so the two rows are no longer width-aligned. */
+.snd-diff-gap { position: relative; display: inline-block; width: 0; height: 0;
+  color: #c62828; }
+.snd-diff-gap-bar { position: absolute; left: -1px; top: -.8em; width: 2px;
+  height: 1.1em; background: #c62828; border-radius: 1px; }
+.snd-diff-gap-tri { position: absolute; left: 0; width: 0; height: 0; }
+.snd-diff-gap-top { top: -.8em; transform: translate(-50%, -100%);
+  border-top: .44rem solid #c62828;
+  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
+.snd-diff-gap-bottom { top: .3em; transform: translate(-50%, 0);
+  border-bottom: .44rem solid #c62828;
+  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
+/* Two-row comparison of a committed modification (badge menu -> compare). */
+.snd-diff-align { display: flex; flex-direction: column; gap: .15rem;
+  border: 1px solid #8885; border-radius: .25rem; padding: .35rem .5rem; }
+.snd-diff-row { margin: 0; font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.snd-diff-row + .snd-diff-row { padding-top: .15rem; border-top: 1px dashed #8885; }
+.snd-md-comment { display: block; }
+.snd-md-comment textarea { box-sizing: border-box; width: 100%; resize: none;
+  border: 1px solid #8885; border-radius: .25rem; padding: .35rem .5rem;
+  font: .85em/1.5 system-ui, sans-serif; background: canvas; color: canvastext;
+  caret-color: #3984c6; }
+.snd-md-comment textarea:focus { outline: none; border-color: #3984c6;
+  box-shadow: 0 0 0 2px #3984c622; }
 
 /* img */
 img { max-width: 100%; height: auto; }
@@ -248,7 +304,11 @@ main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
 }
 @media (prefers-color-scheme: dark) {
   .doc-code { background: #202b3b; color: #e5eaf1; }
-  .snd-md-source { background: #202b3b; color: #e5eaf1; }
+  .snd-md-popup { background: #202b3b; color: #e5eaf1; }
+  .snd-diff-fill { color: #e5eaf1; }
+  .snd-diff-del { background: #c6282833; }
+  .snd-diff-ins { background: #28a7453d; }
+  .snd-md-popup textarea { background: #202b3b; color: #e5eaf1; }
 }
 @media print {
   .page { max-width: none; margin: 0; padding: 0; }
@@ -258,6 +318,6 @@ main img:focus-visible { outline: 2px solid #3984c6; outline-offset: 2px; }
   .script-block:not([open]) { min-height: 0; }
   .snd-toolbar { display: none !important; }
   .snd-md-controls, .snd-md-overlay { display: none !important; }
-  .snd-md-source { display: none !important; }
+  .snd-md-popup { display: none !important; }
   .snd-md-rendered { display: block !important; }
 }
