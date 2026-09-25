@@ -11,7 +11,7 @@ The implementation is split by responsibility:
 - :mod:`~snakedone.html.page`        assembles the final page
 """
 
-from ._island import extract
+from ._island import extract, extract_parts
 from .page import render
 
-__all__ = ["extract", "render"]
+__all__ = ["extract", "extract_parts", "render"]

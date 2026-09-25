@@ -36,17 +36,16 @@ function escapeSlot(content: string) {
 export class ReviewStore {
   source: string;
   records: ReviewRecordEntry[];
-  blockStart: number | null;
-  blockEnd: number | null;
+  /** The body hash Python recorded for the body, reused when writing a block. */
+  hash: string;
   lineStarts: number[];
   regions: Map<any, RegionInfo> = new Map();
   annotations: Map<any, Annotation[]> = new Map();
 
-  constructor(source: string, records: ReviewRecordEntry[], start: number | null, end: number | null) {
+  constructor(source: string, records: ReviewRecordEntry[], hash: string) {
     this.source = source;
     this.records = Array.isArray(records) ? records.slice() : [];
-    this.blockStart = start;
-    this.blockEnd = end;
+    this.hash = typeof hash === 'string' ? hash : '';
     this.lineStarts = [0];
     for (let index = 0; index < source.length; index += 1) {
       if (source[index] === '\n') this.lineStarts.push(index + 1);
@@ -121,8 +120,7 @@ export class ReviewStore {
   }
 
   exportSource() {
-    let body = this.blockStart === null ? this.source : this.source.slice(0, this.blockStart);
-    body = body.replace(/\n+$/, '') + '\n';
+    const body = this.source.replace(/\n+$/, '') + '\n';
     if (!this.records.length) return body;
     return body + '\n' + this.renderBlock() + '\n';
   }
@@ -132,7 +130,18 @@ export class ReviewStore {
     const inner = lines.length
       ? '[\n' + lines.map(line => '    ' + line).join(',\n') + '\n    ]'
       : '[]';
-    return `if "snakedone.review":\n    """${escapeSlot(inner)}"""`;
+    const marker = this.hash ? `snakedone.review=${this.hash}` : 'snakedone.review';
+    return `if "${marker}":\n    """${escapeSlot(inner)}"""`;
+  }
+
+  /** Serialize the current records for the ``snakedone-reviews`` island, so a
+   *  saved page reloads with the annotations the user added. The source island
+   *  holds only the archive body and is never rewritten. */
+  exportIsland() {
+    const payload = { records: this.records, hash: this.hash };
+    return JSON.stringify(payload)
+      .replace(/</g, '\\u003c')
+      .replace(/>/g, '\\u003e');
   }
 
   private ensureSource(span: Span) {

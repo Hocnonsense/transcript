@@ -1,6 +1,7 @@
 """Rebuild archives from captured outputs and write files atomically."""
 
 import ast
+import hashlib
 import os
 import re
 import tempfile
@@ -18,6 +19,19 @@ from .parse import (
 if TYPE_CHECKING:
     from ._rule import Rule
     from .document import AstDocument
+
+
+def body_hash(text: str):
+    """Hash the archive body a review block describes.
+
+    Trailing blank lines are normalized away, so the body written before a
+    block and the body read back from the archive hash the same.  The block's
+    marker carries this value; a hand-edited body no longer matches it and the
+    block is dropped instead of being migrated from stale coordinates.
+    """
+    normalized = text.rstrip("\n") + "\n"
+    digest = hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+    return f"sha256:{digest}"
 
 
 def escape_slot(content: str):
@@ -84,7 +98,13 @@ def render(
     outputs: list[list[str]],
     job: Rule | None = None,
 ):
-    """Rebuild output slots and markers using the captured execution results."""
+    """Rebuild output slots and markers using the captured execution results.
+
+    Returns the archive *body* only.  The trailing review block is not part of
+    rendering: the caller migrates and appends it explicitly (see
+    :func:`snakedone.review._block.migrated_block`), so ``render`` never
+    silently carries ``self``'s review state into a new archive.
+    """
 
     edits: list[tuple[int, int, str]] = [*_strip_stale_markers(self, blocks)]
     for block, output_block in zip(blocks, outputs):
@@ -114,12 +134,6 @@ def render(
     for start, end, replacement in sorted(edits, reverse=True):
         result = result[:start] + replacement + result[end:]
     result = result.rstrip("\n") + "\n"
-    if self.review is not None:
-        block = self.review.to_block(body.rstrip("\n") + "\n", result)
-        if block is None:
-            block = self.source[self.review.start : self.review.end]
-        if block:
-            result = result + "\n" + block + "\n"
     ast.parse(result)  # Never publish a non-Python archive.
     return result
 

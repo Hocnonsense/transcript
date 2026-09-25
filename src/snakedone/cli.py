@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from .document import parse
 from .html import extract as extract_html
 from .renderers.label import set_cache
+from .review.load import read_source, review_block
 from .snd import write
 
 if TYPE_CHECKING:
@@ -51,6 +52,12 @@ def get_parser():
         nargs="+",
         metavar="KEY=VALUE",
         help="wildcard value for a declared pattern; may be repeated",
+    )
+    parser.add_argument(
+        "--previous",
+        type=Path,
+        help="reviewed .snd or .html whose annotations are transferred to the"
+        " generated archive; defaults to an existing target .snd",
     )
     parser.add_argument(
         "--snakefile",
@@ -100,17 +107,25 @@ def main(argv: list[str] | None = None):
         output = output.with_suffix(output.suffix + ".snd")
     target = None if output is None else output.resolve()
     if path.suffix == ".html":
+        if args.previous is not None:
+            parser.error("--previous does not apply to a .html input")
         sys.exit(html2snd(path, target, args.diff))
     output_html = output is not None and output.suffix == ".html"
     # force_html and only_snd MAY both False if output is None, but never both True.
     force_html = args.html or output_html
     only_snd = args.no_html or (output is not None and not output_html)
     if path.suffix == ".snd" and force_html and args.diff is None:
+        if args.previous is not None:
+            parser.error(
+                "--previous needs the archive to be regenerated;"
+                " use --overwrite (or --diff) together with --html"
+            )
         # The archive already exists; only the HTML needs rendering.
         ret, snd, is_html, executed = 0, path, True, False
     else:
         wildcards = _parse_wildcards(args.wildcards, parser)
-        ret = py2snd(path, output, wildcards)
+        previous = None if args.previous is None else args.previous.resolve()
+        ret = py2snd(path, output, wildcards, previous)
         if isinstance(ret, tuple):
             snd, candidate, is_html = ret
             ret = check_exist(snd, candidate, args.diff, path == snd, force_html)
@@ -171,13 +186,43 @@ def get_document(job: Rule | None):
     return resolved, False
 
 
-def py2snd(path: Path, output: Path | None, wildcards: dict[str, str] | None = None):
+def check_previous(path: Path):
+    """Raise when an explicit ``--previous`` no longer matches its body hash.
+
+    A reviewed archive records the hash of its own body in the review marker.
+    When the body was edited behind the block's back, its coordinates cannot be
+    trusted, so an explicit ``--previous`` refuses to transfer instead of
+    silently dropping the annotations.  A ``.html`` previous is rebuilt from its
+    islands and never carries a stale hash.
+    """
+    source = read_source(path)
+    if source is not None and source.stale:
+        raise ValueError(
+            f"{path}: the review block hash does not match its archive body"
+            " (edited behind snakedone's back?); refusing to transfer annotations"
+        )
+
+
+def py2snd(
+    path: Path,
+    output: Path | None,
+    wildcards: dict[str, str] | None = None,
+    previous: Path | None = None,
+):
     """Execute the document, resolve the archive target, and write the archive.
 
     Returns ``(status, archive, is_html)`` where *is_html* says whether the
-    effective target was an ``.html`` document.
+    effective target was an ``.html`` document.  The review block is carried
+    over explicitly (see :func:`review_block`): ``--previous`` first, else the
+    document's own block, else an existing target archive.
     """
     source = path.read_text(encoding="utf-8-sig")
+    if previous is not None:
+        try:
+            check_previous(previous)
+        except Exception as error:
+            print(f"snakedone: {error}", file=sys.stderr)
+            return 2
     try:
         document = parse(source, str(path))
         blocks, outputs, job = document.execute(path, wildcards)
@@ -193,6 +238,9 @@ def py2snd(path: Path, output: Path | None, wildcards: dict[str, str] | None = N
             else:
                 target, html = found
         candidate = document.render_snd(blocks, outputs, job)
+        block = review_block(document, target, previous, candidate)
+        if block:
+            candidate = candidate.rstrip("\n") + "\n\n" + block + "\n"
     except Exception:
         traceback.print_exc()
         return 2

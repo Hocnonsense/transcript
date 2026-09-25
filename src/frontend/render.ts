@@ -151,19 +151,19 @@ function outline(document: Document) {
     if (typeof source !== 'string' || !Array.isArray(config.resources)) return;
   } catch (error) { return; }
 
-  // The parsed review records and the trailing block's offsets.
+  // The parsed review records and the body hash.
   // The archive itself is still the source island above;
   // this only spares the runtime from parsing Python,
   // and lets `Export .snd` rewrite the block.
   window.snakedoneReviewStore = ((reviewNode) => {
-    let reviewIsland = { records: [], start: null, end: null };
+    let reviewIsland = { records: [], hash: '' };
     if (reviewNode) {
       try {
         const parsed = JSON.parse(reviewNode.textContent);
         if (parsed && Array.isArray(parsed.records)) reviewIsland = parsed;
       } catch (error) { /* treat as no records */ }
     }
-    return new ReviewStore(source, reviewIsland.records, reviewIsland.start, reviewIsland.end)
+    return new ReviewStore(source, reviewIsland.records, reviewIsland.hash)
   })(document.getElementById('snakedone-reviews'));
 
   /** Rebuild one physical statement from the island. Shared indentation is

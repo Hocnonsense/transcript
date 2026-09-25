@@ -1,10 +1,9 @@
 """Embed the archive's review records into the exported page.
 
-The page already carries the full ``.snd`` (including the trailing review
-block) as the ``snakedone-source`` island.  This module adds a second island
-with the *parsed* records plus the block's character offsets, so the browser
-runtime can render annotations and rewrite the block when the user exports the
-page without parsing Python.
+The source island carries the archive *without* its trailing review block; this
+module adds a second island with the parsed records plus the body hash, so the
+browser runtime can render annotations, rewrite the block on export, and stamp
+a matching hash without parsing Python.
 """
 
 from __future__ import annotations
@@ -16,17 +15,16 @@ if TYPE_CHECKING:
     from ..review._block import ReviewBlock
 
 
-def to_page(review: ReviewBlock | None) -> str:
-    """Return the ``snakedone-reviews`` island for *document*, or ``""``.
+def to_page(review: ReviewBlock | None, body_hash: str):
+    """Return the ``snakedone-reviews`` island for *document*.
 
-    Without a review block there is nothing to embed: the browser defaults to no
-    records and no block offsets.  A present but empty block still emits an
-    island, so its offsets can strip the (invalid) block on export.
+    *body_hash* is the hash of the source island's archive body, reused by the
+    runtime when it writes the block back.  An archive without a review block
+    still gets an island (empty records), so a review added in the browser can
+    carry the right hash on export.
     """
-    if review is None:
-        return ""
-    records = [record.to_dict() for record in review.load().records]
-    payload = {"records": records, "start": review.start, "end": review.end}
+    records = [] if review is None else [r.to_dict() for r in review.load().records]
+    payload = {"records": records, "hash": body_hash}
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e")
     return (

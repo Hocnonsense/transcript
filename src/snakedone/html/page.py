@@ -5,6 +5,7 @@ import tokenize
 from html import escape
 from typing import TYPE_CHECKING
 
+from ..snd import body_hash
 from ._island import source_island
 from ._navigate import anchors, navigate_html
 from ._output import output_html, script_html
@@ -70,7 +71,11 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     content_end = len(self.source) if self.review is None else self.review.start
     parts.append(script_html(cursor, content_end))
     body, entries = anchors(parts)
-    island = source_island(self.source) + to_page(self.review)
+    # The page carries the reviewed archive *without* its review block; the
+    # block's records live in the separate ``snakedone-reviews`` island, so the
+    # source island is never rewritten and never contains review state.
+    archive = self.source_without_review.rstrip("\n") + "\n"
+    island = source_island(archive) + to_page(self.review, body_hash(archive))
     origins.update(
         image_origin
         for report in reports

@@ -15,17 +15,20 @@ import warnings
 from collections.abc import Callable, Sequence
 from typing import NamedTuple
 
-from ..snd import escape_slot
+from ..snd import body_hash, escape_slot
 from ._migrate import migrate
 from ._records import Record, ReviewIndex, validate
 
 REVIEW_MARKER = "snakedone.review"
 
 
-def _render_block(records: Sequence[Record], indent: str = "    "):
+def render_block(records: Sequence[Record], indent: str = "    ", hash: str = ""):
     """Render the trailing ``if "snakedone.review":`` block for *records*.
 
-    The returned text has no trailing newline; callers place it after the body.
+    *hash* is the ``body_hash`` of the body the block follows; when given it is
+    carried in the marker (``snakedone.review=<hash>``) so a later read can tell
+    whether the body still matches.  The returned text has no trailing newline;
+    callers place it after the body.
     """
     lines = [json.dumps(record.to_dict(), ensure_ascii=False) for record in records]
     if lines:
@@ -33,7 +36,8 @@ def _render_block(records: Sequence[Record], indent: str = "    "):
         inner = f"[\n{body}\n{indent}]"
     else:
         inner = "[]"
-    return f'if "{REVIEW_MARKER}":\n{indent}"""{inner}"""'
+    marker = REVIEW_MARKER if not hash else f"{REVIEW_MARKER}={hash}"
+    return f'if "{marker}":\n{indent}"""{inner}"""'
 
 
 class ReviewBlock(NamedTuple):
@@ -42,6 +46,8 @@ class ReviewBlock(NamedTuple):
     start: int
     end: int
     value: str
+    hash: str = ""
+    """The ``body_hash`` recorded in the marker, or ``""`` for a legacy block."""
 
     @classmethod
     def find(cls, tree: ast.Module, position: Callable[[int, int], int]):
@@ -49,7 +55,9 @@ class ReviewBlock(NamedTuple):
 
         The marker must be the last top-level statement and its body a single
         string literal holding the records; a block of any other shape is left
-        alone as an ordinary ``if`` instead of failing the archive.
+        alone as an ordinary ``if`` instead of failing the archive.  The marker
+        may carry the body hash after ``=``; without it the block is legacy and
+        is migrated without verification.
         """
         if not tree.body:
             return None
@@ -57,9 +65,16 @@ class ReviewBlock(NamedTuple):
         if not (
             isinstance(node, ast.If)
             and isinstance(node.test, ast.Constant)
-            and node.test.value == REVIEW_MARKER
+            and isinstance(node.test.value, str)
             and len(node.body) == 1
         ):
+            return None
+        marker: str = node.test.value
+        if marker == REVIEW_MARKER:
+            hash = ""
+        elif marker.startswith(REVIEW_MARKER + "="):
+            hash = marker[len(REVIEW_MARKER) + 1 :]
+        else:
             return None
         statement = node.body[0]
         if not (
@@ -73,10 +88,11 @@ class ReviewBlock(NamedTuple):
             position(node.lineno, node.col_offset),
             position(node.end_lineno, node.end_col_offset),
             statement.value.value,
+            hash,
         )
 
     def load(self):
-        """Parse and validate the JSON string stored inside the review block.
+        """Parse and validate the block's records into a :class:`ReviewIndex`.
 
         A block that cannot be parsed or validated is dropped entirely after a
         warning: a damaged review is never preserved, which would freeze it, and
@@ -98,16 +114,55 @@ class ReviewBlock(NamedTuple):
             return ReviewIndex([])
         return ReviewIndex(records).resolve()
 
-    def to_block(self, prev: str, new: str, indent: str = "    "):
-        """Return the block text for a body that changed from *prev* to *new*.
 
-        ``None`` keeps an unchanged block as it is;
-        an empty string drops it (no records left).
-        """
-        index = self.load()
-        migrated = migrate(index.records, prev, new)
-        if not migrated:
-            return ""
-        if migrated == index.records:
-            return None
-        return _render_block(migrated, indent)
+class ReviewSource(NamedTuple):
+    """A review block together with the archive body it was recorded against.
+
+    It is the one value the CLI needs to carry annotations across a re-render:
+    *body* is the archive text before the block, *records* its parsed records,
+    *hash* the body hash recorded in the marker (``""`` for legacy), and
+    *block* the original block text, kept verbatim when nothing moves.
+    """
+
+    body: str
+    records: Sequence[Record]
+    hash: str = ""
+    block: str = ""
+
+    @classmethod
+    def of(cls, review: ReviewBlock, source: str):
+        """Build a source from a located block and the archive text it sits in."""
+        return cls(
+            source[: review.start],
+            review.load().records,
+            review.hash,
+            source[review.start : review.end],
+        )
+
+    @property
+    def stale(self):
+        """Whether the block no longer matches the body it describes."""
+        return bool(self.hash) and body_hash(self.body) != self.hash
+
+
+def migrated_block(new: str, source: ReviewSource, indent: str = "    "):
+    """Return the block to append to *new*, migrating *source*'s records.
+
+    A stale source or an empty record set drops the block (returning ``""``);
+    records that did not move keep ``source.block`` verbatim; otherwise they are
+    diffed onto *new* and rendered with its hash.
+    """
+    if source.stale:
+        warnings.warn(
+            "dropping snakedone.review block: archive body hash mismatch",
+            stacklevel=2,
+        )
+        return ""
+    if not source.records:
+        return ""
+    records = migrate(source.records, source.body, new)
+    if not records:
+        return ""
+    if records == source.records:
+        return source.block
+    return render_block(records, indent, hash=body_hash(new))

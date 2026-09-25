@@ -1,9 +1,10 @@
 """Embed the archive in the exported page and read it back out.
 
-The page carries the raw ``.snd`` text as a JSON island.  The browser runtime
-reads that text and slices the report blocks out of it using the character
-offsets recorded on each block, so the page stays self-contained and the
-archive can be recovered without executing the document.
+The page carries the archive *without* its trailing review block as a JSON
+island, plus the review records in a second island.  The browser runtime reads
+the first for the report content and the second for annotations, so the page
+stays self-contained and the archive (block re-rendered from the records) can
+be recovered without executing the document.
 """
 
 import json
@@ -11,6 +12,10 @@ import re
 
 _ISLAND = re.compile(
     r'<script type="application/json" id="snakedone-source">(?P<body>.*?)</script>',
+    re.DOTALL,
+)
+_REVIEWS = re.compile(
+    r'<script id="snakedone-reviews" type="application/json">(?P<body>.*?)</script>',
     re.DOTALL,
 )
 
@@ -21,11 +26,24 @@ def source_island(source: str):
     return f'<script type="application/json" id="snakedone-source">{encoded}</script>'
 
 
-def extract(page: str):
-    """Return the archive embedded in an exported page.
+def _reviews_island(page: str):
+    """Return the ``snakedone-reviews`` records, or ``None``."""
+    from ..review._records import Record
 
-    Raises ``ValueError`` when the page carries no island or the island is not
-    the expected JSON string.
+    match = _REVIEWS.search(page)
+    if match is None:
+        return None
+    payload = json.loads(match.group("body"))
+    if not isinstance(payload, dict) or not isinstance(payload.get("records"), list):
+        return None
+    return [Record.from_dict(item) for item in payload["records"]]
+
+
+def extract_parts(page: str):
+    """Return ``(body, records)`` for an exported page.
+
+    *body* is the embedded archive *without* its review block; *records* are the
+    ``snakedone-reviews`` records (or ``None`` when the page has no island).
     """
     match = _ISLAND.search(page)
     if match is None:
@@ -33,4 +51,22 @@ def extract(page: str):
     payload = json.loads(match.group("body"))
     if not isinstance(payload, str):
         raise ValueError("the snakedone-source island must be a JSON string")
-    return payload
+    return payload, _reviews_island(page)
+
+
+def extract(page: str):
+    """Return the archive embedded in an exported page.
+
+    Raises ``ValueError`` when the page carries no island or the island is not
+    the expected JSON string.  The review records kept in the ``reviews`` island
+    are rendered back into the archive's trailing review block, stamped with the
+    body hash.
+    """
+    from ..review._block import render_block
+    from ..snd import body_hash
+
+    body, records = extract_parts(page)
+    if not records:
+        return body
+    body = body.rstrip("\n") + "\n"
+    return body + "\n" + render_block(records, hash=body_hash(body)) + "\n"
