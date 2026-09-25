@@ -124,20 +124,35 @@ class Entry(NamedTuple):
     def heading(cls, level: int, text: str, slug: str):
         return cls("heading", level, text, slug)
 
+    @classmethod
+    def review(cls, text: str, slug: str):
+        return cls("review", 0, text, slug)
+
+    @property
+    def css(self):
+        kind = self.kind
+        if kind == "heading":
+            return f"toc-heading toc-l{self.level}"
+        if kind == "label":
+            return "toc-label"
+        if kind == "review":
+            return "toc-review"
+
     def render(self, shown: set[str]):
         name = self._TYPES[self.kind][0]
         hidden = "" if name in shown else " hidden"
-        # Labels are a flat type, so they all share one indent instead of
-        # following the level of whatever heading happens to precede them.
-        css = (
-            f"toc-heading toc-l{self.level}" if self.kind == "heading" else "toc-label"
-        )
+        # Labels and reviews are flat types, so they all share one indent
+        # instead of following the level of the preceding heading.
         return (
-            f'<li class="{css}" data-snd-type="{name}"{hidden}>'
+            f'<li class="{self.css}" data-snd-type="{name}"{hidden}>'
             f'<a href="#{escape(self.slug, quote=True)}">{escape(self.text)}</a></li>'
         )
 
-    _TYPES = {"heading": ("contents", "Contents"), "label": ("labels", "Labels")}
+    _TYPES = {
+        "heading": ("contents", "Contents"),
+        "label": ("labels", "Labels"),
+        "review": ("reviews", "Reviews"),
+    }
     """
     Anchor kinds mapped to their navigate type and tab title, in tab order.
     A new kind (for example a future "reference") only needs an entry here

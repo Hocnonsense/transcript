@@ -9,6 +9,7 @@ from ._island import source_island
 from ._navigate import anchors, navigate_html
 from ._output import output_html, script_html
 from ._resources import page_resources
+from ._review import to_page
 from .markup import markdown_image_origins
 
 if TYPE_CHECKING:
@@ -69,7 +70,9 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     content_end = len(self.source) if self.review is None else self.review.start
     parts.append(script_html(cursor, content_end))
     body, entries = anchors(parts)
-    island = source_island(self.source)
+    review_entry, review_island = to_page(self.review)
+    entries.extend(review_entry)
+    island = "\n".join((source_island(self.source), review_island))
     origins.update(
         image_origin
         for report in reports

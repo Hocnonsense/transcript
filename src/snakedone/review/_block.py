@@ -17,11 +17,12 @@ from typing import NamedTuple
 
 from ..snd import escape_slot
 from ._migrate import migrate
+from ._records import validate
 
 REVIEW_MARKER = "snakedone.review"
 
 
-def _render_block(records: list[dict], indent: str = "    ") -> str:
+def _render_block(records: list[dict], indent: str = "    "):
     """Render the trailing ``if "snakedone.review":`` block for *records*.
 
     The returned text has no trailing newline; callers place it after the body.
@@ -78,11 +79,13 @@ class ReviewBlock(NamedTuple):
             statement.value.value,
         )
 
-    def load(self) -> list[dict] | None:
-        """Parse the JSON string stored inside the review block.
+    def load(self) -> list[dict]:
+        """Parse and validate the JSON string stored inside the review block.
 
-        Returns ``None`` for a malformed block after warning, so the caller
-        keeps the archive as it is instead of failing the render.
+        A block that cannot be parsed or validated is dropped entirely after a
+        warning: a damaged review is never preserved, which would freeze it, and
+        the drop is never silent.  ``review`` records carry a non-empty, unique
+        ``id``; a whole block is dropped if any record is invalid.
         """
         if not self.value.strip():
             return []
@@ -90,20 +93,21 @@ class ReviewBlock(NamedTuple):
             records = json.loads(self.value)
             if not isinstance(records, list):
                 raise ValueError("the snakedone.review block must hold a JSON array")
-        except ValueError as error:
-            warnings.warn(f"invalid snakedone.review block: {error}", stacklevel=2)
-            records = None
+            validate(records)
+        except (KeyError, TypeError, ValueError) as error:
+            warnings.warn(
+                f"dropping invalid snakedone.review block: {error}", stacklevel=2
+            )
+            return []
         return records
 
     def to_block(self, prev: str, new: str, indent: str = "    "):
         """Return the block text for a body that changed from *prev* to *new*.
 
-        ``None`` keeps the existing block (unreadable or unchanged records) and
-        an empty string drops it (nothing left to record).
+        ``None`` keeps an unchanged block as it is;
+        an empty string drops it (no records left).
         """
         records = self.load()
-        if records is None:
-            return None
         migrated = migrate(records, prev, new)
         if not migrated:
             return ""
