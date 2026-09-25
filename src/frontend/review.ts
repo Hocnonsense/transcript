@@ -1,4 +1,13 @@
+import { Annotation, Band } from './annotation';
+import { markdownMap } from './literal';
+import type { ReviewStore } from './reviewstore';
+
 const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** The region owning each review box, for the shared document handlers below. */
+const inputRegions = new WeakMap<HTMLElement, MarkdownReview>();
+/** Regions whose popup is open, so one Escape closes them all. */
+const openRegions = new Set<MarkdownReview>();
 
 function escapeRegExp(text: string) {
   return text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -263,11 +272,12 @@ function fullLines(literal: string, start: number, end: number) {
 export class MarkdownReview {
   node: any;
   literal: string;
+  store: ReviewStore;
   entries: any[] = [];
-  annotations: any[] = [];
+  annotations: Annotation[] = [];
   view = 'rendered';
   selection: { start: number; end: number } | null = null;
-  editing: any = null;
+  editing: Annotation | null = null;
   session: any = null;
   markers: Record<string, HTMLElement> | null = null;
   markerDrag: { side: string; rects: any[] | null } | null = null;
@@ -288,14 +298,18 @@ export class MarkdownReview {
   editAction: HTMLButtonElement;
   deleteAction: HTMLButtonElement;
 
-  constructor(node: any, literal: string) {
+  constructor(node: any, raw: string, rawStart = 0, rawEnd = 0) {
+    this.store = window.snakedoneReviewStore!;
     this.node = node;
-    this.literal = literal;
+    const { text, map } = markdownMap(raw);
+    this.literal = text;
+    this.annotations = this.store.addRegion(this, rawStart, rawEnd, text, map);
     // The popup has exactly two boxes: the original text is edited in place
     // (transparent textarea over the diff highlight) and the comment below.
     this.sourceFill = element('pre', 'snd-diff-fill');
     this.sourceInput = element('textarea', 'snd-diff-input',
       { rows: 1, spellcheck: false });
+    inputRegions.set(this.sourceInput, this);
     this.source = element('div', 'snd-md-source', { hidden: true },
       this.sourceFill, this.sourceInput);
     this.alignOriginal = element('pre', 'snd-diff-row');
@@ -427,14 +441,14 @@ export class MarkdownReview {
   /** The range an annotation is drawn at. A modified annotation is shown only
    *  over the region that actually changed — its baseline range minus the
    *  common prefix and suffix with the edited text. */
-  displayRange(annotation: any) {
+  displayRange(annotation: Annotation) {
     if (!annotation.modified) return annotation.chosen;
     // The baseline (`annotation.original`) is the whole source line(s); the
     // diff runs are relative to that, so anchor them at the line start. This
     // uses the same alignment as the highlighting, so the box spans exactly
     // the runs drawn in the edit box.
     const line = fullLines(this.literal, annotation.chosen.start, annotation.chosen.end);
-    const info = diffInfo(annotation.original || '', annotation.text || '');
+    const info = diffInfo(annotation.original || '', annotation.edit || '');
     const start = line.start + Math.max(info.start, 0);
     const end = line.start + info.end;
     if (end > start) return { start, end };
@@ -445,6 +459,7 @@ export class MarkdownReview {
 
   showRendered() {
     this.view = 'rendered';
+    openRegions.delete(this);
     this.node.dataset.sndMdView = 'rendered';
     this.rendered.hidden = false;
     this.popup.hidden = true;
@@ -464,7 +479,7 @@ export class MarkdownReview {
     });
   }
 
-  addBadge(annotation: any, bands: { l: number; r: number; t: number; b: number }[]) {
+  addBadge(annotation: Annotation, bands: Band[]) {
     const right = Math.max(...bands.map(band => band.r));
     const top = Math.min(...bands.map(band => band.t));
     const badge = document.createElement('button');
@@ -474,8 +489,8 @@ export class MarkdownReview {
     // Hovering shows what the annotation carries: its comment, else the added
     // text of the change runs, as found by the same alignment as the box.
     const revised = annotation.modified
-      ? diffInfo(annotation.original || '', annotation.text || '').revised : '';
-    badge.title = annotation.body || revised || annotation.text || 'Mark Up';
+      ? diffInfo(annotation.original || '', annotation.edit || '').revised : '';
+    badge.title = annotation.comment || revised || annotation.edit || 'Mark Up';
     badge.sndAnnotation = annotation;
     badge.addEventListener('click', event => {
       event.stopPropagation();
@@ -491,7 +506,7 @@ export class MarkdownReview {
 
   /** Open the read view: the diff (when the text changed) plus the comment,
    *  with modify/delete in the popup's top-right. */
-  openAnnotation(annotation: any) {
+  openAnnotation(annotation: Annotation) {
     this.editing = annotation;
     this.openSource(annotation.chosen.start, annotation.chosen.end,
       this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
@@ -507,8 +522,7 @@ export class MarkdownReview {
   }
 
   deleteEditing() {
-    const index = this.annotations.indexOf(this.editing);
-    if (index !== -1) this.annotations.splice(index, 1);
+    if (this.editing) this.store.remove(this, this.editing);
     this.showRendered();
   }
 
@@ -539,6 +553,7 @@ export class MarkdownReview {
 
   openSource(start: number | null, end: number | null, anchorTop: number, mode = 'edit') {
     this.view = 'source';
+    openRegions.add(this);
     this.node.dataset.sndMdView = 'source';
     this.popup.hidden = false;
     this.selection = start === null || end === null ? null : { start, end };
@@ -583,8 +598,8 @@ export class MarkdownReview {
       original = this.literal.slice(line.start, line.end);
       chosenLocal = { start: chosen.start - line.start, end: chosen.end - line.start };
     }
-    const committed = editing && typeof editing.body === 'string'
-      ? editing.body : '';
+    const committed = editing && typeof editing.comment === 'string'
+      ? editing.comment : '';
     this.session = {
       annotation: editing,
       whole,
@@ -592,8 +607,8 @@ export class MarkdownReview {
       chosenLocal,
       lineStart,
       original,
-      text: editing && typeof editing.text === 'string'
-        ? editing.text : original,
+      text: editing && typeof editing.edit === 'string'
+        ? editing.edit : original,
       body: committed,
       committed,
       mode: mode || 'edit',
@@ -859,22 +874,25 @@ export class MarkdownReview {
     const chosen = this.currentChosen();
     if (!chosen || chosen.end <= chosen.start) return;
     const modified = text !== session.original;
-    if (session.annotation) {
-      session.annotation.chosen = chosen;
-      session.annotation.original = session.original;
-      session.annotation.text = text;
-      session.annotation.body = body;
-      session.annotation.modified = modified;
+    let annotation = session.annotation;
+    if (annotation) {
+      annotation.chosen = chosen;
+      annotation.original = session.original;
+      annotation.text = text;
+      annotation.body = body;
+      annotation.modified = modified;
     } else if (body || modified) {
-      this.annotations.push({
+      annotation = new Annotation({
         selection: this.selection,
         chosen,
         original: session.original,
-        text,
-        body,
+        edit: text,
+        comment: body,
         modified,
       });
+      session.annotation = annotation;
     }
+    if (annotation) this.store.save(this, annotation);
   }
 
   sessionDirty() {
@@ -955,6 +973,24 @@ export class MarkdownReview {
     button.style.top = `${Math.max(0, top)}px`;
   }
 
+  /** Follow the box's selection while it is the focused element.
+   *
+   *  Called from the single document-level `selectionchange` handler: as the
+   *  range is (re)selected in the box the delimiters follow, and a collapsed
+   *  caret clears them until something is selected again. */
+  trackSelection() {
+    const session = this.session;
+    if (!session || session.whole || this.markerDrag) return;
+    if (session.text !== session.original) return;
+    const start = this.sourceInput.selectionStart;
+    const end = this.sourceInput.selectionEnd;
+    if (end <= start) { this.clearMarkers(); return; }
+    if (session.chosenLocal
+      && start === session.chosenLocal.start && end === session.chosenLocal.end) return;
+    session.chosenLocal = { start, end };
+    this.updateMarkers();
+  }
+
   /** Bind review/annotation interaction events. */
   wire() {
     this.node.addEventListener('mousemove', (event: MouseEvent) => {
@@ -962,7 +998,7 @@ export class MarkdownReview {
       const x = event.clientX - origin.left;
       const y = event.clientY - origin.top;
       this.controls.querySelectorAll<HTMLButtonElement>('.snd-md-badge').forEach(badge => {
-        const bands = badge.sndAnnotation && (badge.sndAnnotation as any).bands;
+        const bands = badge.sndAnnotation?.bands;
         const overBox = !!bands && bands.some((band: any) =>
           x >= band.l - 2 && x <= band.r + 2 &&
           y >= band.t - 2 && y <= band.b + 2);
@@ -986,9 +1022,6 @@ export class MarkdownReview {
     this.rendered.addEventListener('mouseup', event => {
       const mapped = this.selectionToLiteral(window.getSelection());
       if (mapped) this.showTrigger({ x: event.clientX, y: event.clientY }, mapped);
-    });
-    document.addEventListener('keydown', event => {
-      if (event.key === 'Escape' && this.view === 'source') this.cancelSession();
     });
     this.sourceInput.addEventListener('input', () => {
       this.setSourceValue(this.sourceInput.value);
@@ -1031,23 +1064,6 @@ export class MarkdownReview {
     const endMarkerDrag = () => { this.markerDrag = null; };
     this.sourceInput.addEventListener('pointerup', endMarkerDrag);
     this.sourceInput.addEventListener('pointercancel', endMarkerDrag);
-    // As the range is (re)selected in the box, the delimiters follow; a
-    // collapsed caret clears them until something is selected again. This must
-    // listen to `selectionchange` (a real click-collapse does not fire
-    // `select`), restricted to the focused box.
-    document.addEventListener('selectionchange', () => {
-      if (document.activeElement !== this.sourceInput) return;
-      const session = this.session;
-      if (!session || session.whole || this.markerDrag) return;
-      if (session.text !== session.original) return;
-      const start = this.sourceInput.selectionStart;
-      const end = this.sourceInput.selectionEnd;
-      if (end <= start) { this.clearMarkers(); return; }
-      if (session.chosenLocal
-        && start === session.chosenLocal.start && end === session.chosenLocal.end) return;
-      session.chosenLocal = { start, end };
-      this.updateMarkers();
-    });
     this.sourceInput.addEventListener('keydown', event => {
       if (event.isComposing) return;
       if (!this.session || this.session.mode !== 'edit') return;
@@ -1082,3 +1098,16 @@ function insideRect(element: Element, x: number, y: number, origin: DOMRect) {
     && y >= rect.top - origin.top
     && y <= rect.bottom - origin.top;
 }
+
+// One document-level handler shared by every region, instead of one
+// `keydown`/`selectionchange` listener per region.  Escape closes every open
+// popup; a selection change is routed to the region that owns the focused box.
+document.addEventListener('keydown', event => {
+  if (event.key !== 'Escape') return;
+  for (const region of [...openRegions]) region.cancelSession();
+});
+
+document.addEventListener('selectionchange', () => {
+  const element = document.activeElement;
+  if (element instanceof HTMLElement) inputRegions.get(element)?.trackSelection();
+});

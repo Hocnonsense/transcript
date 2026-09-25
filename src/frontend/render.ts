@@ -1,10 +1,13 @@
-import { markdownLiteral } from './literal';
+import { markdownMap } from './literal';
 import { MarkdownReview } from './review';
+import { ReviewStore } from './reviewstore';
 import { loadResources } from './resources';
 
+/**
+ * Decode `data-snd-string-lines` (e.g. "1,4-5") into a set of 1-based lines.
+ */
 function lineRanges(text) {
-  // Decode `data-snd-string-lines` (e.g. "1,4-5") into a set of 1-based lines.
-  const result = new Set();
+  const result: Set<number> = new Set();
   for (const part of (text || '').split(',')) {
     if (!part) continue;
     const [first, last = first] = part.split('-').map(Number);
@@ -64,13 +67,26 @@ function outline(document: Document) {
       node.id = id;
       entries.push({ type: 'contents', level, text, id });
     });
+  const reviewStore = window.snakedoneReviewStore;
+  if (reviewStore) {
+    let index = 0;
+    for (const record of reviewStore.records) {
+      if (record.type !== 'review') continue;
+      entries.push({
+        type: 'reviews', level: 0,
+        text: record.comment || record.edit || 'Review',
+        id: `snd-review-${index}`,
+      });
+      index += 1;
+    }
+  }
   const page = main.parentElement;
   page.querySelector(':scope > .navigate')?.remove();
   if (!entries.length) {
     page.className = 'page';
     return;
   }
-  const types = ['contents', 'labels'].filter(type =>
+  const types = ['contents', 'labels', 'reviews'].filter(type =>
     entries.some(entry => entry.type === type));
   const shown = types[0];
   const nav = document.createElement('nav');
@@ -79,7 +95,7 @@ function outline(document: Document) {
   nav.dataset.collapsed = 'false';
   const tabs = document.createElement('div');
   tabs.className = 'navigate-tabs';
-  const titles = { contents: 'Contents', labels: 'Labels' };
+  const titles = { contents: 'Contents', labels: 'Labels', reviews: 'Reviews' };
   for (const type of types) {
     const tab = document.createElement('div');
     tab.className = 'navigate-tab';
@@ -94,10 +110,14 @@ function outline(document: Document) {
   const list = document.createElement('ol');
   list.className = 'navigate-list';
   list.dataset.sndShow = shown;
+  const css = {
+    contents: entry => `toc-heading toc-l${entry.level}`,
+    labels: () => 'toc-label',
+    reviews: () => 'toc-review',
+  };
   for (const entry of entries) {
     const item = document.createElement('li');
-    item.className = entry.type === 'contents'
-      ? `toc-heading toc-l${entry.level}` : 'toc-label';
+    item.className = css[entry.type](entry);
     item.dataset.sndType = entry.type;
     item.hidden = entry.type !== shown;
     const link = document.createElement('a');
@@ -131,6 +151,20 @@ function outline(document: Document) {
     if (typeof source !== 'string' || !Array.isArray(config.resources)) return;
   } catch (error) { return; }
 
+  // The parsed review records and the trailing block's offsets.
+  // The archive itself is still the source island above;
+  // this only spares the runtime from parsing Python,
+  // and lets `Export .snd` rewrite the block.
+  window.snakedoneReviewStore = ((reviewNode) => {
+    let reviewIsland = { records: [], start: null, end: null };
+    if (reviewNode) {
+      try {
+        const parsed = JSON.parse(reviewNode.textContent);
+        if (parsed && Array.isArray(parsed.records)) reviewIsland = parsed;
+      } catch (error) { /* treat as no records */ }
+    }
+    return new ReviewStore(source, reviewIsland.records, reviewIsland.start, reviewIsland.end)
+  })(document.getElementById('snakedone-reviews'));
 
   /** Rebuild one physical statement from the island. Shared indentation is
    * stripped before highlighting, except on continuation lines of a multiline
@@ -210,18 +244,22 @@ function outline(document: Document) {
     });
   }
 
+  /** A markdown region is either a docstring or a `markdown()` output;
+   *  both are sliced from the island, decoded to the exact string, and rendered here.
+   *
+   * - builds the popup DOM,
+   * - maps the rendered text to the literal,
+   * - binds its own interactions.
+   * */
   function initMarkdownRegion(node, markdown) {
-    // A markdown region is either a docstring or a `markdown()` output; both are
-    // sliced from the island, decoded to the exact string, and rendered here.
-    // The review class builds the popup DOM, maps the rendered text to the
-    // literal, and binds its own interactions.
     const [start, end] = sourceSpan(node)
-    const literal = markdownLiteral(source.slice(start, end));
-    const region = new MarkdownReview(node, literal);
-    region.rendered.innerHTML = markdown.render(literal);
+    const raw = source.slice(start, end);
+    const region = new MarkdownReview(node, raw, start, end);
+    region.rendered.innerHTML = markdown.render(region.literal);
     externalLinks(region.rendered);
     region.align();
     region.wire();
+    region.showRendered();
   }
 
   function showError(error) {

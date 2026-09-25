@@ -8,6 +8,5 @@ run when an archive is regenerated.
 """
 
 from ._block import ReviewBlock
-from ._records import expire_at
 
-__all__ = ["ReviewBlock", "expire_at"]
+__all__ = ["ReviewBlock"]

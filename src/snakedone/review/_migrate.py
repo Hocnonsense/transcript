@@ -11,11 +11,14 @@ its stale map.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+from dataclasses import replace
 from datetime import datetime
 from difflib import SequenceMatcher
 from typing import Literal
 
-from ._span import TYPE_REVIEW, TYPE_SOURCE, Span, timestamp
+from ._records import Record, ReviewRecord, SourceRecord
+from ._span import Span, timestamp
 
 __all__ = ["migrate"]
 
@@ -96,52 +99,57 @@ def _merge(runs: list[tuple[Span, Span]]):
 
 
 def migrate(
-    records: list[dict], old_text: str, new_text: str, *, moment: datetime | None = None
-) -> list[dict]:
+    records: Sequence[Record],
+    old_text: str,
+    new_text: str,
+    *,
+    moment: datetime | None = None,
+) -> list[Record]:
     """Update *records* for a body that changed from *old_text* to *new_text*."""
     if not records:
         return []
     opcodes = diff(old_text, new_text)
     if all(tag == "equal" for tag, _, _, _, _ in opcodes):
-        return records
+        return list(records)
     stamp = timestamp(moment)
-    kept: list[dict] = []
+    kept: list[Record] = []
     fresh: list[tuple[Span, Span]] = []
     for record in records:
-        if record.get("type") != TYPE_SOURCE:
+        if not isinstance(record, SourceRecord):
             kept.append(record)
             continue
-        span = Span.parse(record["at"])
+        span = Span.parse(record.at)
         mapped = map_diffs(span, opcodes)
         if mapped is None:
             continue
-        updated = {**record, "at": str(mapped)}
-        if "diffRange" in record:
-            diff_range = map_diffs(Span.parse(record["diffRange"]), opcodes)
+        updated = replace(record, at=str(mapped))
+        if record.diffRange is not None:
+            diff_range = map_diffs(Span.parse(record.diffRange), opcodes)
             if diff_range is not None:
-                updated["diffRange"] = str(diff_range)
+                updated = replace(updated, diffRange=str(diff_range))
         touched_lines = _changed_lines(opcodes, span)
-        if record.get("expire") is None and touched_lines:
-            updated["expire"] = stamp
+        if record.expire is None and touched_lines:
             text = span.extract(old_text)
-            updated["text"] = "" if text is None else text
+            updated = replace(
+                updated, expire=stamp, source="" if text is None else text
+            )
             run = Span(min(touched_lines), 0, max(touched_lines), -1)
             fresh_span = map_diffs(run, opcodes)
             if fresh_span is not None:
                 fresh.append((fresh_span, run))
         kept.append(updated)
     for new_span, prev in _merge(fresh):
-        kept.append(new_span.to_record(prev))
-    result: list[dict] = []
+        kept.append(SourceRecord.of(new_span, prev=prev))
+    result: list[Record] = []
     for record in kept:
-        if record.get("type") != TYPE_REVIEW:
+        if not isinstance(record, ReviewRecord):
             result.append(record)
             continue
-        mapped = map_diffs(Span.parse(record["at"]), opcodes)
+        mapped = map_diffs(Span.parse(record.at), opcodes)
         if mapped is None:
             continue
-        updated = {**record, "at": str(mapped)}
-        if record["at"] != updated["at"]:
-            updated.pop("expireAt", None)
+        updated = replace(record, at=str(mapped))
+        if record.at != updated.at:
+            updated = replace(updated, expireAt=None)
         result.append(updated)
     return result

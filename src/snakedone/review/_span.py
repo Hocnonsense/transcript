@@ -206,22 +206,6 @@ class Span(NamedTuple):
         ]
         return "".join(parts)
 
-    def to_record(
-        self,
-        prev: Span | None = None,
-        text: str | None = None,
-        expire: str | None = None,
-    ):
-        """Build a ``source`` record for *at*, changed over *diff_range*."""
-        record = {"type": TYPE_SOURCE, "at": str(self)}
-        if prev is not None:
-            record["diffRange"] = str(prev)
-        if expire is not None:
-            record["expire"] = expire
-            if text is not None:
-                record["text"] = text
-        return record
-
 
 def timestamp(moment: datetime | None = None):
     """Return an ISO-8601 UTC timestamp with milliseconds and a ``Z`` suffix."""

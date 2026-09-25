@@ -12,31 +12,21 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING
 
-from ._navigate import Entry
-
 if TYPE_CHECKING:
     from ..review._block import ReviewBlock
 
 
-def to_page(review: ReviewBlock | None):
-    """Return the review entries and island for *document*."""
-    entries: list[Entry] = []
+def to_page(review: ReviewBlock | None) -> str:
+    """Return the ``snakedone-reviews`` island for *document*, or ``""``.
+
+    Without a review block there is nothing to embed: the browser defaults to no
+    records and no block offsets.  A present but empty block still emits an
+    island, so its offsets can strip the (invalid) block on export.
+    """
     if review is None:
-        payload = {"records": [], "start": None, "end": None}
-        return entries, _reviews_island(payload)
-    records = review.load()
-    for record in records:
-        if record.get("type") != "review":
-            continue
-        identifier = record.get("id", "review")
-        text = record.get("body") or record.get("text") or str(identifier)
-        entries.append(Entry.review(str(text), f"snd-review-{identifier}"))
+        return ""
+    records = [record.to_dict() for record in review.load().records]
     payload = {"records": records, "start": review.start, "end": review.end}
-    return entries, _reviews_island(payload)
-
-
-def _reviews_island(payload: dict):
-    """Return the ``snakedone-reviews`` JSON island for *document*."""
     encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"))
     encoded = encoded.replace("<", "\\u003c").replace(">", "\\u003e")
     return (

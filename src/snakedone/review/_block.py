@@ -12,32 +12,28 @@ from __future__ import annotations
 import ast
 import json
 import warnings
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from typing import NamedTuple
 
 from ..snd import escape_slot
 from ._migrate import migrate
-from ._records import validate
+from ._records import Record, ReviewIndex, validate
 
 REVIEW_MARKER = "snakedone.review"
 
 
-def _render_block(records: list[dict], indent: str = "    "):
+def _render_block(records: Sequence[Record], indent: str = "    "):
     """Render the trailing ``if "snakedone.review":`` block for *records*.
 
     The returned text has no trailing newline; callers place it after the body.
     """
-    inner = escape_slot(_dump(records))
-    return f'if "{REVIEW_MARKER}":\n{indent}"""{inner}\n{indent}"""'
-
-
-def _dump(records: list[dict]):
-    """Serialize records as the review block's triple-quoted string value."""
-    body = json.dumps(records, indent=2, ensure_ascii=False).splitlines()
-    if not body:
-        body = ["[]"]
-    pad = "    "
-    return body[0] + "\n" + "\n".join(pad + line for line in body[1:])
+    lines = [json.dumps(record.to_dict(), ensure_ascii=False) for record in records]
+    if lines:
+        body = ",\n".join(indent + escape_slot(line) for line in lines)
+        inner = f"[\n{body}\n{indent}]"
+    else:
+        inner = "[]"
+    return f'if "{REVIEW_MARKER}":\n{indent}"""{inner}"""'
 
 
 class ReviewBlock(NamedTuple):
@@ -79,27 +75,28 @@ class ReviewBlock(NamedTuple):
             statement.value.value,
         )
 
-    def load(self) -> list[dict]:
+    def load(self):
         """Parse and validate the JSON string stored inside the review block.
 
         A block that cannot be parsed or validated is dropped entirely after a
         warning: a damaged review is never preserved, which would freeze it, and
-        the drop is never silent.  ``review`` records carry a non-empty, unique
-        ``id``; a whole block is dropped if any record is invalid.
+        the drop is never silent.  A whole block is dropped if any record is
+        invalid.
         """
         if not self.value.strip():
-            return []
+            return ReviewIndex([])
         try:
-            records = json.loads(self.value)
-            if not isinstance(records, list):
+            data = json.loads(self.value)
+            if not isinstance(data, list):
                 raise ValueError("the snakedone.review block must hold a JSON array")
+            records = [Record.from_dict(item) for item in data]
             validate(records)
         except (KeyError, TypeError, ValueError) as error:
             warnings.warn(
                 f"dropping invalid snakedone.review block: {error}", stacklevel=2
             )
-            return []
-        return records
+            return ReviewIndex([])
+        return ReviewIndex(records).resolve()
 
     def to_block(self, prev: str, new: str, indent: str = "    "):
         """Return the block text for a body that changed from *prev* to *new*.
@@ -107,10 +104,10 @@ class ReviewBlock(NamedTuple):
         ``None`` keeps an unchanged block as it is;
         an empty string drops it (no records left).
         """
-        records = self.load()
-        migrated = migrate(records, prev, new)
+        index = self.load()
+        migrated = migrate(index.records, prev, new)
         if not migrated:
             return ""
-        if migrated == records:
+        if migrated == index.records:
             return None
         return _render_block(migrated, indent)

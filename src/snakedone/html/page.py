@@ -70,9 +70,7 @@ def render(self: AstDocument, *, title: str = "snakedone document"):
     content_end = len(self.source) if self.review is None else self.review.start
     parts.append(script_html(cursor, content_end))
     body, entries = anchors(parts)
-    review_entry, review_island = to_page(self.review)
-    entries.extend(review_entry)
-    island = "\n".join((source_island(self.source), review_island))
+    island = source_island(self.source) + to_page(self.review)
     origins.update(
         image_origin
         for report in reports
