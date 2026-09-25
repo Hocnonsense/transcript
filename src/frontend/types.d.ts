@@ -16,5 +16,6 @@ declare global {
 
   interface HTMLButtonElement {
     sndAnnotation?: Annotation;
+    sndHideTimer?: number;
   }
 }

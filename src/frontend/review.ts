@@ -197,7 +197,14 @@ function mergeBands(rects: DOMRect[], origin: DOMRect) {
     const bottom = rect.bottom - origin.top;
     const left = rect.left - origin.left;
     const right = rect.right - origin.left;
-    const band = bands.find(item => Math.abs(item.t - top) < 1);
+    // Group by vertical overlap as well as equal tops: inline <code> spans can
+    // report a slightly different top or height than the surrounding text on
+    // the same line, which would otherwise leave a broken ribbon.
+    const center = (top + bottom) / 2;
+    const band = bands.find(item =>
+      Math.abs(item.t - top) < 1
+      || Math.abs((item.t + item.b) / 2 - center)
+        < Math.max(item.b - item.t, bottom - top) * 0.5);
     if (band) {
       band.l = Math.min(band.l, left);
       band.r = Math.max(band.r, right);
@@ -480,8 +487,10 @@ export class MarkdownReview {
   }
 
   addBadge(annotation: Annotation, bands: Band[]) {
-    const right = Math.max(...bands.map(band => band.r));
-    const top = Math.min(...bands.map(band => band.t));
+    // Anchor the tab on the topmost band, not the bounding box: a wrapped run
+    // whose lower line is the widest would otherwise float the tab to the
+    // right of the top line, leaving a gap the pointer hides in.
+    const first = bands[0];
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = 'snd-md-badge';
@@ -496,12 +505,35 @@ export class MarkdownReview {
       event.stopPropagation();
       this.openAnnotation(annotation);
     });
+    // Entering the tab keeps it open, so the pointer can cross the gap between
+    // the box and the tab without the tab vanishing under it.
+    badge.addEventListener('mouseenter', () => this.revealBadge(badge));
+    badge.addEventListener('mouseleave', () => this.hideBadge(badge));
     this.controls.appendChild(badge);
     const width = badge.offsetWidth;
     const height = badge.offsetHeight;
-    badge.style.left = `${Math.max(0, right - width)}px`;
-    badge.style.top = `${Math.max(0, top - height + 2)}px`;
+    badge.style.left = `${Math.max(0, first.r - width)}px`;
+    badge.style.top = `${Math.max(0, first.t - height + 2)}px`;
     badge.hidden = true;
+  }
+
+  /** Show a badge and cancel any pending hide, so a pointer crossing the gap
+   *  between the box and the tab has time to reach it. */
+  revealBadge(badge: HTMLButtonElement) {
+    if (badge.sndHideTimer !== undefined) {
+      clearTimeout(badge.sndHideTimer);
+      badge.sndHideTimer = undefined;
+    }
+    badge.hidden = false;
+  }
+
+  /** Hide a badge after a short grace period, unless the pointer comes back. */
+  hideBadge(badge: HTMLButtonElement) {
+    if (badge.sndHideTimer !== undefined) return;
+    badge.sndHideTimer = window.setTimeout(() => {
+      badge.sndHideTimer = undefined;
+      badge.hidden = true;
+    }, 220);
   }
 
   /** Open the read view: the diff (when the text changed) plus the comment,
@@ -600,12 +632,18 @@ export class MarkdownReview {
     }
     const committed = editing && typeof editing.comment === 'string'
       ? editing.comment : '';
+    // The baseline is the whole literal range the box holds; a modification
+    // replaces all of it, so the record's range must cover these lines rather
+    // than follow a narrower re-selection made inside the box.
+    const baseline = lineStart === null
+      ? null : { start: lineStart, end: lineStart + original.length };
     this.session = {
       annotation: editing,
       whole,
       chosen,
       chosenLocal,
       lineStart,
+      baseline,
       original,
       text: editing && typeof editing.edit === 'string'
         ? editing.edit : original,
@@ -871,15 +909,19 @@ export class MarkdownReview {
     if (!session) return;
     const text = trimmed ? trimEnd(this.sourceInput.value) : this.sourceInput.value;
     const body = session.committed || '';
-    const chosen = this.currentChosen();
-    if (!chosen || chosen.end <= chosen.start) return;
     const modified = text !== session.original;
+    // A modification replaces the whole baseline the box holds, so it anchors
+    // the annotation at the baseline lines even if the caret inside the box
+    // was re-selected to a narrower range.
+    let chosen = this.currentChosen();
+    if (!chosen || chosen.end <= chosen.start) return;
+    if (modified && session.baseline) chosen = session.baseline;
     let annotation = session.annotation;
     if (annotation) {
       annotation.chosen = chosen;
       annotation.original = session.original;
-      annotation.text = text;
-      annotation.body = body;
+      annotation.edit = text;
+      annotation.comment = body;
       annotation.modified = modified;
     } else if (body || modified) {
       annotation = new Annotation({
@@ -902,8 +944,8 @@ export class MarkdownReview {
     const text = this.sourceInput.value;
     const body = session.committed || '';
     if (session.annotation) {
-      return text !== (session.annotation.text || session.original)
-        || body !== (session.annotation.body || '');
+      return text !== (session.annotation.edit || session.original)
+        || body !== (session.annotation.comment || '');
     }
     return text !== session.original || body !== '';
   }
@@ -1003,12 +1045,13 @@ export class MarkdownReview {
           x >= band.l - 2 && x <= band.r + 2 &&
           y >= band.t - 2 && y <= band.b + 2);
         const overBadge = !badge.hidden && insideRect(badge, x, y, origin);
-        badge.hidden = !(overBox || overBadge);
+        if (overBox || overBadge) this.revealBadge(badge);
+        else this.hideBadge(badge);
       });
     });
     this.node.addEventListener('mouseleave', () => {
       this.controls.querySelectorAll<HTMLButtonElement>('.snd-md-badge')
-        .forEach(badge => { badge.hidden = true; });
+        .forEach(badge => this.hideBadge(badge));
     });
     this.rendered.addEventListener('mousedown', () => {
       if (this.view === 'source') this.dismissPopup();
