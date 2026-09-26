@@ -75,7 +75,7 @@ async function install(resource, text) {
 
 export async function loadResources(resources, cacheName) {
   for (const resource of resources) {
-    if (resource.global && window[resource.global]) return;
+    if (resource.global && window[resource.global]) continue;
     await install(resource, await download(resource, cacheName));
   }
   if (typeof window.markdownit !== 'function' || !window.hljs) {

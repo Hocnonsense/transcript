@@ -41,6 +41,15 @@ _BROWSER_RENDERERS = {
                 "C8ZsVRRDz"
             ),
         },
+        {
+            "name": "jsdiff",
+            "type": "script",
+            "global": "Diff",
+            "url": "https://cdn.jsdelivr.net/npm/diff@9.0.0/dist/diff.min.js",
+            "integrity": (
+                "sha384-TvJwlBkfFFd9hmaVfyJyF6lIPjAUL6x01MvObCeUao5yP6QZ6owU6fqw+JQoyRD1"
+            ),
+        },
     ],
 }
 

@@ -180,6 +180,8 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .snd-md-box { fill: #3984c61a; stroke: #3984c680; stroke-width: 3;
   filter: drop-shadow(0 1px 2px #0002); }
 .snd-md-box-active { fill: #3984c633; stroke: #3984c6; }
+/* A superseded annotation (part of its range expired): read-only, delete only. */
+.snd-md-box.snd-md-locked { fill: #b4531a1a; stroke: #b4531a99; }
 .snd-md-wave { fill: none; stroke: #3984c6; stroke-width: 1.6;
   stroke-linecap: round; }
 .snd-md-controls { position: absolute; inset: 0; pointer-events: none;
@@ -201,6 +203,8 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
   place-items: center; box-shadow: 0 1px 3px #0004; }
 .snd-md-badge[hidden] { display: none; }
 .snd-md-badge:hover { background: #2f6ea8; }
+.snd-md-badge.snd-md-locked { background: #b4531a; }
+.snd-md-badge.snd-md-locked:hover { background: #8f3f12; }
 /* Modify/delete actions in the popup's top-right corner. */
 .snd-md-actions { display: flex; justify-content: flex-end; gap: .35rem; }
 .snd-md-actions button { padding: .15rem .55rem; cursor: pointer;
@@ -262,14 +266,20 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .snd-diff-gap { position: relative; display: inline-block; width: 0; height: 0;
   color: #c62828; }
 .snd-diff-gap-bar { position: absolute; left: -1px; top: -.8em; width: 2px;
-  height: 1.1em; background: #c62828; border-radius: 1px; }
-.snd-diff-gap-tri { position: absolute; left: 0; width: 0; height: 0; }
+  height: 1.1em; background: currentColor; border-radius: 1px; }
+/* Open chevrons (SVG masks) instead of filled triangles, so no horizontal
+   base; each end keeps its own colour via `currentColor`. */
+.snd-diff-gap-tri { position: absolute; left: 0; width: .62rem; height: .34rem;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain; }
 .snd-diff-gap-top { top: -.8em; transform: translate(-50%, -100%);
-  border-top: .44rem solid #c62828;
-  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 .snd-diff-gap-bottom { top: .3em; transform: translate(-50%, 0);
-  border-bottom: .44rem solid #c62828;
-  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
+  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
 /* Two-row comparison of a committed modification (badge menu -> compare). */
 .snd-diff-align { display: flex; flex-direction: column; gap: .15rem;
   border: 1px solid #8885; border-radius: .25rem; padding: .35rem .5rem; }
@@ -284,6 +294,27 @@ th, td { border: 1px solid #8885; padding: .35rem .7rem; }
 .snd-md-comment textarea:focus { outline: none; border-color: #3984c6;
   box-shadow: 0 0 0 2px #3984c622; }
 .snd-md-comment textarea[readonly] { background: #8881; caret-color: transparent; }
+
+/* Multi-version history stack in the read view: versions oldest first, with the
+   reviews placed after the version they were written against. */
+.snd-history { display: flex; flex-direction: column; gap: .2rem;
+  border: 1px solid #8885; border-radius: .25rem; padding: .35rem .5rem;
+  max-height: 50vh; overflow: auto; }
+.snd-history[hidden] { display: none !important; }
+.snd-history-row { margin: 0; font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere; }
+.snd-history-row + .snd-history-row { border-top: 1px dotted #8883;
+  padding-top: .15rem; }
+.snd-history-entry { border-left: 3px solid #8885; padding: .15rem .4rem;
+  margin: .15rem 0 .25rem; font: .82em/1.45 system-ui, sans-serif; }
+.snd-history-head { font-weight: 700; text-transform: uppercase;
+  letter-spacing: .04em; font-size: .72em; }
+.snd-history-target { display: inline-block; font: .95em/1.5 ui-monospace, monospace;
+  border-radius: .15rem; padding: 0 .1rem; cursor: pointer; }
+.snd-history-comment { white-space: pre-wrap; color: #172033cc; }
+@media (prefers-color-scheme: dark) {
+  .snd-history-comment { color: #e5eaf1cc; }
+}
 
 /* img */
 img { max-width: 100%; height: auto; }

@@ -1,12 +1,19 @@
 """Incremental migration of review records across archive rewrites.
 
-The archive body (with the review block removed) is compared line by line
-against the newly rendered body.  A live ``source`` whose lines changed is
-expired at the migration moment and keeps the old text; the changed new lines
-get a fresh live source.  Every source's coordinates and every review's ``at``
-move with the diff; a record whose lines no longer exist is dropped, taking its
-reviews with it.  ``expireAt`` is derived, so a review whose range moved drops
-its stale map.
+Records are immutable facts about a version: a source's ``at`` is a span in
+the version it was created in, and its ``diffRange`` is the region it came from
+in the *immediately previous* version.  A migration therefore never rewrites an
+old record.  A live source whose region moved or changed is frozen (``expire``
+set, its own text kept in ``source``) and its new region is appended as live
+successors, each carrying a ``diffRange`` back into the frozen source.  Movement
+alone is enough to need a successor: without one the old coordinates could not
+be mapped forward.
+
+The alignment is character-level: lines are diffed first (cheap and stable for
+whole documents) and every replaced block is refined character by character,
+so ``diffRange`` can name a part of an old line.  Records are cut at new-text
+newlines, one whole line per record, so a single old span expresses the mapping
+exactly.
 """
 
 from __future__ import annotations
@@ -15,87 +22,109 @@ from collections.abc import Sequence
 from dataclasses import replace
 from datetime import datetime
 from difflib import SequenceMatcher
-from typing import Literal
 
-from ._records import Record, ReviewRecord, SourceRecord
-from ._span import Span, timestamp
+from ._records import Record, SourceRecord
+from ._span import Span, _line, _starts, timestamp
 
 __all__ = ["migrate"]
 
-_DIFF = tuple[Literal["replace", "delete", "insert", "equal"], int, int, int, int]
+
+def _mapped_shift(offset: int, oa: int, ob: int, na: int, nb: int, *, end: bool):
+    """Map one offset across a segment, spreading a replacement linearly."""
+    if ob == oa:
+        return nb if end else na
+    if nb == na:
+        return na
+    if end:
+        return na + -((-(offset - oa) * (nb - na)) // (ob - oa))
+    return na + ((offset - oa) * (nb - na)) // (ob - oa)
 
 
-def diff(old_text: str, new_text: str) -> list[_DIFF]:
-    old_lines = old_text.splitlines()
-    new_lines = new_text.splitlines()
-    matcher = SequenceMatcher(None, old_lines, new_lines, autojunk=False)
-    return matcher.get_opcodes()
+class _Align:
+    """The character segments shared by one old/new text pair.
 
+    A segment is ``(old_start, old_stop, new_start, new_stop, equal)``; exact
+    runs carry ``equal`` and the gaps are replacements, insertions or
+    deletions, spread linearly when a region boundary falls inside one.
+    """
 
-def _line_diff(line: int, opcodes: list[_DIFF]):
-    """Map a 0-based old line to a 0-based new line, or ``None`` if deleted."""
-    for tag, i1, i2, j1, j2 in opcodes:
-        if not (i1 <= line < i2):
-            continue
-        offset = line - i1
-        if tag == "equal":
-            return j1 + offset
-        if tag == "delete" or j2 <= j1:
-            # replace / insert: clamp into the available new range
-            break
-        return j1 + min(offset, j2 - j1 - 1)
+    def __init__(self, old_text: str, new_text: str):
+        self.old_text = old_text
+        self.new_text = new_text
+        self.old_starts = _starts(old_text)
+        self.new_starts = _starts(new_text)
 
-
-def map_diffs(span: Span, opcodes: list[_DIFF]):
-    start = _line_diff(span.start_line, opcodes)
-    end = _line_diff(span.end_line, opcodes)
-    if start is None or end is None:
-        return None
-    if end < start:
-        end = start
-    if span.end_line != span.start_line and end == start:
-        return Span(start, 0, start, -1)
-    return Span(start, span.start_col, end, span.end_col)
-
-
-def changed(opcodes: list[_DIFF], span: Span):
-    """Whether any old line in *span* is not part of an equal block."""
-    lines = set(span.lines())
-    for tag, i1, i2, _, _ in opcodes:
-        if tag == "equal":
-            continue
-        if lines & set(range(i1, i2)):
-            return True
-    return False
-
-
-def _changed_lines(opcodes: list[_DIFF], span: Span):
-    lines = set(span.lines())
-    result: set[int] = set()
-    for tag, i1, i2, _, _ in opcodes:
-        if tag != "equal":
-            result |= lines & set(range(i1, i2))
-    return result
-
-
-def _merge(runs: list[tuple[Span, Span]]):
-    """Merge overlapping or adjacent new spans, unioning their previous spans."""
-    merged: list[tuple[Span, Span]] = []
-    for new, prev in sorted(runs, key=lambda item: item[0].start_line):
-        if merged and new.start_line <= merged[-1][0].end_line + 1:
-            last_new, last_prev = merged[-1]
-            merged[-1] = (
-                Span(last_new.start_line, 0, max(last_new.end_line, new.end_line), -1),
-                Span(
-                    min(last_prev.start_line, prev.start_line),
-                    0,
-                    max(last_prev.end_line, prev.end_line),
-                    -1,
-                ),
+        segments: list[tuple[int, int, int, int, bool]] = []
+        """old_start, old_stop, new_start, new_stop, is_equal"""
+        old_previous = new_previous = 0
+        for a, b, size in self._matched_blocks():
+            if a > old_previous or b > new_previous:
+                segments.append((old_previous, a, new_previous, b, False))
+            segments.append((a, a + size, b, b + size, True))
+            old_previous, new_previous = a + size, b + size
+        if old_previous < len(old_text) or new_previous < len(new_text):
+            segments.append(
+                (old_previous, len(old_text), new_previous, len(new_text), False)
             )
-        else:
-            merged.append((new, prev))
-    return merged
+        self.segments = segments
+        self.old_segment_starts = [segment[0] for segment in segments]
+        self.new_segment_starts = [segment[2] for segment in segments]
+
+    def _matched_blocks(self):
+        """Character ranges that correspond exactly between the two texts."""
+        old_lines = self.old_text.splitlines()
+        new_lines = self.new_text.splitlines()
+        matcher = SequenceMatcher(None, old_lines, new_lines, autojunk=False)
+        for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+            oa = self.old_starts[i1]
+            ob = self.old_starts[i2]
+            na = self.new_starts[j1]
+            if tag == "equal":
+                yield oa, na, ob - oa
+            elif tag == "replace":
+                segment_old = self.old_text[oa:ob]
+                nb = self.new_starts[j2]
+                segment_new = self.new_text[na:nb]
+                inner = SequenceMatcher(None, segment_old, segment_new, autojunk=False)
+                for a, b, size in inner.get_matching_blocks():
+                    if size:
+                        yield oa + a, na + b, size
+
+    def old_to_new(self, start: int, stop: int):
+        """The new extent of an old character range (a point when deleted)."""
+        if stop <= start:
+            return None
+        first = self.segments[_line(start, self.old_segment_starts)]
+        begin = _mapped_shift(start, first[0], first[1], first[2], first[3], end=False)
+        last = self.segments[_line(stop - 1, self.old_segment_starts)]
+        end = _mapped_shift(stop, last[0], last[1], last[2], last[3], end=True)
+        return begin, end
+
+    def new_to_old(self, start: int, stop: int):
+        """The old extent a new character range came from, or ``None``."""
+        if stop <= start:
+            return None
+        first = self.segments[_line(start, self.new_segment_starts)]
+        begin = _mapped_shift(start, first[2], first[3], first[0], first[1], end=False)
+        last = self.segments[_line(stop - 1, self.new_segment_starts)]
+        end = _mapped_shift(stop, last[2], last[3], last[0], last[1], end=True)
+        return None if end <= begin else (begin, end)
+
+    def split(self, new_start: int, new_stop: int):
+        """Cut a new character range at newlines, one record per line.
+
+        Returns ``(new_span, old_span)`` pairs; ``old_span`` is ``None`` for an
+        inserted line.
+        """
+        if new_stop <= new_start:
+            return
+        first = _line(new_start, self.new_starts)
+        last = _line(new_stop - 1, self.new_starts)
+        for line in range(first, last + 1):
+            old_span = self.new_to_old(self.new_starts[line], self.new_starts[line + 1])
+            if old_span is not None:
+                old_span = Span.from_bound(*old_span, self.old_starts)
+            yield Span(line, 0, line + 1, 0), old_span
 
 
 def migrate(
@@ -104,52 +133,56 @@ def migrate(
     new_text: str,
     *,
     moment: datetime | None = None,
-) -> list[Record]:
-    """Update *records* for a body that changed from *old_text* to *new_text*."""
+):
+    """Update *records* for a body that changed from *old_text* to *new_text*.
+
+    Old records are never rewritten.  A live source the change leaves alone is
+    kept; otherwise it is frozen at the migration moment and its new region is
+    appended as live successors linked back through ``diffRange``.
+    Reviews keep the coordinates of the version they were written in.
+    """
     if not records:
-        return []
-    opcodes = diff(old_text, new_text)
-    if all(tag == "equal" for tag, _, _, _, _ in opcodes):
-        return list(records)
+        return
+    if old_text == new_text:
+        yield from records
+        return
+
     stamp = timestamp(moment)
-    kept: list[Record] = []
-    fresh: list[tuple[Span, Span]] = []
+    align = _Align(old_text, new_text)
+    old_starts = align.old_starts
+    new_starts = align.new_starts
+    seen: set[int] = set()
     for record in records:
-        if not isinstance(record, SourceRecord):
-            kept.append(record)
+        if not isinstance(record, SourceRecord) or record.expire is not None:
+            yield record
             continue
         span = Span.parse(record.at)
-        mapped = map_diffs(span, opcodes)
-        if mapped is None:
+        start, stop = span.bound(old_starts)
+        old_segment = old_text[start:stop]
+        extent = align.old_to_new(start, stop)
+        if extent == (start, stop) and new_text[start:stop] == old_segment:
+            lines = set(span.lines())
+            if lines & seen:
+                continue  # a duplicate of an earlier live source
+            seen |= lines
+            yield record
             continue
-        updated = replace(record, at=str(mapped))
-        if record.diffRange is not None:
-            diff_range = map_diffs(Span.parse(record.diffRange), opcodes)
-            if diff_range is not None:
-                updated = replace(updated, diffRange=str(diff_range))
-        touched_lines = _changed_lines(opcodes, span)
-        if record.expire is None and touched_lines:
-            text = span.extract(old_text)
-            updated = replace(
-                updated, expire=stamp, source="" if text is None else text
+        yield replace(record, expire=stamp, source=old_segment)
+        if extent is None:
+            continue
+        new_start, new_stop = extent
+        if new_stop <= new_start:
+            # Fully deleted: keep a live zero-length successor at the point so
+            # the chain can still be followed to where the region stood.
+            at = Span.from_bound(new_start, new_start, new_starts)
+            old = Span.from_bound(start, stop, old_starts)
+            yield SourceRecord(at=str(at), diffRange=str(old))
+            continue
+        for new_span, old_span in align.split(new_start, new_stop):
+            if new_span.start_line in seen:
+                continue  # another live source already owns this line
+            seen.add(new_span.start_line)
+            yield SourceRecord(
+                at=str(new_span),
+                diffRange=None if old_span is None else str(old_span),
             )
-            run = Span(min(touched_lines), 0, max(touched_lines), -1)
-            fresh_span = map_diffs(run, opcodes)
-            if fresh_span is not None:
-                fresh.append((fresh_span, run))
-        kept.append(updated)
-    for new_span, prev in _merge(fresh):
-        kept.append(SourceRecord.of(new_span, prev=prev))
-    result: list[Record] = []
-    for record in kept:
-        if not isinstance(record, ReviewRecord):
-            result.append(record)
-            continue
-        mapped = map_diffs(Span.parse(record.at), opcodes)
-        if mapped is None:
-            continue
-        updated = replace(record, at=str(mapped))
-        if record.at != updated.at:
-            updated = replace(updated, expireAt=None)
-        result.append(updated)
-    return result

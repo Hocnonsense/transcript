@@ -27,6 +27,9 @@ export class Annotation {
   selection: Range | null;
   /** Screen bands of the drawn box, filled by the renderer. */
   bands: Band[] | null;
+  /** Read-only because part of the range is expired (or untracked): it can be
+   *  deleted but not edited, since the recorded text no longer matches. */
+  locked: boolean;
 
   constructor(options: {
     chosen: Range;
@@ -36,6 +39,7 @@ export class Annotation {
     modified: boolean;
     record?: ReviewRecord | null;
     selection?: Range | null;
+    locked?: boolean;
   }) {
     this.record = options.record ?? null;
     this.chosen = options.chosen;
@@ -45,5 +49,6 @@ export class Annotation {
     this.modified = options.modified;
     this.selection = options.selection ?? null;
     this.bands = null;
+    this.locked = options.locked ?? false;
   }
 }

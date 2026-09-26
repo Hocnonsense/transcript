@@ -1,7 +1,8 @@
-/** The 0-based inclusive ``L``/``C`` coordinate grammar of review records.
+/** The 0-based half-open ``L``/``C`` coordinate grammar of review records.
  *
  * Mirrors ``snakedone/review/_span.py``: the grammar is 1-based but a span
- * stores 0-based inclusive positions, with ``ec === -1`` marking a whole line.
+ * stores 0-based ``[start, end)`` positions, so a whole line ``L5`` ends at the
+ * next line's start and a point ``L5C3+0`` has ``start == end``.
  */
 
 export class Span {
@@ -19,32 +20,30 @@ export class Span {
       if (col === null || !/^\d+$/.test(length)) {
         throw new Error('invalid coordinate: ' + text);
       }
-      return new Span(line - 1, col - 1, line - 1, col + Number(length) - 2);
+      return new Span(line - 1, col - 1, line - 1, col + Number(length) - 1);
     }
     const [startText, separator, endText] = partition(value, '-');
     if (!separator) {
       const { line, col } = parsePoint(startText);
-      if (col === null) return new Span(line - 1, 0, line - 1, -1);
-      return new Span(line - 1, col - 1, line - 1, col - 1);
+      if (col === null) return new Span(line - 1, 0, line, 0);
+      return new Span(line - 1, col - 1, line - 1, col);
     }
     const start = parsePoint(startText);
     const end = parsePoint(endText);
     return new Span(
       start.line - 1,
       start.col === null ? 0 : start.col - 1,
-      end.line - 1,
-      end.col === null ? -1 : end.col - 1
+      end.col === null ? end.line : end.line - 1,
+      end.col === null ? 0 : end.col
     );
   }
   format() {
     const { sl, sc, el, ec } = this;
-    if (sl === el) {
-      const line = sl + 1;
-      if (sc === 0 && ec === -1) return 'L' + line;
-      return 'L' + line + 'C' + (sc + 1) + '+' + (ec - sc + 1);
-    }
-    const start = 'L' + (sl + 1) + (sc !== 0 ? 'C' + (sc + 1) : '');
-    const end = 'L' + (el + 1) + (ec !== -1 ? 'C' + (ec + 1) : '');
+    const sl1 = sl + 1;
+    if (sl === el) return `L${sl1}C${sc + 1}+${ec - sc}`;
+    if (sc === 0 && ec === 0 && el === sl1) return `L${sl1}`;
+    const start = sc === 0 ? `L${sl1}` : `L${sl1}C${sc + 1}`;
+    const end = ec === 0 ? `L${el}` : `L${el + 1}C${ec}`;
     return start + '-' + end;
   }
 }

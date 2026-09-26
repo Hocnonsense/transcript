@@ -1,4 +1,4 @@
-import { markdownMap } from './literal';
+import { configureDiff } from './diff';
 import { MarkdownReview } from './review';
 import { ReviewStore } from './reviewstore';
 import { loadResources } from './resources';
@@ -275,6 +275,7 @@ function outline(document: Document) {
     // last so it sees every heading the Markdown pass produced.
     try {
       await loadResources(config.resources, config.cache);
+      configureDiff(window.Diff);
 
       const markdown = window.markdownit('commonmark', { html: false }).enable('table');
       document.querySelectorAll(

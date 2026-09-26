@@ -1,15 +1,15 @@
 """The ``L``/``C`` coordinate grammar shared by review records.
 
-The grammar is 1-based, but :class:`Span` stores 0-based inclusive coordinates
-so indexing into Python sequences needs no adjustment.
-A range ``A-B`` runs from A's start to B's end,
- and ``+N`` counts N characters from the start;
-a bare line ``L5`` means the whole line while ``L5C3`` is a single character.
-An ``end_col`` of ``-1`` marks the end of a whole line.
+The grammar is 1-based, but :class:`Span` stores 0-based half-open positions
+(``[start, end)``) so it matches Python slicing.  A range ``A-B`` runs from A's
+start to B's end; ``+N`` counts N characters from the start; a bare line ``L5``
+means the whole line (up to the next line's start) while ``L5C3`` is a single
+character.  A zero-length point is ``L5C3+0`` and is stored as ``start == end``.
 """
 
 from __future__ import annotations
 
+import bisect
 from datetime import UTC, datetime
 from typing import NamedTuple
 
@@ -25,10 +25,10 @@ def _parse_point(text: str):
 
 
 class Span(NamedTuple):
-    """A 0-based inclusive character range.
+    """A 0-based half-open character range ``[start, end)``.
 
-    ``end_col == -1`` marks the end of a whole line, so a bare ``L5``
-      and a ``L5-L5`` range are both ``Span(4, 0, 4, -1)``.
+    A whole line ``L5`` is ``Span(4, 0, 5, 0)`` (ending at the next line's
+    start); a zero-length point ``L5C3+0`` is ``Span(4, 2, 4, 2)``.
     """
 
     start_line: int
@@ -36,32 +36,53 @@ class Span(NamedTuple):
     start_col: int
     """0-based column"""
     end_line: int
-    """0-based line"""
+    """0-based exclusive line"""
     end_col: int
-    """0-based column, or -1 for the whole line"""
+    """0-based exclusive column"""
 
     def lines(self):
         """
-        >>> span = Span(0, 0, 1, -1)
-        >>> list(span.lines())
+        >>> list(Span.parse("L1-L2").lines())
         [0, 1]
+        >>> list(Span.parse("L5C3+1").lines())
+        [4]
+        >>> list(Span.parse("L5C3+0").lines())
+        []
         """
-        return range(self.start_line, self.end_line + 1)
+        if (self.start_line, self.start_col) >= (self.end_line, self.end_col):
+            return range(0)
+        last = self.end_line if self.end_col > 0 else self.end_line - 1
+        return range(self.start_line, last + 1)
+
+    @classmethod
+    def empty(cls, line: int, col: int):
+        """A zero-length point at 0-based *line*/*col*, written ``LxCc+0``.
+
+        >>> Span.empty(1, 0)
+        Span(start_line=1, start_col=0, end_line=1, end_col=0)
+        >>> str(Span.empty(2, 3))
+        'L3C4+0'
+        """
+        return cls(line, col, line, col)
 
     @classmethod
     def parse(cls, text: str):
         """Parse a coordinate or range in the ``L/C`` grammar.
 
         >>> Span.parse("L5")
-        Span(start_line=4, start_col=0, end_line=4, end_col=-1)
+        Span(start_line=4, start_col=0, end_line=5, end_col=0)
         >>> Span.parse("L5C3+1")
-        Span(start_line=4, start_col=2, end_line=4, end_col=2)
+        Span(start_line=4, start_col=2, end_line=4, end_col=3)
         >>> Span.parse("L5C3+4")
-        Span(start_line=4, start_col=2, end_line=4, end_col=5)
+        Span(start_line=4, start_col=2, end_line=4, end_col=6)
+        >>> Span.parse("L5C3+0")
+        Span(start_line=4, start_col=2, end_line=4, end_col=2)
+        >>> Span.parse("L1C1+0")
+        Span(start_line=0, start_col=0, end_line=0, end_col=0)
         >>> Span.parse("L7-L9")
-        Span(start_line=6, start_col=0, end_line=8, end_col=-1)
+        Span(start_line=6, start_col=0, end_line=9, end_col=0)
         >>> Span.parse("L7-L9C1")
-        Span(start_line=6, start_col=0, end_line=8, end_col=0)
+        Span(start_line=6, start_col=0, end_line=8, end_col=1)
         >>> Span.parse("L7C1-L9C1") == Span.parse("L7-L9C1")
         True
         >>> Span.parse("L5+2")
@@ -79,48 +100,49 @@ class Span(NamedTuple):
             line, col = _parse_point(point)
             if col is None:
                 raise ValueError(f"invalid coordinate: {text!r}")
-            return cls(line - 1, col - 1, line - 1, col + int(length) - 2)
+            return cls(line - 1, col - 1, line - 1, col - 1 + int(length))
         start_text, separator, end_text = text.partition("-")
         if not separator:
             line, col = _parse_point(start_text)
             if col is None:
-                return cls(line - 1, 0, line - 1, -1)
-            return cls(line - 1, col - 1, line - 1, col - 1)
+                return cls(line - 1, 0, line, 0)
+            return cls(line - 1, col - 1, line - 1, col)
         start_line, start_col = _parse_point(start_text)
         end_line, end_col = _parse_point(end_text)
         return cls(
             start_line - 1,
             (start_col - 1) if start_col is not None else 0,
-            end_line - 1,
-            (end_col - 1) if end_col is not None else -1,
+            end_line if end_col is None else end_line - 1,
+            end_col if end_col is not None else 0,
         )
 
     def __str__(self):
         """Render a span back into the canonical coordinate grammar.
 
-        >>> str(Span(4, 0, 4, -1))
+        >>> str(Span(4, 0, 5, 0))
         'L5'
-        >>> str(Span(4, 2, 4, 2))
+        >>> str(Span(4, 2, 4, 3))
         'L5C3+1'
-        >>> str(Span(4, 2, 4, 5))
+        >>> str(Span(4, 2, 4, 6))
         'L5C3+4'
-        >>> str(Span(6, 0, 8, 0))
+        >>> str(Span.empty(4, 2))
+        'L5C3+0'
+        >>> str(Span(6, 0, 9, 0))
+        'L7-L9'
+        >>> str(Span(6, 0, 8, 1))
         'L7-L9C1'
-        >>> str(Span(6, 1, 8, 0))
+        >>> str(Span(6, 1, 8, 1))
         'L7C2-L9C1'
         """
         l1, c1, l2, c2 = self
         if l1 == l2:
-            line = l1 + 1
-            if c1 == 0 and c2 == -1:
-                return f"L{line}"
-            return f"L{line}C{c1 + 1}+{c2 - c1 + 1}"
+            return f"L{l1 + 1}C{c1 + 1}+{c2 - c1}"
+        if c1 == c2 == 0 and l2 == l1 + 1:
+            return f"L{l1 + 1}"
         start = f"L{l1 + 1}"
         if c1 != 0:
             start += f"C{c1 + 1}"
-        end = f"L{l2 + 1}"
-        if c2 != -1:
-            end += f"C{c2 + 1}"
+        end = f"L{l2}" if c2 == 0 else f"L{l2 + 1}C{c2}"
         return f"{start}-{end}"
 
     def to_span(self, parent: Span):
@@ -130,7 +152,7 @@ class Span(NamedTuple):
         >>> span = Span.parse("L5C4+2")
         >>> shift = span.to_shift(parent)
         >>> shift
-        Span(start_line=0, start_col=1, end_line=0, end_col=2)
+        Span(start_line=0, start_col=1, end_line=0, end_col=3)
         >>> shift.to_span(parent) == span
         True
         """
@@ -177,34 +199,55 @@ class Span(NamedTuple):
         'one\\ntwo\\n'
         >>> Span.parse("L9").extract(text) is None
         True
+        >>> Span.parse("L2C2+0").extract(text)
+        ''
         """
-
-        def check_last(line: str):
-            line_length = len(line)
-            if self.end_col < 0:
-                return line_length
-            if self.end_col < line_length:
-                return self.end_col + 1
-
-        lines = text.splitlines(keepends=True)
-        if self.start_line < 0 or len(lines) <= self.end_line:
+        starts = _starts(text)
+        if not 0 <= self.start_line < len(starts):
             return None
-        if self.start_line == self.end_line:
-            line = lines[self.start_line]
-            end = check_last(line)
-            if end is None:
-                return None
-            return line[self.start_col : end]
-        last = lines[self.end_line]
-        end = check_last(last)
-        if end is None:
+        if not 0 <= self.end_line < len(starts):
             return None
-        parts = [
-            lines[self.start_line][self.start_col :],
-            *lines[self.start_line + 1 : self.end_line],
-            last[:end],
-        ]
-        return "".join(parts)
+        start = starts[self.start_line] + self.start_col
+        end = starts[self.end_line] + self.end_col
+        if start < 0 or start > end or end > len(text):
+            return None
+        return text[start:end]
+
+    def bound(self, starts: list[int]):
+        """The half-open character range a span selects."""
+        length = starts[-1]
+        if self.start_line >= len(starts) or self.end_line >= len(starts):
+            return length, length
+        start = starts[self.start_line] + self.start_col
+        stop = starts[self.end_line] + self.end_col
+        return start, min(stop, length)
+
+    @classmethod
+    def from_bound(cls, start: int, stop: int, starts: list[int]):
+        """The span naming a half-open character range (whole lines when it fits)."""
+        first = _line(start, starts)
+        if stop <= start:
+            return cls.empty(first, start - starts[first])
+        last = _line(stop, starts)
+        if start == starts[first] and stop == starts[last] and last > first:
+            return cls(first, 0, last, 0)
+        return cls(first, start - starts[first], last, stop - starts[last])
+
+
+def _line(offset: int, starts: list[int]):
+    return max(bisect.bisect_right(starts, offset) - 1, 0)
+
+
+def _starts(text: str):
+    """The character offset at which each line begins."""
+    index = 0
+    starts = [index]
+    for index, char in enumerate(text, 1):
+        if char == "\n":
+            starts.append(index)
+    if starts[-1] != index:
+        starts.append(index)
+    return starts
 
 
 def timestamp(moment: datetime | None = None):
@@ -230,7 +273,7 @@ class At(NamedTuple):
         """Split an ``at`` value into its span and optional expiry timestamp.
 
         >>> At.parse("L35")
-        At(span=Span(start_line=34, start_col=0, end_line=34, end_col=-1), expired=None)
+        At(span=Span(start_line=34, start_col=0, end_line=35, end_col=0), expired=None)
         >>> At.parse("L35 2026-09-21T10:00:00.000Z").expired
         '2026-09-21T10:00:00.000Z'
         """
@@ -240,9 +283,9 @@ class At(NamedTuple):
 
     def __str__(self):
         """
-        >>> str(At(Span(34, 0, 34, -1), None))
+        >>> str(At(Span(34, 0, 35, 0), None))
         'L35'
-        >>> str(At(Span(34, 0, 34, -1), "2026-09-21T10:00:00.000Z"))
+        >>> str(At(Span(34, 0, 35, 0), "2026-09-21T10:00:00.000Z"))
         'L35 2026-09-21T10:00:00.000Z'
         """
         span = str(self.span)

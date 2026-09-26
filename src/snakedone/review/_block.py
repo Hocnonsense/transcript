@@ -17,7 +17,7 @@ from typing import NamedTuple
 
 from ..snd import body_hash, escape_slot
 from ._migrate import migrate
-from ._records import Record, ReviewIndex, validate
+from ._records import Record, ReviewIndex
 
 REVIEW_MARKER = "snakedone.review"
 
@@ -105,14 +105,12 @@ class ReviewBlock(NamedTuple):
             data = json.loads(self.value)
             if not isinstance(data, list):
                 raise ValueError("the snakedone.review block must hold a JSON array")
-            records = [Record.from_dict(item) for item in data]
-            validate(records)
+            return ReviewIndex(Record.from_dict(item) for item in data)
         except (KeyError, TypeError, ValueError) as error:
             warnings.warn(
                 f"dropping invalid snakedone.review block: {error}", stacklevel=2
             )
             return ReviewIndex([])
-        return ReviewIndex(records).resolve()
 
 
 class ReviewSource(NamedTuple):
@@ -149,8 +147,9 @@ def migrated_block(new: str, source: ReviewSource, indent: str = "    "):
     """Return the block to append to *new*, migrating *source*'s records.
 
     A stale source or an empty record set drops the block (returning ``""``);
-    records that did not move keep ``source.block`` verbatim; otherwise they are
-    diffed onto *new* and rendered with its hash.
+    an unchanged body keeps ``source.block`` verbatim; otherwise the records are
+    migrated onto *new* and rendered with its hash (an unchanged record set still
+    needs the new hash when the body moved).
     """
     if source.stale:
         warnings.warn(
@@ -160,9 +159,9 @@ def migrated_block(new: str, source: ReviewSource, indent: str = "    "):
         return ""
     if not source.records:
         return ""
-    records = migrate(source.records, source.body, new)
+    records = list(migrate(source.records, source.body, new))
     if not records:
         return ""
-    if records == source.records:
+    if records == source.records and body_hash(new) == source.hash:
         return source.block
     return render_block(records, indent, hash=body_hash(new))

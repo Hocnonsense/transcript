@@ -1,4 +1,6 @@
 import { Annotation, Band } from './annotation';
+import { diffInfo, diffText } from './diff';
+import { renderHistory } from './historyrender';
 import { markdownMap } from './literal';
 import type { ReviewStore } from './reviewstore';
 
@@ -83,111 +85,6 @@ function boundaryText(container: Node, offset: number, isEnd: boolean) {
   return { node: child, offset: isEnd ? (child as Text).nodeValue.length : 0 };
 }
 
-/** Character-level alignment of *original* and *modified* used by the
- *  modification review. Returns run slots: ``equal`` (both sides), ``del``
- *  (original only) and ``ins`` (modified only); adjacent same-kind runs are
- *  merged. The DP is capped so very long texts degrade to whole-vs-whole. */
-function diffText(original: string, modified: string) {
-  const n = original.length;
-  const m = modified.length;
-  if (n * m > 1000000) {
-    return original === modified
-      ? [{ kind: 'equal', orig: original, mod: modified }]
-      : [{ kind: 'del', orig: original, mod: '' },
-      { kind: 'ins', orig: '', mod: modified }];
-  }
-  const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
-  for (let i = n - 1; i >= 0; i -= 1) {
-    for (let j = m - 1; j >= 0; j -= 1) {
-      dp[i][j] = original[i] === modified[j]
-        ? dp[i + 1][j + 1] + 1
-        : Math.max(dp[i + 1][j], dp[i][j + 1]);
-    }
-  }
-  const cells: { kind: string; orig: string; mod: string }[] = [];
-  let i = 0;
-  let j = 0;
-  while (i < n && j < m) {
-    if (original[i] === modified[j]) {
-      cells.push({ kind: 'equal', orig: original[i], mod: modified[j] });
-      i += 1;
-      j += 1;
-    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      cells.push({ kind: 'del', orig: original[i], mod: '' });
-      i += 1;
-    } else {
-      cells.push({ kind: 'ins', orig: '', mod: modified[j] });
-      j += 1;
-    }
-  }
-  while (i < n) {
-    cells.push({ kind: 'del', orig: original[i], mod: '' });
-    i += 1;
-  }
-  while (j < m) {
-    cells.push({ kind: 'ins', orig: '', mod: modified[j] });
-    j += 1;
-  }
-  const slots: { kind: string; orig: string; mod: string }[] = [];
-  for (const cell of cells) {
-    const last = slots[slots.length - 1];
-    if (last && last.kind === cell.kind) {
-      last.orig += cell.orig;
-      last.mod += cell.mod;
-    } else {
-      slots.push({ kind: cell.kind, orig: cell.orig, mod: cell.mod });
-    }
-  }
-  return slots;
-}
-
-/** The changed part of an alignment, in baseline coordinates. Uses the same
- *  character alignment as the diff highlighting, so a range drawn from it
- *  spans exactly the runs that get highlighted; *revised* is the added text
- *  (the modified side of the non-equal runs). */
-function diffInfo(original: string, modified: string) {
-  let offset = 0;
-  let start = -1;
-  let end = 0;
-  let revised = '';
-  for (const slot of diffText(original, modified)) {
-    if (slot.kind === 'equal') {
-      offset += slot.orig.length;
-      continue;
-    }
-    if (start === -1) start = offset;
-    if (slot.kind === 'del') {
-      offset += slot.orig.length;
-      end = offset;
-    } else {
-      end = offset;
-      revised += slot.mod;
-    }
-  }
-  return { start, end, revised };
-}
-
-/** A red vertical bar marking where the baseline lost characters. The element
- *  has a net zero width (2px with flanking -1px margins) so in the overlay
- *  fill it does not shift the text that follows. */
-function delMark() {
-  const span = document.createElement('span');
-  span.className = 'snd-diff-del-mark';
-  return span;
-}
-
-/** A zero-width marker where one row misses content the other row carries: a
- *  red bar with a v above and a ^ below, all outside the text flow and
- *  pointing at the gap between the neighbouring characters. It reserves no
- *  inline space, so the two rows are no longer width-aligned. */
-function gapMark() {
-  const span = document.createElement('span');
-  span.className = 'snd-diff-gap';
-  span.innerHTML = '<i class="snd-diff-gap-bar"></i>'
-    + '<i class="snd-diff-gap-tri snd-diff-gap-top"></i>'
-    + '<i class="snd-diff-gap-tri snd-diff-gap-bottom"></i>';
-  return span;
-}
 
 function mergeBands(rects: DOMRect[], origin: DOMRect) {
   const bands: { l: number; r: number; t: number; b: number }[] = [];
@@ -204,7 +101,7 @@ function mergeBands(rects: DOMRect[], origin: DOMRect) {
     const band = bands.find(item =>
       Math.abs(item.t - top) < 1
       || Math.abs((item.t + item.b) / 2 - center)
-        < Math.max(item.b - item.t, bottom - top) * 0.5);
+      < Math.max(item.b - item.t, bottom - top) * 0.5);
     if (band) {
       band.l = Math.min(band.l, left);
       band.r = Math.max(band.r, right);
@@ -263,6 +160,28 @@ function wavePath(left: number, right: number, y: number) {
   return d;
 }
 
+/** A red vertical bar marking where the baseline lost characters. The element
+ *  has a net zero width (2px with flanking -1px margins) so in the overlay
+ *  fill it does not shift the text that follows. */
+export function delMark() {
+  const span = document.createElement('span');
+  span.className = 'snd-diff-del-mark';
+  return span;
+}
+
+/** A zero-width marker where one row misses content the other row carries: a
+ *  red bar with a v above and a ^ below, all outside the text flow and
+ *  pointing at the gap between the neighbouring characters. It reserves no
+ *  inline space, so the two rows are no longer width-aligned. */
+export function gapMark() {
+  const span = document.createElement('span');
+  span.className = 'snd-diff-gap';
+  span.innerHTML = '<i class="snd-diff-gap-bar"></i>'
+    + '<i class="snd-diff-gap-tri snd-diff-gap-top"></i>'
+    + '<i class="snd-diff-gap-tri snd-diff-gap-bottom"></i>';
+  return span;
+}
+
 /** Literal range covering the whole source line(s) the selection spans: from
  *  the line start of *start* to the line end of *end* (no newline). */
 function fullLines(literal: string, start: number, end: number) {
@@ -297,6 +216,7 @@ export class MarkdownReview {
   alignRows: HTMLDivElement;
   alignOriginal: HTMLPreElement;
   alignModified: HTMLPreElement;
+  history: HTMLDivElement;
   comment: HTMLLabelElement;
   commentInput: HTMLTextAreaElement;
   svg: SVGSVGElement;
@@ -324,6 +244,7 @@ export class MarkdownReview {
     // the rows are filled by renderAlign() per session
     this.alignRows = element('div', 'snd-diff-align', { hidden: true },
       this.alignOriginal, this.alignModified);
+    this.history = element('div', 'snd-history', { hidden: true });
     this.commentInput = element('textarea', '', {
       placeholder: 'comment (Ctrl+Enter to submit) . . .', rows: 2,
     });
@@ -338,7 +259,7 @@ export class MarkdownReview {
       this.editAction, this.deleteAction);
     this.popup = element('form', 'snd-md-popup',
       { hidden: true, noValidate: true },
-      this.actions, this.source, this.alignRows, this.comment);
+      this.actions, this.source, this.alignRows, this.history, this.comment);
     this.popup.addEventListener('submit', event => event.preventDefault());
     this.rendered = element('div', 'snd-md-rendered');
     this.svg = svgElement('snd-md-overlay');
@@ -479,7 +400,8 @@ export class MarkdownReview {
       const display = this.displayRange(annotation);
       const range = this.literalToRange(display.start, display.end);
       if (!range) return;
-      const bands = this.drawBox(range, 'snd-md-box');
+      const bands = this.drawBox(
+        range, annotation.locked ? 'snd-md-box snd-md-locked' : 'snd-md-box');
       if (!bands) return;
       annotation.bands = bands;
       this.addBadge(annotation, bands);
@@ -493,13 +415,16 @@ export class MarkdownReview {
     const first = bands[0];
     const badge = document.createElement('button');
     badge.type = 'button';
-    badge.className = 'snd-md-badge';
+    badge.className = annotation.locked
+      ? 'snd-md-badge snd-md-locked' : 'snd-md-badge';
     badge.textContent = '⋯';
     // Hovering shows what the annotation carries: its comment, else the added
     // text of the change runs, as found by the same alignment as the box.
     const revised = annotation.modified
       ? diffInfo(annotation.original || '', annotation.edit || '').revised : '';
-    badge.title = annotation.comment || revised || annotation.edit || 'Mark Up';
+    const hint = annotation.locked ? '[superseded: delete only] ' : '';
+    badge.title = hint
+      + (annotation.comment || revised || annotation.edit || 'Mark Up');
     badge.sndAnnotation = annotation;
     badge.addEventListener('click', event => {
       event.stopPropagation();
@@ -547,7 +472,7 @@ export class MarkdownReview {
 
   beginEdit() {
     const annotation = this.editing;
-    if (!annotation) return;
+    if (!annotation || annotation.locked) return;
     this.openSource(annotation.chosen.start, annotation.chosen.end,
       this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
       'edit');
@@ -592,6 +517,13 @@ export class MarkdownReview {
     this.controls.replaceChildren();
     this.svg.replaceChildren();
     this.initSession(start, end, mode);
+    if (this.session && this.session.mode === 'view' && this.editing) {
+      renderHistory(
+        this.history,
+        this.store.history(this, this.editing),
+        other => this.openAnnotation(other),
+      );
+    }
     this.placePopup(anchorTop);
     // Focus after the popup is placed, without letting the browser scroll the
     // page. Edit sessions focus the box so the pre-selected range is painted
@@ -881,14 +813,17 @@ export class MarkdownReview {
     const session = this.session;
     if (!session) return;
     const view = session.mode === 'view';
-    const modified = !!(session.annotation && session.annotation.modified);
-    // Read view: the diff (only when modified) plus the comment, no editing.
+    // Read view: the version history plus the comment, no editing.
     // Edit view: the original box plus the comment.
+    const locked = !!(session.annotation && session.annotation.locked);
     this.source.hidden = view;
-    this.alignRows.hidden = !(view && modified);
+    // The read view shows the version history stack instead of the two-row
+    // comparison; editing keeps the single original-text box.
+    this.alignRows.hidden = true;
+    this.history.hidden = !view;
     this.comment.hidden = false;
-    this.commentInput.readOnly = view;
-    this.editAction.hidden = !view;
+    this.commentInput.readOnly = view || locked;
+    this.editAction.hidden = !view || locked;
     this.deleteAction.hidden = !session.annotation;
   }
 
@@ -1148,6 +1083,15 @@ function insideRect(element: Element, x: number, y: number, origin: DOMRect) {
 document.addEventListener('keydown', event => {
   if (event.key !== 'Escape') return;
   for (const region of [...openRegions]) region.cancelSession();
+});
+
+// A mousedown outside an open region closes its popup; clicks inside the
+// region (rendered text, popup, badges) are handled by the region itself.
+document.addEventListener('mousedown', event => {
+  const target = event.target as Node;
+  for (const region of [...openRegions]) {
+    if (!region.node.contains(target)) region.dismissPopup();
+  }
 });
 
 document.addEventListener('selectionchange', () => {
