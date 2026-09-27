@@ -65,17 +65,12 @@ function entryBlock(entry: HistoryEntry, color: string,
   onOpen: (annotation: Annotation) => void) {
   const block = document.createElement('div');
   block.className = 'snd-history-entry';
-  block.style.borderColor = rgba(color, 0.5);
-  const head = document.createElement('div');
-  head.className = 'snd-history-head';
-  head.textContent = entry.kind === 'edit' ? 'edit' : 'comment';
-  head.style.color = color;
-  block.appendChild(head);
   if (entry.highlight) {
     const target = document.createElement('div');
     target.className = 'snd-history-target';
     target.textContent = entry.highlight;
-    target.style.background = rgba(color, 0.12);
+    target.style.borderColor = rgba(color, 0.6);
+    target.style.background = rgba(color, 0.1);
     target.addEventListener('click', () => onOpen(entry.annotation));
     block.appendChild(target);
   }
@@ -95,8 +90,11 @@ export function renderHistory(container: HTMLElement, history: History | null,
     return;
   }
   container.hidden = false;
-  const colors = history.layers.slice(1).map((_, index) =>
-    HISTORY_PALETTE[index % HISTORY_PALETTE.length]);
+  // Colour boundaries from the newest one, cycling toward older versions: the
+  // newest (fresh) boundary gets HISTORY_PALETTE[0], older ones follow.
+  const boundaries = history.layers.length - 1;
+  const colors = Array.from({ length: boundaries }, (_, index) =>
+    HISTORY_PALETTE[(boundaries - 1 - index) % HISTORY_PALETTE.length]);
   for (let index = 0; index < history.layers.length; index += 1) {
     const above = index > 0
       ? aboveMarks(history.layers[index - 1], history.layers[index])

@@ -109,36 +109,28 @@ export class ReviewStore {
       (record): record is SourceRecord => record.type === 'source');
   }
 
-  /** Follow the successor chain from a written span to the live version. */
+  /** Follow the successor chain from a written span to the live version.  A
+   *  span no successor covers is already current and kept as-is, so character
+   *  ranges (not just whole lines) survive. */
   currentSpan(span: Span): Span {
     const sources = this.sources();
-    let first = -1;
-    let last = -1;
-    for (let line = span.sl; line <= lastLine(span); line += 1) {
-      let current = line;
-      for (let step = 0; step < sources.length; step += 1) {
-        let chosen: { window: Span; at: Span } | null = null;
-        for (const source of sources) {
-          if (!source.diffRange) continue;
-          let window: Span;
-          let at: Span;
-          try {
-            window = Span.parse(source.diffRange);
-            at = Span.parse(source.at);
-          } catch (error) { continue; }
-          if (window.sl <= current && current <= lastLine(window)) {
-            chosen = { window, at };
-            break;
-          }
-        }
-        if (!chosen) break;
-        current = Math.round(projectLine(current, chosen.window, chosen.at));
+    let current = span;
+    for (let step = 0; step < sources.length; step += 1) {
+      let chosen: { window: Span; at: Span } | null = null;
+      for (const source of sources) {
+        if (!source.diffRange) continue;
+        let window: Span;
+        let at: Span;
+        try {
+          window = Span.parse(source.diffRange);
+          at = Span.parse(source.at);
+        } catch (error) { continue; }
+        if (overlaps(window, current)) { chosen = { window, at }; break; }
       }
-      if (first < 0) { first = last = current; }
-      else { first = Math.min(first, current); last = Math.max(last, current); }
+      if (!chosen) break;
+      current = projectSpan(current, chosen.window, chosen.at);
     }
-    if (first < 0) return span;
-    return new Span(first, 0, last + 1, 0);
+    return current;
   }
 
   /** The versions of *line*, oldest first, as source plus line in that version. */
@@ -307,7 +299,9 @@ export class ReviewStore {
       let layer = 0;
       for (const expire of sorted) if (expire <= time) layer += 1;
       if (layer >= layers.length) layer = layers.length - 1;
-      const snippet = (other.original || '').trim();
+      // The annotated text is the review's own range, not the whole line, so a
+      // partial or cross-line review aligns with the newest record.
+      const snippet = info.text.slice(other.chosen.start, other.chosen.end).trim();
       // Prefer the exact annotated text; otherwise show the review's lines as
       // that version had them (a superseded review's current text is stale).
       let highlight = snippet && layers[layer].includes(snippet) ? snippet : null;
