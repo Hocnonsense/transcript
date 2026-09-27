@@ -1,6 +1,6 @@
 import { Annotation, Band } from './annotation';
 import { diffInfo, diffText } from './diff';
-import { renderHistory } from './historyrender';
+import { renderHistory, markDel } from './historyrender';
 import { markdownMap } from './literal';
 import type { ReviewStore } from './reviewstore';
 
@@ -158,28 +158,6 @@ function wavePath(left: number, right: number, y: number) {
     up = !up;
   }
   return d;
-}
-
-/** A red vertical bar marking where the baseline lost characters. The element
- *  has a net zero width (2px with flanking -1px margins) so in the overlay
- *  fill it does not shift the text that follows. */
-export function delMark() {
-  const span = document.createElement('span');
-  span.className = 'snd-diff-del-mark';
-  return span;
-}
-
-/** A zero-width marker where one row misses content the other row carries: a
- *  red bar with a v above and a ^ below, all outside the text flow and
- *  pointing at the gap between the neighbouring characters. It reserves no
- *  inline space, so the two rows are no longer width-aligned. */
-export function gapMark() {
-  const span = document.createElement('span');
-  span.className = 'snd-diff-gap';
-  span.innerHTML = '<i class="snd-diff-gap-bar"></i>'
-    + '<i class="snd-diff-gap-tri snd-diff-gap-top"></i>'
-    + '<i class="snd-diff-gap-tri snd-diff-gap-bottom"></i>';
-  return span;
 }
 
 /** Literal range covering the whole source line(s) the selection spans: from
@@ -508,12 +486,12 @@ export class MarkdownReview {
     this.popup.style.top = `${top}px`;
   }
 
-  openSource(start: number | null, end: number | null, anchorTop: number, mode = 'edit') {
+  openSource(start: number, end: number, anchorTop: number, mode = 'edit') {
     this.view = 'source';
     openRegions.add(this);
     this.node.dataset.sndMdView = 'source';
     this.popup.hidden = false;
-    this.selection = start === null || end === null ? null : { start, end };
+    this.selection = { start, end };
     this.controls.replaceChildren();
     this.svg.replaceChildren();
     this.initSession(start, end, mode);
@@ -527,14 +505,9 @@ export class MarkdownReview {
     this.placePopup(anchorTop);
     // Focus after the popup is placed, without letting the browser scroll the
     // page. Edit sessions focus the box so the pre-selected range is painted
-    // between the delimiters; a fresh Show Source keeps the comment box; the
-    // read view stays unfocused.
+    // between the delimiters; the read view stays unfocused.
     if (this.session && this.session.mode === 'edit') {
-      if (!this.session.whole) {
-        this.sourceInput.focus({ preventScroll: true });
-      } else if (!this.session.annotation) {
-        this.commentInput.focus({ preventScroll: true });
-      }
+      this.sourceInput.focus({ preventScroll: true });
     }
   }
 
@@ -543,22 +516,16 @@ export class MarkdownReview {
    *  the text stays unchanged. The committed comment (`session.committed`,
    *  the "已编辑" state) starts from the annotation; typing edits an
    *  uncommitted draft on top of it. */
-  initSession(start: number | null, end: number | null, mode: string) {
-    const whole = start === null || end === null;
+  initSession(start: number, end: number, mode: string) {
     const editing = this.editing;
-    const chosen = whole ? null : { start, end };
-    const line = chosen ? fullLines(this.literal, chosen.start, chosen.end) : null;
+    const chosen = { start, end };
+    const line = fullLines(this.literal, chosen.start, chosen.end);
     let original = '';
     let chosenLocal = null;
-    let lineStart = null;
-    if (editing && chosen) {
+    if (editing) {
       original = typeof editing.original === 'string' ? editing.original : '';
       chosenLocal = { start: chosen.start - line.start, end: chosen.end - line.start };
-      lineStart = line.start;
-    } else if (whole) {
-      original = this.literal;
-    } else if (chosen) {
-      lineStart = line.start;
+    } else {
       original = this.literal.slice(line.start, line.end);
       chosenLocal = { start: chosen.start - line.start, end: chosen.end - line.start };
     }
@@ -567,14 +534,12 @@ export class MarkdownReview {
     // The baseline is the whole literal range the box holds; a modification
     // replaces all of it, so the record's range must cover these lines rather
     // than follow a narrower re-selection made inside the box.
-    const baseline = lineStart === null
-      ? null : { start: lineStart, end: lineStart + original.length };
+    const baseline = { start: line.start, end: line.start + original.length };
     this.session = {
       annotation: editing,
-      whole,
       chosen,
       chosenLocal,
-      lineStart,
+      lineStart: line.start,
       baseline,
       original,
       text: editing && typeof editing.edit === 'string'
@@ -592,7 +557,7 @@ export class MarkdownReview {
     this.renderAlign();
     this.autosizeSource();
     // Pre-select the reviewed range while the text is unmodified.
-    if (!whole && chosenLocal && this.session.text === this.session.original
+    if (this.session.text === this.session.original
       && chosenLocal.start < chosenLocal.end
       && chosenLocal.end <= this.session.text.length) {
       this.sourceInput.setSelectionRange(chosenLocal.start, chosenLocal.end);
@@ -601,28 +566,24 @@ export class MarkdownReview {
     // happens after the popup is placed (see openSource) so it cannot scroll.
   }
 
-  /** Renders the current box text under the transparent textarea. The common
-   *  prefix and suffix with the baseline stay plain; the middle (the
-   *  unchanged runs stay plain, so only what was actually added or removed is
-   *  highlighted. A deletion has no character to draw, so a red bar marks its
-   *  position. */
+  /** Renders the current box text under the transparent textarea. While the
+   *  text equals the baseline the reviewed range is delimited by two inline
+   *  anchors; once it is edited, only the added or removed runs are highlighted
+   *  (an addition gets a background, a deletion a red bar). */
   renderSourceFill() {
     const session = this.session;
     if (!session) return;
     const text = this.sourceInput.value;
     this.sourceFill.replaceChildren();
-    // `replaceChildren` drops any previous markers from the DOM; forget the
-    // cached references so `updateMarkers` rebuilds instead of restyling
-    // detached nodes.
     this.markers = null;
     if (session.text === session.original) {
-      this.sourceFill.append(document.createTextNode(text));
+      this.appendDelimited(text, session.chosenLocal);
     } else {
       for (const slot of diffText(session.original, text)) {
         if (slot.kind === 'equal') {
           this.sourceFill.append(document.createTextNode(slot.mod));
         } else if (slot.kind === 'del') {
-          this.sourceFill.appendChild(delMark());
+          this.sourceFill.appendChild(markDel('|'));
         } else {
           const span = document.createElement('span');
           span.className = 'snd-diff-ins';
@@ -633,7 +594,30 @@ export class MarkdownReview {
     }
     this.sourceFill.scrollTop = this.sourceInput.scrollTop;
     this.sourceFill.scrollLeft = this.sourceInput.scrollLeft;
-    this.updateMarkers();
+  }
+
+  /** Append *text* with the reviewed range highlighted. The range carries a
+   *  background; each end gets one zero-width chevron (start above, end below),
+   *  so the fill still mirrors the textarea exactly and the two sides are told
+   *  apart without a vertical bar. */
+  appendDelimited(text: string, chosenLocal: any) {
+    const start = chosenLocal ? Math.max(0, chosenLocal.start) : 0;
+    const end = chosenLocal ? Math.min(text.length, chosenLocal.end) : 0;
+    if (start >= end) {
+      this.sourceFill.append(document.createTextNode(text));
+      return;
+    }
+    const left = markDel('v');
+    const right = markDel('^');
+    const range = document.createElement('span');
+    range.className = 'snd-diff-range';
+    range.append(left, document.createTextNode(text.slice(start, end)), right);
+    this.sourceFill.append(
+      document.createTextNode(text.slice(0, start)),
+      range,
+      document.createTextNode(text.slice(end)),
+    );
+    this.markers = { left, right };
   }
 
   /** The original box grows with its content instead of staying at three rows;
@@ -645,78 +629,43 @@ export class MarkdownReview {
     input.style.height = `${Math.min(input.scrollHeight, max)}px`;
   }
 
-  /** Delimiters marking the reviewed range while the box text stays
-   *  unmodified. Each is a zero-width anchor in the text flow with a bar and
-   *  two triangles drawn outside the line, so it never covers a glyph.
-   *  Dragging an end, or re-selecting in the box, adjusts the range. */
+  /** Drop the range delimiters and highlight while keeping the text in place. */
   clearMarkers() {
-    if (this.markers) {
-      if (this.markers.left) this.markers.left.remove();
-      if (this.markers.right) this.markers.right.remove();
-      this.markers = null;
-    }
-    this.sourceFill.querySelectorAll('.snd-diff-mark').forEach(node => node.remove());
+    this.markers = null;
+    this.sourceFill.querySelectorAll('.snd-diff-anchor').forEach(node => node.remove());
+    this.sourceFill.querySelectorAll('.snd-diff-range').forEach(node => {
+      node.replaceWith(...Array.from(node.childNodes));
+    });
   }
 
+  /** Re-place the delimiters after the selection changed inside the box. The
+   *  fill is rebuilt, which only repaints the two inline anchors. */
   updateMarkers() {
     const session = this.session;
-    if (!session || session.whole || !session.chosenLocal) { this.clearMarkers(); return; }
+    if (!session) return;
     if (session.text !== session.original) { this.clearMarkers(); return; }
-    const node = this.sourceFill.firstChild;
-    if (!node || node.nodeType !== Node.TEXT_NODE) { this.clearMarkers(); return; }
-    const text = node.nodeValue as string;
-    const start = Math.max(0, session.chosenLocal.start);
-    const end = Math.min(text.length, session.chosenLocal.end);
-    if (start >= end) { this.clearMarkers(); return; }
-    const origin = this.sourceFill.getBoundingClientRect();
-    const pointAt = (offset: number, atEnd: boolean) => {
-      const range = document.createRange();
-      range.setStart(node, offset);
-      range.setEnd(node, offset + 1);
-      const rect = range.getBoundingClientRect();
-      return {
-        x: (atEnd ? rect.right : rect.left) - origin.left + this.sourceFill.scrollLeft,
-        y: rect.top - origin.top + this.sourceFill.scrollTop,
-        h: rect.height || 0,
-      };
-    };
-    const ensure = (side: string, point: { x: number; y: number; h: number }) => {
-      if (!this.markers) this.markers = {};
-      let el = this.markers[side];
-      if (!el) {
-        el = document.createElement('span');
-        el.className = `snd-diff-mark snd-diff-mark-${side}`;
-        el.innerHTML =
-          '<i class="snd-diff-mark-tri snd-diff-mark-top"></i>'
-          + '<i class="snd-diff-mark-body"></i>'
-          + '<i class="snd-diff-mark-tri snd-diff-mark-bottom"></i>';
-        this.sourceFill.appendChild(el);
-        this.markers[side] = el;
-      }
-      el.style.left = `${point.x}px`;
-      el.style.top = `${point.y}px`;
-      el.style.height = `${point.h}px`;
-    };
-    try {
-      ensure('left', pointAt(start, false));
-      ensure('right', pointAt(end - 1, true));
-    } catch (error) { /* empty range on a broken edge */ }
+    this.renderSourceFill();
   }
 
   /** Per-character screen rectangles of the box text, for hit testing a drag
-   *  position when the caret API does not resolve into the textarea. */
+   *  position when the caret API does not resolve into the textarea. Every text
+   *  node is walked in order; the inline marks hold no text, so the character
+   *  indices stay aligned with the box value. */
   rectsOfText() {
-    const node = this.sourceFill.firstChild;
-    if (!node || node.nodeType !== Node.TEXT_NODE) return null;
     const rects: { x: number; y: number }[] = [];
-    for (let index = 0; index < (node.nodeValue as string).length; index += 1) {
-      const range = document.createRange();
-      range.setStart(node, index);
-      range.setEnd(node, Math.min(index + 1, (node.nodeValue as string).length));
-      const rect = range.getBoundingClientRect();
-      rects.push({ x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 });
+    const walker = document.createTreeWalker(this.sourceFill, NodeFilter.SHOW_TEXT);
+    let node: Node | null;
+    while ((node = walker.nextNode())) {
+      const value = node.nodeValue || '';
+      for (let index = 0; index < value.length; index += 1) {
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, Math.min(index + 1, value.length));
+        const rect = range.getBoundingClientRect();
+        rects.push({ x: (rect.left + rect.right) / 2, y: (rect.top + rect.bottom) / 2 });
+      }
     }
-    return rects;
+    return rects.length ? rects : null;
   }
 
   /** Box-local character index nearest the pointer. */
@@ -747,16 +696,20 @@ export class MarkdownReview {
     return best;
   }
 
-  /** The marker (if any) under the pointer, hit-tested on the textarea. */
+  /** The marker (if any) under the pointer. The anchor box is zero-sized, so
+   *  hit test its bar and chevrons. */
   markerHitSide(x: number, y: number) {
     if (!this.markers) return null;
     const pad = 5;
     for (const side of ['left', 'right']) {
       const el = this.markers[side];
       if (!el) continue;
-      const rect = el.getBoundingClientRect();
-      if (x >= rect.left - pad && x <= rect.right + pad
-        && y >= rect.top - 6 && y <= rect.bottom + 6) return side;
+      const hit = [el, ...Array.from(el.children)].some(part => {
+        const rect = part.getBoundingClientRect();
+        return x >= rect.left - pad && x <= rect.right + pad
+          && y >= rect.top - 6 && y <= rect.bottom + 6;
+      });
+      if (hit) return side;
     }
     return null;
   }
@@ -790,9 +743,9 @@ export class MarkdownReview {
         span.className = 'snd-diff-del';
         span.textContent = slot.orig;
         this.alignOriginal.appendChild(span);
-        this.alignModified.appendChild(gapMark());
+        this.alignModified.appendChild(markDel('v'));
       } else {
-        this.alignOriginal.appendChild(gapMark());
+        this.alignOriginal.appendChild(markDel('^'));
         const span = document.createElement('span');
         span.className = 'snd-diff-ins';
         span.textContent = slot.mod;
@@ -850,7 +803,7 @@ export class MarkdownReview {
     // was re-selected to a narrower range.
     let chosen = this.currentChosen();
     if (!chosen || chosen.end <= chosen.start) return;
-    if (modified && session.baseline) chosen = session.baseline;
+    if (modified) chosen = session.baseline;
     let annotation = session.annotation;
     if (annotation) {
       annotation.chosen = chosen;
@@ -921,21 +874,17 @@ export class MarkdownReview {
     return trimmed.end > trimmed.start ? trimmed : null;
   }
 
-  showTrigger(point: { x: number; y: number }, mapped: { start: number; end: number } | null) {
+  showTrigger(point: { x: number; y: number }, mapped: { start: number; end: number }) {
     this.clearTransient();
     const origin = this.node.getBoundingClientRect();
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'snd-md-trigger';
-    button.textContent = mapped ? 'Mark Up' : 'Show Source';
+    button.textContent = '✎';
     button.addEventListener('mousedown', event => event.preventDefault());
     button.addEventListener('click', () => {
-      if (mapped) {
-        this.openSource(mapped.start, mapped.end,
-          this.anchorTopForRange(mapped.start, mapped.end));
-      } else {
-        this.openSource(null, null, point.y - origin.top);
-      }
+      this.openSource(mapped.start, mapped.end,
+        this.anchorTopForRange(mapped.start, mapped.end));
     });
     this.controls.appendChild(button);
     const width = button.offsetWidth;
@@ -945,7 +894,7 @@ export class MarkdownReview {
     const y = point.y - origin.top;
     let left = x + 10;
     if (left + width > max) left = x - width - 10;
-    const top = mapped ? y - height - 6 : y;
+    const top = y - height - 6;
     button.style.left = `${Math.max(0, left)}px`;
     button.style.top = `${Math.max(0, top)}px`;
   }
@@ -957,7 +906,7 @@ export class MarkdownReview {
    *  caret clears them until something is selected again. */
   trackSelection() {
     const session = this.session;
-    if (!session || session.whole || this.markerDrag) return;
+    if (!session || this.markerDrag) return;
     if (session.text !== session.original) return;
     const start = this.sourceInput.selectionStart;
     const end = this.sourceInput.selectionEnd;
@@ -992,11 +941,6 @@ export class MarkdownReview {
       if (this.view === 'source') this.dismissPopup();
       else this.clearTransient();
     });
-    this.rendered.addEventListener('click', event => {
-      if (event.detail >= 3) {
-        this.showTrigger({ x: event.clientX, y: event.clientY }, null);
-      }
-    });
     this.rendered.addEventListener('mouseup', event => {
       const mapped = this.selectionToLiteral(window.getSelection());
       if (mapped) this.showTrigger({ x: event.clientX, y: event.clientY }, mapped);
@@ -1010,7 +954,7 @@ export class MarkdownReview {
     });
     this.sourceInput.addEventListener('pointerdown', event => {
       const session = this.session;
-      if (!session || session.whole || session.text !== session.original) return;
+      if (!session || session.text !== session.original) return;
       const side = this.markerHitSide(event.clientX, event.clientY);
       if (!side) return;
       event.preventDefault();
@@ -1020,7 +964,7 @@ export class MarkdownReview {
     this.sourceInput.addEventListener('pointermove', event => {
       const session = this.session;
       if (this.markerDrag) {
-        if (!session || session.whole || !session.chosenLocal
+        if (!session || !session.chosenLocal
           || session.text !== session.original) return;
         if (!this.markerDrag.rects) this.markerDrag.rects = this.rectsOfText();
         const at = this.localCharAt(event.clientX, event.clientY, this.markerDrag.rects);
@@ -1035,7 +979,7 @@ export class MarkdownReview {
         this.updateMarkers();
         return;
       }
-      const dragCursor = session && !session.whole && session.text === session.original
+      const dragCursor = session && session.text === session.original
         ? this.markerHitSide(event.clientX, event.clientY) : null;
       this.sourceInput.style.cursor = dragCursor ? 'ew-resize' : '';
     });

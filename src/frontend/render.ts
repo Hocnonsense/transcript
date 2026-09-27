@@ -6,7 +6,7 @@ import { loadResources } from './resources';
 /**
  * Decode `data-snd-string-lines` (e.g. "1,4-5") into a set of 1-based lines.
  */
-function lineRanges(text) {
+function lineRanges(text: string) {
   const result: Set<number> = new Set();
   for (const part of (text || '').split(',')) {
     if (!part) continue;

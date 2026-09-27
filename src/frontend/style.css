@@ -303,44 +303,35 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
 .snd-diff-del { background: var(--diff-del-bg); border-radius: .15rem;
   text-decoration: underline; text-decoration-color: var(--diff-del-line);
   text-decoration-thickness: .12em; }
-.snd-diff-del-mark { display: inline-block; width: 2px; margin: 0 -1px;
-  height: 1.15em; vertical-align: -0.15em; border-radius: 1px;
-  background: var(--diff-del-line); }
-/* The reviewed range is delimited while the text is unmodified. Each end is a
-   zero-width anchor at a character boundary; the bar and its two triangles are
-   drawn outside the line (a v above, a ^ below, sharp corners facing each
-   other), so nothing is covered or shifted. Dragging an end adjusts the range. */
-.snd-diff-mark { position: absolute; width: 0; pointer-events: none;
-  color: var(--accent); }
-.snd-diff-mark-body { position: absolute; left: -1px; top: 0; bottom: 0;
-  width: 2px; background: currentColor; border-radius: 1px; }
-.snd-diff-mark-tri { position: absolute; left: 0; width: 0; height: 0; }
-.snd-diff-mark-top { top: 0; transform: translate(-50%, -100%);
-  border-top: .44rem solid currentColor;
-  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
-.snd-diff-mark-bottom { bottom: 0; transform: translate(-50%, 100%);
-  border-bottom: .44rem solid currentColor;
-  border-left: .34rem solid transparent; border-right: .34rem solid transparent; }
-/* The opposite row marks a missing run with a red bar plus a small v above and
-   ^ below, all outside the line and pointing at the gap between the two
-   characters. It is zero-width, so the two rows are no longer width-aligned. */
-.snd-diff-gap { position: relative; display: inline-block; width: 0; height: 0;
+/* Every diff mark is one zero-width inline anchor on the baseline, so the
+   surrounding text stays aligned; its single child is the visual part. The
+   colour follows `color`; history sets it per boundary. */
+.snd-diff-anchor {
+  position: relative; display: inline-block; width: 0; height: 0;
   color: var(--diff-del-line); }
-.snd-diff-gap-bar { position: absolute; left: -1px; top: -.8em; width: 2px;
-  height: 1.1em; background: currentColor; border-radius: 1px; }
-/* Open chevrons (SVG masks) instead of filled triangles, so no horizontal
-   base; each end keeps its own colour via `currentColor`. */
-.snd-diff-gap-tri { position: absolute; left: 0; width: .62rem; height: .34rem;
+/* The deletion bar: only the edit box draws one, where a deletion has no
+   character to decorate. */
+.snd-diff-edit-del { position: absolute; left: -1px; top: -.8em;
+  width: 2px; height: 1.1em; background: currentColor; border-radius: 1px; }
+/* The reviewed range: a background behind its text, its two ends accented. */
+.snd-diff-range { background: var(--accent-faint); border-radius: .15rem; }
+.snd-diff-range .snd-diff-anchor { color: var(--accent); }
+/* Open chevrons (SVG masks) instead of filled triangles, so no horizontal base.
+   `last-del` is the v above the line: a run the last version had and this row
+   lost. `next-ins` is the ^ below it: a run the next version adds and this row
+   lacks. The reviewed range reuses them for its start (above) and end (below). */
+.snd-diff-last-del, .snd-diff-next-ins {
+  position: absolute; left: 0; width: .62rem; height: .34rem;
   background-color: currentColor;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
   -webkit-mask-position: center; mask-position: center;
   -webkit-mask-size: contain; mask-size: contain; }
-.snd-diff-gap-top { top: -.8em; transform: translate(-50%, -100%);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
-.snd-diff-gap-bottom { top: .3em; transform: translate(-50%, 0);
-  -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E"); }
+.snd-diff-last-del { top: -.8em; transform: translate(-50%, -100%);
+  --snd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--snd-chevron); mask-image: var(--snd-chevron); }
+.snd-diff-next-ins { top: .3em; transform: translate(-50%, 0);
+  --snd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--snd-chevron); mask-image: var(--snd-chevron); }
 /* Two-row comparison of a committed modification (badge menu -> compare). */
 .snd-diff-align { display: flex; flex-direction: column; gap: .15rem;
   border: 1px solid var(--border); border-radius: var(--radius-sm);

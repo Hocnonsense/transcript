@@ -19,6 +19,31 @@ function colorize(span: HTMLElement, color: string) {
   span.style.textDecorationColor = color;
 }
 
+/** A zero-width diff mark:
+ *  - `v`: `last-del`, above the line (a run the last version had and this row lost),
+ *  - `^`: `next-ins`, below it (a run the next version adds and this row lacks)
+ *  - `|`: `edit-del`, the edit-box deletion bar
+*
+*  The reviewed range reuses the two chevrons for its ends.
+*  An optional `color` sets the anchor's `currentColor`*/
+export const markDel = (() => {
+  /** The zero-width anchor every diff mark is built on. It holds no inline space,
+   *  so the overlay fill stays aligned with the textarea. */
+  function markAnchor(inner: string) {
+    const span = document.createElement('span');
+    span.className = 'snd-diff-anchor';
+    span.innerHTML = inner;
+    return span;
+  }
+
+  const markDelMap = { 'v': 'last-del', '^': 'next-ins', '|': 'edit-del' } as const;
+  return (kind: 'v' | '^' | '|', color?: string) => {
+    const mark = markAnchor(`<i class="snd-diff-${markDelMap[kind]}"></i>`);
+    if (color) mark.style.color = color;
+    return mark;
+  }
+})()
+
 /** A row of the stack: one version's text with the marks of both adjacent
  *  boundaries. */
 function historyRow(text: string, above: ReturnType<typeof aboveMarks>,
@@ -26,22 +51,11 @@ function historyRow(text: string, above: ReturnType<typeof aboveMarks>,
   const row = document.createElement('pre');
   row.className = 'snd-history-row';
   for (let index = 0; index <= text.length; index += 1) {
-    if (above.gaps.includes(index) || below.gaps.includes(index)) {
-      const useAbove = above.gaps.includes(index);
-      const mark = document.createElement('span');
-      mark.className = 'snd-diff-gap';
-      mark.style.color = useAbove ? aboveColor : belowColor;
-      mark.innerHTML = '<i class="snd-diff-gap-bar"></i>'
-        + '<i class="snd-diff-gap-tri snd-diff-gap-top"></i>'
-        + '<i class="snd-diff-gap-tri snd-diff-gap-bottom"></i>';
-      // Each chevron carries its own boundary colour: the one pointing from
-      // above the boundary above, the one from below the boundary below.
-      const top = mark.querySelector<HTMLElement>('.snd-diff-gap-top');
-      const bottom = mark.querySelector<HTMLElement>('.snd-diff-gap-bottom');
-      if (top) top.style.color = aboveColor;
-      if (bottom) bottom.style.color = belowColor;
-      row.appendChild(mark);
-    }
+    // Each side appends its own chevron, in its boundary colour; a replacement
+    // has a gap on both sides, so both appear — two zero-width anchors at the
+    // same boundary, one above and one below the line.
+    if (above.gaps.includes(index)) row.appendChild(markDel('v', aboveColor));
+    if (below.gaps.includes(index)) row.appendChild(markDel('^', belowColor));
     if (index === text.length) break;
     const isIns = above.ins[index];
     const isDel = below.del[index];
@@ -53,9 +67,20 @@ function historyRow(text: string, above: ReturnType<typeof aboveMarks>,
     span.className = isIns ? 'snd-diff-ins' : 'snd-diff-del';
     const color = isIns ? aboveColor : belowColor;
     colorize(span, color);
-    if (isIns && isDel) span.style.textDecorationLine = 'underline overline';
     span.style.background = rgba(color, isIns ? 0.14 : 0.12);
-    span.textContent = text[index];
+    if (isIns && isDel) {
+      // One element cannot carry two decoration colours: the overline keeps the
+      // boundary-above colour on the outer span, the underline the
+      // boundary-below colour on an inner span, matching the two chevrons.
+      const inner = document.createElement('span');
+      inner.className = 'snd-diff-del';
+      inner.style.background = 'transparent';
+      inner.style.textDecorationColor = belowColor;
+      inner.textContent = text[index];
+      span.appendChild(inner);
+    } else {
+      span.textContent = text[index];
+    }
     row.appendChild(span);
   }
   return row;
