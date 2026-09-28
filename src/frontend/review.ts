@@ -1,6 +1,6 @@
 import { Annotation, Band } from './annotation';
-import { diffInfo, diffText } from './diff';
-import { renderHistory, markDel } from './historyrender';
+import { diffText } from './diff';
+import { renderRecords, markDel } from './historyrender';
 import { markdownMap } from './literal';
 import type { ReviewStore } from './reviewstore';
 
@@ -169,6 +169,23 @@ function fullLines(literal: string, start: number, end: number) {
   return { start: lineStart, end: lineEnd === -1 ? literal.length : lineEnd };
 }
 
+/** The outermost changed window of *original* and *modified*: the common
+ *  prefix and suffix are trimmed, so ``start``/``end`` are offsets into
+ *  *original* and *revised* is the modified middle. */
+function diffInfo(original: string, modified: string) {
+  const max = Math.min(original.length, modified.length);
+  let start = 0;
+  while (start < max && original[start] === modified[start]) start += 1;
+  let originalEnd = original.length;
+  let modifiedEnd = modified.length;
+  while (originalEnd > start && modifiedEnd > start
+    && original[originalEnd - 1] === modified[modifiedEnd - 1]) {
+    originalEnd -= 1;
+    modifiedEnd -= 1;
+  }
+  return { start, end: originalEnd, revised: modified.slice(start, modifiedEnd) };
+}
+
 /** In-place review of one Markdown region: the annotation boxes, the two-box
  *  popup (editable original text + comment), and the compare view. The DOM and
  *  all mutable state live on the instance; `align()` maps the rendered text
@@ -188,28 +205,23 @@ export class MarkdownReview {
 
   rendered: HTMLDivElement;
   popup: HTMLFormElement;
+  list: HTMLDivElement;
   source: HTMLDivElement;
   sourceFill: HTMLPreElement;
   sourceInput: HTMLTextAreaElement;
-  alignRows: HTMLDivElement;
-  alignOriginal: HTMLPreElement;
-  alignModified: HTMLPreElement;
-  history: HTMLDivElement;
   comment: HTMLLabelElement;
   commentInput: HTMLTextAreaElement;
   svg: SVGSVGElement;
   controls: HTMLDivElement;
-  actions: HTMLDivElement;
-  editAction: HTMLButtonElement;
-  deleteAction: HTMLButtonElement;
 
   constructor(node: any, raw: string, rawStart = 0, rawEnd = 0) {
-    this.store = window.snakedoneReviewStore!;
     this.node = node;
+    this.store = window.snakedoneReviewStore!;
     const { text, map } = markdownMap(raw);
     this.literal = text;
     this.annotations = this.store.addRegion(this, rawStart, rawEnd, text, map);
-    // The popup has exactly two boxes: the original text is edited in place
+    // The popup holds the revision record list (existing annotations) or the
+    // two-box editor (a new annotation): the original text is edited in place
     // (transparent textarea over the diff highlight) and the comment below.
     this.sourceFill = element('pre', 'snd-diff-fill');
     this.sourceInput = element('textarea', 'snd-diff-input',
@@ -217,27 +229,15 @@ export class MarkdownReview {
     inputRegions.set(this.sourceInput, this);
     this.source = element('div', 'snd-md-source', { hidden: true },
       this.sourceFill, this.sourceInput);
-    this.alignOriginal = element('pre', 'snd-diff-row');
-    this.alignModified = element('pre', 'snd-diff-row');
-    // the rows are filled by renderAlign() per session
-    this.alignRows = element('div', 'snd-diff-align', { hidden: true },
-      this.alignOriginal, this.alignModified);
-    this.history = element('div', 'snd-history', { hidden: true });
+    this.list = element('div', 'snd-rec-list', { hidden: true });
     this.commentInput = element('textarea', '', {
       placeholder: 'comment (Ctrl+Enter to submit) . . .', rows: 2,
     });
     this.comment = element('label', 'snd-md-comment', { hidden: true },
       this.commentInput);
-    // The popup's top-right corner carries the modify/delete actions.
-    this.editAction = element('button', '', { type: 'button', textContent: 'Edit' });
-    this.deleteAction = element('button', '', { type: 'button', textContent: 'Delete' });
-    this.editAction.addEventListener('click', () => this.beginEdit());
-    this.deleteAction.addEventListener('click', () => this.deleteEditing());
-    this.actions = element('div', 'snd-md-actions', {},
-      this.editAction, this.deleteAction);
     this.popup = element('form', 'snd-md-popup',
       { hidden: true, noValidate: true },
-      this.actions, this.source, this.alignRows, this.history, this.comment);
+      this.list, this.source, this.comment);
     this.popup.addEventListener('submit', event => event.preventDefault());
     this.rendered = element('div', 'snd-md-rendered');
     this.svg = svgElement('snd-md-overlay');
@@ -322,11 +322,15 @@ export class MarkdownReview {
     return range;
   }
 
-  drawBox(range: Range | null, className: string) {
+  /** The screen bands a range covers, in node-local coordinates, or null. */
+  bandsOf(range: Range | null) {
     if (!range || typeof range.getClientRects !== 'function') return null;
     const origin = this.node.getBoundingClientRect();
     const bands = mergeBands(Array.from(range.getClientRects()), origin);
-    if (!bands.length) return null;
+    return bands.length ? bands : null;
+  }
+
+  drawBands(bands: Band[], className: string) {
     const path = document.createElementNS(SVG_NS, 'path');
     path.setAttribute('d', ribbon(bands));
     path.setAttribute('class', className);
@@ -336,7 +340,15 @@ export class MarkdownReview {
     wave.setAttribute('d', wavePath(last.l, last.r, last.b));
     wave.setAttribute('class', 'snd-md-wave');
     this.svg.appendChild(wave);
-    return bands;
+  }
+
+  /** How many whole lines an annotation covers (its character span breaks ties),
+   *  used to keep the larger of two annotations whose badges share a line. */
+  chosenLines(annotation: Annotation) {
+    const text = this.literal.slice(annotation.chosen.start, annotation.chosen.end);
+    let lines = 1;
+    for (const char of text) if (char === '\n') lines += 1;
+    return lines;
   }
 
   clearTransient() {
@@ -374,23 +386,60 @@ export class MarkdownReview {
     this.session = null;
     this.controls.replaceChildren();
     this.svg.replaceChildren();
-    this.annotations.forEach(annotation => {
+    // Only the outer annotations get a box and badge: an annotation whose range
+    // a newer (possibly superseded) visible annotation covers has none.
+    const visible = new Set(this.store.visible(this));
+    const candidates: { annotation: Annotation; bands: Band[] }[] = [];
+    this.annotations.filter(annotation => visible.has(annotation)).forEach(annotation => {
       const display = this.displayRange(annotation);
       const range = this.literalToRange(display.start, display.end);
-      if (!range) return;
-      const bands = this.drawBox(
-        range, annotation.locked ? 'snd-md-box snd-md-locked' : 'snd-md-box');
+      const bands = this.bandsOf(range);
       if (!bands) return;
-      annotation.bands = bands;
-      this.addBadge(annotation, bands);
+      candidates.push({ annotation, bands });
     });
+    // Two annotations whose badges anchor on the same line cannot both show:
+    // the badge sits on the first line's right edge, so the one with the larger
+    // line range contains the other — keep its badge only; both boxes stay so
+    // the highlight still covers every reviewed range.
+    const keep = this.selectBadges(candidates);
+    for (const { annotation, bands } of candidates) {
+      annotation.bands = bands;
+      this.drawBands(
+        bands, annotation.locked ? 'snd-md-box snd-md-locked' : 'snd-md-box');
+      if (keep.has(annotation)) this.addBadge(annotation, bands);
+    }
   }
 
+  /** For every badge position, keep only the annotation with the largest line
+   *  range (character span breaks a tie); its box covers the dropped ones. */
+  selectBadges(candidates: { annotation: Annotation; bands: Band[] }[]) {
+    const groups = new Map<string, { annotation: Annotation; bands: Band[] }[]>();
+    for (const item of candidates) {
+      const anchor = item.bands[0];
+      // Same position: the first band's top and right edge both match, so
+      // whole-line annotations that share a first line land in one group.
+      const key = `${Math.round(anchor.t * 2) / 2}:${Math.round(anchor.r * 2) / 2}`;
+      const list = groups.get(key);
+      if (list) list.push(item); else groups.set(key, [item]);
+    }
+    const keep = new Set<Annotation>();
+    for (const list of groups.values()) {
+      let best = list[0];
+      for (const item of list) {
+        const lines = this.chosenLines(item.annotation);
+        const bestLines = this.chosenLines(best.annotation);
+        const span = item.annotation.chosen.end - item.annotation.chosen.start;
+        const bestSpan = best.annotation.chosen.end - best.annotation.chosen.start;
+        if (lines > bestLines || (lines === bestLines && span > bestSpan)) best = item;
+      }
+      keep.add(best.annotation);
+    }
+    return keep;
+  }
+
+  /** Build a badge for *annotation*, anchored on the first band of its range. */
   addBadge(annotation: Annotation, bands: Band[]) {
-    // Anchor the tab on the topmost band, not the bounding box: a wrapped run
-    // whose lower line is the widest would otherwise float the tab to the
-    // right of the top line, leaving a gap the pointer hides in.
-    const first = bands[0];
+    const anchor = bands[0];
     const badge = document.createElement('button');
     badge.type = 'button';
     badge.className = annotation.locked
@@ -415,8 +464,8 @@ export class MarkdownReview {
     this.controls.appendChild(badge);
     const width = badge.offsetWidth;
     const height = badge.offsetHeight;
-    badge.style.left = `${Math.max(0, first.r - width)}px`;
-    badge.style.top = `${Math.max(0, first.t - height + 2)}px`;
+    badge.style.left = `${Math.max(0, anchor.r - width)}px`;
+    badge.style.top = `${Math.max(0, anchor.t - height + 2)}px`;
     badge.hidden = true;
   }
 
@@ -439,26 +488,68 @@ export class MarkdownReview {
     }, 220);
   }
 
-  /** Open the read view: the diff (when the text changed) plus the comment,
-   *  with modify/delete in the popup's top-right. */
+  /** Open the revision record list for *annotation*: every source version and
+   *  review in its window, oldest first, with the clicked review at the bottom. */
   openAnnotation(annotation: Annotation) {
     this.editing = annotation;
-    this.openSource(annotation.chosen.start, annotation.chosen.end,
-      this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
-      'view');
+    this.view = 'list';
+    openRegions.add(this);
+    this.node.dataset.sndMdView = 'source';
+    this.popup.hidden = false;
+    this.selection = { start: annotation.chosen.start, end: annotation.chosen.end };
+    this.controls.replaceChildren();
+    this.svg.replaceChildren();
+    this.session = null;
+    this.renderList();
+    this.placePopup(
+      this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end)
+    );
   }
 
-  beginEdit() {
-    const annotation = this.editing;
+  /** Turn a review's row into an inline editor (its raw becomes editable). */
+  beginEdit(edit?: Annotation) {
+    const annotation = edit || this.editing;
     if (!annotation || annotation.locked) return;
+    this.editing = annotation;
     this.openSource(annotation.chosen.start, annotation.chosen.end,
       this.anchorTopForRange(annotation.chosen.start, annotation.chosen.end),
       'edit');
   }
 
+  /** Draw the record list. While editing an existing review, that row's raw and
+   *  comment are replaced by the persistent inline editor elements. */
+  renderList() {
+    this.view = 'list';
+    this.list.hidden = false;
+    this.source.hidden = true;
+    this.comment.hidden = true;
+    const history = this.editing ? this.store.history(this, this.editing) : null;
+    const slots = renderRecords(this.list, history, {
+      focus: this.editing,
+      onOpen: other => this.openAnnotation(other),
+      onEdit: other => this.beginEdit(other),
+      onDelete: other => this.deleteAnnotation(other),
+    });
+    const editing = this.session && this.session.mode === 'edit' && this.session.annotation
+      ? this.session.annotation as Annotation : null;
+    if (editing) {
+      const raw = slots.raws.get(editing);
+      const body = slots.comments.get(editing);
+      if (raw) raw.replaceChildren(this.source);
+      if (body) body.replaceChildren(this.comment);
+      this.source.hidden = false;
+      this.comment.hidden = false;
+    }
+  }
+
+  deleteAnnotation(annotation: Annotation) {
+    this.store.remove(this, annotation);
+    if (annotation === this.editing) { this.showRendered(); return; }
+    this.renderList();
+  }
+
   deleteEditing() {
-    if (this.editing) this.store.remove(this, this.editing);
-    this.showRendered();
+    if (this.editing) this.deleteAnnotation(this.editing);
   }
 
   anchorTopForRange(start: number, end: number) {
@@ -494,13 +585,19 @@ export class MarkdownReview {
     this.selection = { start, end };
     this.controls.replaceChildren();
     this.svg.replaceChildren();
+    this.list.hidden = true;
+    // A prior list render may have detached the editor; re-home it so the
+    // source box can be measured before it moves into the edited row.
+    if (!this.source.isConnected) this.popup.appendChild(this.source);
+    if (!this.comment.isConnected) this.popup.appendChild(this.comment);
     this.initSession(start, end, mode);
-    if (this.session && this.session.mode === 'view' && this.editing) {
-      renderHistory(
-        this.history,
-        this.store.history(this, this.editing),
-        other => this.openAnnotation(other),
-      );
+    if (this.session && this.session.mode === 'edit' && this.session.annotation) {
+      // Editing an existing review: keep the record list, swapping the edited
+      // row's raw/comment for the inline editor.
+      this.renderList();
+    } else {
+      this.source.hidden = false;
+      this.comment.hidden = false;
     }
     this.placePopup(anchorTop);
     // Focus after the popup is placed, without letting the browser scroll the
@@ -554,7 +651,6 @@ export class MarkdownReview {
     // fill, otherwise they collapse to a zero-size point at the origin.
     this.modVisibility();
     this.renderSourceFill();
-    this.renderAlign();
     this.autosizeSource();
     // Pre-select the reviewed range while the text is unmodified.
     if (this.session.text === this.session.original
@@ -580,11 +676,12 @@ export class MarkdownReview {
       this.appendDelimited(text, session.chosenLocal);
     } else {
       for (const slot of diffText(session.original, text)) {
-        if (slot.kind === 'equal') {
+        if (slot.orig === slot.mod) {
           this.sourceFill.append(document.createTextNode(slot.mod));
-        } else if (slot.kind === 'del') {
+        } else if (slot.mod === '') {
           this.sourceFill.appendChild(markDel('|'));
         } else {
+          if (slot.orig !== '') this.sourceFill.appendChild(markDel('|'));
           const span = document.createElement('span');
           span.className = 'snd-diff-ins';
           span.textContent = slot.mod;
@@ -725,35 +822,6 @@ export class MarkdownReview {
     return { start, end };
   }
 
-  /** Two-row comparison of the committed modification: original on top with
-   *  deleted runs underlined and inserted gaps marked; modified below with
-   *  inserted runs marked and deleted gaps marked. */
-  renderAlign() {
-    const session = this.session;
-    if (!session) return;
-    const slots = diffText(session.original, session.text);
-    this.alignOriginal.replaceChildren();
-    this.alignModified.replaceChildren();
-    for (const slot of slots) {
-      if (slot.kind === 'equal') {
-        this.alignOriginal.append(document.createTextNode(slot.orig));
-        this.alignModified.append(document.createTextNode(slot.mod));
-      } else if (slot.kind === 'del') {
-        const span = document.createElement('span');
-        span.className = 'snd-diff-del';
-        span.textContent = slot.orig;
-        this.alignOriginal.appendChild(span);
-        this.alignModified.appendChild(markDel('v'));
-      } else {
-        this.alignOriginal.appendChild(markDel('^'));
-        const span = document.createElement('span');
-        span.className = 'snd-diff-ins';
-        span.textContent = slot.mod;
-        this.alignModified.appendChild(span);
-      }
-    }
-  }
-
   setSourceValue(text: string) {
     if (!this.session) return;
     this.session.text = text;
@@ -765,19 +833,12 @@ export class MarkdownReview {
   modVisibility() {
     const session = this.session;
     if (!session) return;
-    const view = session.mode === 'view';
-    // Read view: the version history plus the comment, no editing.
-    // Edit view: the original box plus the comment.
+    // Editing (a new annotation, or an inline edit of an existing one): the
+    // original box plus the comment. A locked review never reaches here.
     const locked = !!(session.annotation && session.annotation.locked);
-    this.source.hidden = view;
-    // The read view shows the version history stack instead of the two-row
-    // comparison; editing keeps the single original-text box.
-    this.alignRows.hidden = true;
-    this.history.hidden = !view;
+    this.source.hidden = false;
     this.comment.hidden = false;
-    this.commentInput.readOnly = view || locked;
-    this.editAction.hidden = !view || locked;
-    this.deleteAction.hidden = !session.annotation;
+    this.commentInput.readOnly = locked;
   }
 
   /** True when a fresh annotation would carry neither a comment nor a text
@@ -938,7 +999,7 @@ export class MarkdownReview {
         .forEach(badge => this.hideBadge(badge));
     });
     this.rendered.addEventListener('mousedown', () => {
-      if (this.view === 'source') this.dismissPopup();
+      if (this.view !== 'rendered') this.dismissPopup();
       else this.clearTransient();
     });
     this.rendered.addEventListener('mouseup', event => {

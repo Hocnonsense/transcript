@@ -6,7 +6,7 @@
  * with the same diff as the edit view.  Pure: the drawing lives in
  * ``historyrender.ts``. */
 
-import { Annotation } from './annotation';
+import type { Annotation } from './annotation';
 import { diffText } from './diff';
 
 /** Okabe–Ito colour-blind safe palette; boundaries cycle through it. */
@@ -16,11 +16,15 @@ export interface HistoryEntry {
   annotation: Annotation;
   /** The review's first-save time, used to order and to hide older covered ones. */
   time: string;
-  kind: 'comment' | 'edit';
-  /** The comment body, or the replacement text for an edit. */
+  kind: 'highlight' | 'edit';
+  /** The replacement text for an edit, or the comment for a highlight. */
   text: string;
+  /** The review's comment body, independent of `text`. */
+  comment: string;
   /** Substring of the layer to highlight, when it can be found. */
   highlight: string | null;
+  /** The highlighted range as offsets into `layers[layer]`. */
+  highlightRange: { start: number; end: number } | null;
   /** A newer review covers this one's whole range, so it is not shown. */
   hidden: boolean;
 }
@@ -28,6 +32,8 @@ export interface HistoryEntry {
 export interface History {
   /** Version texts, oldest first; the last one is the current text. */
   layers: string[];
+  /** The upper time boundary of each layer (`null` for the live version). */
+  before: (string | null)[];
   /** Reviews to show after `layers[i]`, in time order. */
   entries: HistoryEntry[][];
 }
@@ -40,11 +46,15 @@ export function aboveMarks(previous: string, text: string) {
   const gaps: number[] = [];
   let offset = 0;
   for (const slot of diffText(previous, text)) {
-    if (slot.kind === 'equal') offset += slot.mod.length;
-    else if (slot.kind === 'ins') {
-      for (let i = offset; i < offset + slot.mod.length; i += 1) ins[i] = true;
+    if (slot.orig === slot.mod) {
       offset += slot.mod.length;
-    } else gaps.push(offset);
+    } else if (slot.mod !== '') {
+      for (let i = offset; i < offset + slot.mod.length; i += 1) ins[i] = true;
+      if (slot.orig !== '') gaps.push(offset);
+      offset += slot.mod.length;
+    } else {
+      gaps.push(offset);
+    }
   }
   return { ins, gaps };
 }
@@ -57,11 +67,15 @@ export function belowMarks(text: string, next: string) {
   const gaps: number[] = [];
   let offset = 0;
   for (const slot of diffText(text, next)) {
-    if (slot.kind === 'equal') offset += slot.orig.length;
-    else if (slot.kind === 'del') {
+    if (slot.orig === slot.mod) {
+      offset += slot.orig.length;
+    } else if (slot.orig !== '') {
       for (let i = offset; i < offset + slot.orig.length; i += 1) del[i] = true;
       offset += slot.orig.length;
-    } else gaps.push(offset);
+      if (slot.mod !== '') gaps.push(offset);
+    } else {
+      gaps.push(offset);
+    }
   }
   return { del, gaps };
 }

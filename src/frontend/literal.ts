@@ -23,7 +23,7 @@ function dedentWithMap(text: string, offsets: number[]) {
   while (last > first && !hasContent(lines[last - 1])) last -= 1;
 
   const out = [];
-  const map = [];
+  const map: number[] = [];
   for (let index = first; index < last; index += 1) {
     if (index > first) {
       out.push('\n');

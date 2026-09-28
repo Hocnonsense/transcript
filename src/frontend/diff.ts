@@ -6,30 +6,32 @@
  *  characters in a changed word stay plain.  Without it a plain character DP
  *  is used, which is also the fallback when the library is unavailable. */
 
-export interface DiffSlot { kind: string; orig: string; mod: string; }
+/** One run of an alignment: its text on the original and modified sides.  A
+ *  side not carrying text is empty, so the run's kind (equal / deleted /
+ *  inserted / replaced) is derived, not stored. */
+export interface DiffSlot { orig: string; mod: string; }
 
 /** One jsdiff change: ``added``/``removed`` are both absent for an equal run. */
 interface Change { value: string; added?: boolean; removed?: boolean; }
 export type Changes = (original: string, modified: string) => Change[];
-
-function push(slots: DiffSlot[], kind: string, orig: string, mod: string) {
+function push(slots: DiffSlot[], orig: string, mod: string) {
   const last = slots[slots.length - 1];
-  if (last && last.kind === kind) {
+  if (last && (last.orig === last.mod) === (orig === mod)) {
     last.orig += orig;
     last.mod += mod;
   } else {
-    slots.push({ kind, orig, mod });
+    slots.push({ orig, mod });
   }
 }
 
 /** Character-level DP, used when jsdiff is not configured. */
-function dpSlots(original: string, modified: string): DiffSlot[] {
+function dpSlots(original: string, modified: string) {
   const n = original.length;
   const m = modified.length;
   if (n * m > 1000000) {
     return original === modified
-      ? [{ kind: 'equal', orig: original, mod: modified }]
-      : [{ kind: 'del', orig: original, mod: '' }, { kind: 'ins', orig: '', mod: modified }];
+      ? [{ orig: original, mod: modified }]
+      : [{ orig: original, mod: '' }, { orig: '', mod: modified }];
   }
   const dp = Array.from({ length: n + 1 }, () => new Uint32Array(m + 1));
   for (let i = n - 1; i >= 0; i -= 1) {
@@ -42,22 +44,21 @@ function dpSlots(original: string, modified: string): DiffSlot[] {
   const slots: DiffSlot[] = [];
   let i = 0;
   let j = 0;
-  const cell = (kind: string, orig: string, mod: string) => push(slots, kind, orig, mod);
   while (i < n && j < m) {
     if (original[i] === modified[j]) {
-      cell('equal', original[i], modified[j]);
+      push(slots, original[i], modified[j]);
       i += 1;
       j += 1;
     } else if (dp[i + 1][j] >= dp[i][j + 1]) {
-      cell('del', original[i], '');
+      push(slots, original[i], '');
       i += 1;
     } else {
-      cell('ins', '', modified[j]);
+      push(slots, '', modified[j]);
       j += 1;
     }
   }
-  while (i < n) { cell('del', original[i], ''); i += 1; }
-  while (j < m) { cell('ins', '', modified[j]); j += 1; }
+  while (i < n) { push(slots, original[i], ''); i += 1; }
+  while (j < m) { push(slots, '', modified[j]); j += 1; }
   return slots;
 }
 
@@ -73,41 +74,41 @@ export function configureDiff(options: Window['Diff']) {
 
 function mergeSlots(slots: DiffSlot[]) {
   const merged: DiffSlot[] = [];
-  for (const slot of slots) push(merged, slot.kind, slot.orig, slot.mod);
+  for (const slot of slots) push(merged, slot.orig, slot.mod);
   return merged;
 }
 
 function slotsFromChanges(changes: Change[]) {
   const slots: DiffSlot[] = [];
   for (const change of changes) {
-    const kind = change.removed ? 'del' : change.added ? 'ins' : 'equal';
+    // const kind = change.removed ? 'del' : change.added ? 'ins' : 'equal';
     push(
-      slots, kind,
-      kind === 'ins' ? '' : change.value,
-      kind === 'del' ? '' : change.value,
+      slots,
+      change.removed ? '' : change.value,
+      change.added ? '' : change.value,
     );
   }
   return slots;
 }
 
-/** Alignment of *original* and *modified* as ``equal``/``del``/``ins`` run
- *  slots with adjacent same-kind runs merged.  Word groups when jsdiff is
+/** Alignment of *original* and *modified* as equal/deleted/inserted/replaced
+ *  run slots with adjacent same-kind runs merged.  Word groups when jsdiff is
  *  configured, plain characters otherwise. */
 export function diffText(original: string, modified: string): DiffSlot[] {
   return engine.words(original, modified);
 }
 
 /** Re-diff every removed+added replacement at the character level. */
-function refine(slots: DiffSlot[]): DiffSlot[] {
+function refine(slots: DiffSlot[]) {
   const out: DiffSlot[] = [];
   let index = 0;
   while (index < slots.length) {
     const slot = slots[index];
     const next = slots[index + 1];
-    if (slot.kind === 'del' && next && next.kind === 'ins') {
+    if (next && slot.mod === '' && next.orig === '') {
       out.push(...engine.chars(slot.orig, next.mod));
       index += 2;
-    } else if (slot.kind === 'ins' && next && next.kind === 'del') {
+    } else if (next && slot.orig === '' && next.mod === '') {
       out.push(...engine.chars(next.orig, slot.mod));
       index += 2;
     } else {
@@ -116,30 +117,4 @@ function refine(slots: DiffSlot[]): DiffSlot[] {
     }
   }
   return out;
-}
-
-/** The changed part of an alignment, in baseline coordinates. Uses the same
- *  alignment as the diff highlighting, so a range drawn from it spans exactly
- *  the runs that get highlighted; *revised* is the added text (the modified
- *  side of the non-equal runs). */
-export function diffInfo(original: string, modified: string) {
-  let offset = 0;
-  let start = -1;
-  let end = 0;
-  let revised = '';
-  for (const slot of diffText(original, modified)) {
-    if (slot.kind === 'equal') {
-      offset += slot.orig.length;
-      continue;
-    }
-    if (start === -1) start = offset;
-    if (slot.kind === 'del') {
-      offset += slot.orig.length;
-      end = offset;
-    } else {
-      end = offset;
-      revised += slot.mod;
-    }
-  }
-  return { start, end, revised };
 }

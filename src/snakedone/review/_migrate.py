@@ -1,17 +1,17 @@
 """Incremental migration of review records across archive rewrites.
 
 Records are immutable facts about a version: a source's ``at`` is a span in
-the version it was created in, and its ``diffRange`` is the region it came from
-in the *immediately previous* version.  A migration therefore never rewrites an
-old record.  A live source whose region moved or changed is frozen (``expire``
-set, its own text kept in ``source``) and its new region is appended as live
-successors, each carrying a ``diffRange`` back into the frozen source.  Movement
-alone is enough to need a successor: without one the old coordinates could not
-be mapped forward.
+the version it was created in, and its ``cover`` names the region it came from
+in the *immediately previous* version plus that version's ``expire`` stamp.  A
+migration therefore never rewrites an old record.  A live source whose region
+moved or changed is frozen (``expire`` set, its own text kept in ``source``) and
+its new region is appended as live successors, each carrying a ``cover`` back
+into the frozen source.  Movement alone is enough to need a successor: without
+one the old coordinates could not be mapped forward.
 
 The alignment is character-level: lines are diffed first (cheap and stable for
 whole documents) and every replaced block is refined character by character,
-so ``diffRange`` can name a part of an old line.  Records are cut at new-text
+so ``cover`` can name a part of an old line.  Records are cut at new-text
 newlines, one whole line per record, so a single old span expresses the mapping
 exactly.
 """
@@ -23,7 +23,7 @@ from dataclasses import replace
 from datetime import datetime
 from difflib import SequenceMatcher
 
-from ._records import Record, SourceRecord
+from ._records import Cover, Record, SourceRecord
 from ._span import Span, _line, _starts, timestamp
 
 __all__ = ["migrate"]
@@ -138,7 +138,7 @@ def migrate(
 
     Old records are never rewritten.  A live source the change leaves alone is
     kept; otherwise it is frozen at the migration moment and its new region is
-    appended as live successors linked back through ``diffRange``.
+    appended as live successors linked back through ``cover``.
     Reviews keep the coordinates of the version they were written in.
     """
     if not records:
@@ -176,7 +176,7 @@ def migrate(
             # the chain can still be followed to where the region stood.
             at = Span.from_bound(new_start, new_start, new_starts)
             old = Span.from_bound(start, stop, old_starts)
-            yield SourceRecord(at=str(at), diffRange=str(old))
+            yield SourceRecord(at=str(at), cover=Cover(old, stamp))
             continue
         for new_span, old_span in align.split(new_start, new_stop):
             if new_span.start_line in seen:
@@ -184,5 +184,5 @@ def migrate(
             seen.add(new_span.start_line)
             yield SourceRecord(
                 at=str(new_span),
-                diffRange=None if old_span is None else str(old_span),
+                cover=None if old_span is None else Cover(old_span, stamp),
             )

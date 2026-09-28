@@ -27,7 +27,7 @@ export class Annotation {
   selection: Range | null;
   /** Screen bands of the drawn box, filled by the renderer. */
   bands: Band[] | null;
-  /** Read-only because part of the range is expired (or untracked): it can be
+  /** Read-only because part of the range is superseded (or untracked): it can be
    *  deleted but not edited, since the recorded text no longer matches. */
   locked: boolean;
 

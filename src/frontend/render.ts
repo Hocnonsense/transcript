@@ -259,7 +259,7 @@ function outline(document: Document) {
     externalLinks(region.rendered);
     region.align();
     region.wire();
-    region.showRendered();
+    return region;
   }
 
   function showError(error) {
@@ -278,10 +278,14 @@ function outline(document: Document) {
       configureDiff(window.Diff);
 
       const markdown = window.markdownit('commonmark', { html: false }).enable('table');
+      const regions: MarkdownReview[] = [];
       document.querySelectorAll(
         '.doc-md[data-snd-span], ' +
         '.snakedone-report[data-snd-renderer="markdown"][data-snd-span]'
-      ).forEach(node => initMarkdownRegion(node, markdown));
+      ).forEach(node => regions.push(initMarkdownRegion(node, markdown)));
+      // Every region is in: distribute the records once, then draw the badges.
+      window.snakedoneReviewStore?.buildAnnotations();
+      regions.forEach(region => region.showRendered());
 
       document.querySelectorAll('.doc-code[data-snd-span]').forEach(renderCode);
       document.querySelectorAll('.script-block[data-snd-span]').forEach(renderScript);

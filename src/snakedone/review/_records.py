@@ -6,12 +6,12 @@ block is an ordinary ``if`` whose body is one JSON string, so it stays valid
 Python with no dependencies and is ignored when the document runs.
 
 Records are objects: :class:`SourceRecord` versions a run of lines (``at``) and
-maps each part back to the region it replaced (``newOlds``);
+points back to the region it replaced (``cover``);
 :class:`ReviewRecord` carries a range plus the time its comment was written.
 Records are immutable: each names coordinates in the version it was made for,
-and the ``newOlds`` pointers form a chain the history view walks.  A review's
-``expireAt`` is derived from its ``time`` and the sources
-(:meth:`ReviewIndex.exec_expire`) and refreshed on every load.
+and the ``cover`` pointers form a chain the history view walks.  A review's
+``coveredAt`` entries are derived from its ``time`` and the sources
+(:meth:`ReviewIndex.covered_at`) and refreshed on every load.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ from typing import ClassVar
 
 from ._span import TYPE_REVIEW, TYPE_SOURCE, Span, parse_time
 
-__all__ = ["Record", "ReviewIndex", "ReviewRecord", "SourceRecord"]
+__all__ = ["Cover", "Record", "ReviewIndex", "ReviewRecord", "SourceRecord"]
 
 
 @dataclass
@@ -69,48 +69,77 @@ class Record:
                 kwargs[key] = data[key]
         if data.keys() - kwargs.keys() - {"type"}:
             raise ValueError(f"unknown fields in review record: {data!r}")
-        return target(**kwargs)
+        return target._from_dict(kwargs)
+
+
+@dataclass(frozen=True)
+class Cover:
+    """A source span paired with the version stamp that covered it."""
+
+    span: Span
+    stamp: str
+
+    def validate(self):
+        if not isinstance(self.span, Span) or not isinstance(self.stamp, str):
+            raise ValueError("cover must pair a Span with a timestamp")
+        parse_time(self.stamp)
+
+    def __str__(self):
+        return f"{self.span}@{self.stamp}"
+
+    @classmethod
+    def parse(cls, text: str):
+        """Parse one archive ``span@stamp`` value."""
+        if not isinstance(text, str):
+            raise ValueError("cover must be a span@stamp string")
+        span, separator, stamp = text.partition("@")
+        if not separator or not span or not stamp or "@" in stamp:
+            raise ValueError("cover must be a span@stamp string")
+        return cls(Span.parse(span), stamp)
 
 
 @dataclass
 class SourceRecord(Record):
     """One whole source line (``at``) and the region it replaced.
 
-    ``diffRange`` is the span in the *immediately previous* version that this
-    whole line corresponds to (``None`` for an inserted line).  Cutting a
-    migration at new-text newlines keeps every record line-sized, so a single
-    old span expresses the line-to-line mapping exactly.  It belongs to that
-    fixed previous version and is never remapped again; ``source`` is this
-    record's own text (the superseded content).
+    ``at`` always is span of complete line(s).
+    ``source`` is the superseded content of the record.
+    ``cover`` is ``"span@stamp"`` for the region in the *immediately previous*
+    version that this line corresponds to, or ``None`` for the first version.
+    The stamp is that previous version's ``expire``.
+
+    Cutting a migration at new-text newlines keeps every record line-sized,
+    so one old span expresses the line-to-line mapping exactly.
     """
 
     TYPE: ClassVar[str] = TYPE_SOURCE
 
     source: str | None = None
-    diffRange: str | None = None
+    cover: Cover | None = None
     expire: str | None = None
-
-    @classmethod
-    def of(
-        cls,
-        span: Span,
-        *,
-        prev: Span | None = None,
-        source: str | None = None,
-        expire: str | None = None,
-    ):
-        """Build the record for *span*, changed over *prev*, expired at *expire*."""
-        diffRange = None if prev is None else str(prev)
-        return cls(at=str(span), source=source, diffRange=diffRange, expire=expire)
 
     def validate(self):
         Span.parse(self.at)
-        if self.diffRange is not None:
-            Span.parse(self.diffRange)
+        if self.cover is not None:
+            if not isinstance(self.cover, Cover):
+                raise ValueError("cover must be a Cover")
+            self.cover.validate()
         if self.expire is not None:
             parse_time(self.expire)
             if not isinstance(self.source, str):
                 raise ValueError("an expired source must carry its source")
+
+    def to_dict(self):
+        data = super().to_dict()
+        if self.cover is not None:
+            data["cover"] = str(self.cover)
+        return data
+
+    @classmethod
+    def _from_dict(cls, data: dict):
+        if "cover" in data:
+            data["cover"] = Cover.parse(data["cover"])
+        return cls(**data)
 
 
 def _expiry(source: SourceRecord):
@@ -129,15 +158,34 @@ class ReviewRecord(Record):
     time: str
     edit: str | None = None
     comment: str | None = None
-    expireAt: dict[str, str] | None = None
+    coveredAt: list[Cover] | None = None
     """Derived on load from ``time`` and the sources, then serialized:
-    the ranges of ``at`` that a later version superseded, mapped to when.
+    ``"span@stamp"`` for each range of ``at`` superseded by a later version.
     It is refreshed whenever written into the ``.snd``,
     html only reads it (at most to verify)."""
 
     def validate(self):
         parse_time(self.time)
         Span.parse(self.at)
+        if self.coveredAt is not None:
+            if not isinstance(self.coveredAt, list):
+                raise ValueError("coveredAt must be a list of Cover values")
+            for cover in self.coveredAt:
+                if not isinstance(cover, Cover):
+                    raise ValueError("coveredAt must be a list of Cover values")
+                cover.validate()
+
+    def to_dict(self):
+        data = super().to_dict()
+        if self.coveredAt is not None:
+            data["coveredAt"] = [str(entry) for entry in self.coveredAt]
+        return data
+
+    @classmethod
+    def _from_dict(cls, data: dict):
+        if "coveredAt" in data:
+            data["coveredAt"] = [Cover.parse(cover) for cover in data["coveredAt"]]
+        return cls(**data)
 
 
 class ReviewIndex:
@@ -146,7 +194,7 @@ class ReviewIndex:
     The original order is kept in :attr:`records` (the serialization source);
     :attr:`sources` and :attr:`reviews` partition it, and
     :attr:`sources_by_line` groups sources by the line they cover so a review's
-    ``expireAt`` can be derived.  The index is rebuilt on every load, never
+    ``coveredAt`` can be derived.  The index is rebuilt on every load, never
     stored.
     """
 
@@ -173,17 +221,17 @@ class ReviewIndex:
                     f" (lines {sorted(missing)})"
                 )
         for review in self.reviews:
-            review.expireAt = self.exec_expire(review) or None  # discard when to_dict
+            review.coveredAt = self.covered_at(review) or None
 
-    def exec_expire(self, review: ReviewRecord):
-        """Derive a review's ``expireAt`` map from its ``time`` and the sources.
+    def covered_at(self, review: ReviewRecord):
+        """Derive a review's ``coveredAt`` entries from its creation version.
 
-        Each contiguous run of lines that shares the same source version maps to
-        that source's ``expire``; a run still on the live version is omitted.
+        Each contiguous run of lines that shares the same source version becomes
+        one ``span@stamp`` value; a run still on the live version is omitted.
         """
         span = Span.parse(review.at)
         moment = parse_time(review.time)
-        line_expire_at: dict[str, str] = {}
+        covered_at: list[Cover] = []
         start: int | None = None
         current: str | None = None
         for line in span.lines():
@@ -195,11 +243,11 @@ class ReviewIndex:
                 continue
             else:  # zone of current ends, record the span
                 if current is not None:
-                    line_expire_at[str(Span(start, 0, line, 0))] = current
+                    covered_at.append(Cover(Span(start, 0, line, 0), current))
                 start, current = line, expire
         if start is not None and current is not None:
-            line_expire_at[str(Span(start, 0, line + 1, 0))] = current
-        return line_expire_at
+            covered_at.append(Cover(Span(start, 0, line + 1, 0), current))
+        return covered_at
 
     def _live_at(self, line: int, moment: datetime):
         """The source whose version was live at *moment* on *line*.
