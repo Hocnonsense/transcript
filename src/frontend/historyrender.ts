@@ -132,25 +132,24 @@ function editRow(text: string, source: string,
 }
 
 /** One row: the unrendered raw code box above its metadata and actions.  The
- *  row's main colour tints the source box border. */
-function recordRow(kind: string, raw: HTMLElement, meta: HTMLElement, color: string) {
+ *  row's main colour tints the source box border; a source row has no metadata
+ *  of its own, its boundary time is drawn as a divider after its reviews. */
+function recordRow(kind: string, raw: HTMLElement, meta: HTMLElement | null,
+  color: string) {
   const row = document.createElement('div');
   row.className = `snd-rec snd-rec-${kind}`;
   row.style.setProperty('--rec-color', color);
-  row.append(raw, meta);
+  row.append(raw);
+  if (meta) row.appendChild(meta);
   return row;
 }
 
-function timeLine(text?: string | null) {
-  const meta = document.createElement('div');
-  meta.className = 'snd-rec-meta-head';
-  if (text) {
-    const date = document.createElement('time');
-    date.className = 'snd-rec-time';
-    date.textContent = text;
-    meta.appendChild(date);
-  }
-  return meta;
+/** The highlighted timestamp shared by a review's comment and a source divider. */
+function timeStamp(text: string) {
+  const date = document.createElement('time');
+  date.className = 'snd-rec-time';
+  date.textContent = text;
+  return date;
 }
 
 /** Actions appended to a record's comment: delete for every review, edit for
@@ -233,22 +232,31 @@ export function renderRecords(container: HTMLElement, history: History | null,
         text, above, below,
         colorOf(Math.max(index - 1, 0)), colorOf(index),
       ),
-      sourceMeta(history.before[index]),
+      null,
       colorOf(index),
     ));
     for (const entry of history.entries[index] || []) {
       container.appendChild(entryRow(entry, text, colorOf(index), opts, slots));
     }
+    // The boundary this version was valid before closes its group, below every
+    // review written against it and above the next version's content.
+    const before = history.before[index];
+    if (before) container.appendChild(sourceSeparator(before, colorOf(index)));
   }
   placeFocus(container, slots, opts.focus);
   return slots;
 }
 
-function sourceMeta(before: string | null) {
-  const meta = document.createElement('div');
-  meta.className = 'snd-rec-meta';
-  if (before) meta.append(timeLine(`valid before: ${before}`));
-  return meta;
+/** A source boundary as a divider: its time on the left, a rule filling the
+ *  rest of the line.  The time carries the source version's colour. */
+function sourceSeparator(before: string, color: string) {
+  const divider = document.createElement('div');
+  divider.className = 'snd-rec-sep';
+  divider.style.setProperty('--rec-color', color);
+  const rule = document.createElement('span');
+  rule.className = 'snd-rec-sep-rule';
+  divider.append(timeStamp(before), rule);
+  return divider;
 }
 
 function entryRow(entry: HistoryEntry, source: string, color: string,
@@ -259,10 +267,12 @@ function entryRow(entry: HistoryEntry, source: string, color: string,
     : highlightRow(source, entry.highlightRange, color);
   const meta = document.createElement('div');
   meta.className = 'snd-rec-meta';
-  meta.appendChild(timeLine(entry.time));
+  // The timestamp leads the comment: it is the first thing in the comment box,
+  // so the review reads as one line rather than a separate metadata row.
   const body = document.createElement('div');
   body.className = 'snd-rec-comment';
-  body.textContent = entry.comment || '';
+  body.appendChild(timeStamp(entry.time));
+  if (entry.comment) body.appendChild(document.createTextNode(entry.comment));
   meta.appendChild(body);
   meta.appendChild(actionsFor(annotation, opts));
   if (opts.onOpen) {
