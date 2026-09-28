@@ -263,30 +263,25 @@ def parse_time(value: str):
 
 
 class At(NamedTuple):
-    """A span with an optional expiry timestamp."""
+    """A source span paired with its version boundary stamp."""
 
     span: Span
-    expired: str | None = None
+    time: str
+
+    def validate(self):
+        if not isinstance(self.span, Span) or not isinstance(self.time, str):
+            raise ValueError("at must pair a Span with a timestamp")
+        parse_time(self.time)
+
+    def __str__(self):
+        return f"{self.span}@{self.time}"
 
     @classmethod
     def parse(cls, text: str):
-        """Split an ``at`` value into its span and optional expiry timestamp.
-
-        >>> At.parse("L35")
-        At(span=Span(start_line=34, start_col=0, end_line=35, end_col=0), expired=None)
-        >>> At.parse("L35 2026-09-21T10:00:00.000Z").expired
-        '2026-09-21T10:00:00.000Z'
-        """
-        text = text.strip()
-        coordinate, _, stamp = text.partition(" ")
-        return cls(Span.parse(coordinate), (stamp.strip() or None))
-
-    def __str__(self):
-        """
-        >>> str(At(Span(34, 0, 35, 0), None))
-        'L35'
-        >>> str(At(Span(34, 0, 35, 0), "2026-09-21T10:00:00.000Z"))
-        'L35 2026-09-21T10:00:00.000Z'
-        """
-        span = str(self.span)
-        return span if self.expired is None else f"{span} {self.expired}"
+        """Parse one archive ``span@stamp`` value."""
+        if not isinstance(text, str):
+            raise ValueError("at must be a span@stamp string")
+        span, separator, stamp = text.partition("@")
+        if not separator or not span or not stamp or "@" in stamp:
+            raise ValueError("at must be a span@stamp string")
+        return cls(Span.parse(span), stamp)

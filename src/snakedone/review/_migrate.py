@@ -2,9 +2,9 @@
 
 Records are immutable facts about a version: a source's ``at`` is a span in
 the version it was created in, and its ``cover`` names the region it came from
-in the *immediately previous* version plus that version's ``expire`` stamp.  A
+in the *immediately previous* version plus that version's ``before`` boundary.  A
 migration therefore never rewrites an old record.  A live source whose region
-moved or changed is frozen (``expire`` set, its own text kept in ``source``) and
+moved or changed is frozen (``before`` set, its own text kept in ``source``) and
 its new region is appended as live successors, each carrying a ``cover`` back
 into the frozen source.  Movement alone is enough to need a successor: without
 one the old coordinates could not be mapped forward.
@@ -23,8 +23,8 @@ from dataclasses import replace
 from datetime import datetime
 from difflib import SequenceMatcher
 
-from ._records import Cover, Record, SourceRecord
-from ._span import Span, _line, _starts, timestamp
+from ._records import Record, SourceRecord
+from ._span import At, Span, _line, _starts, timestamp
 
 __all__ = ["migrate"]
 
@@ -153,7 +153,7 @@ def migrate(
     new_starts = align.new_starts
     seen: set[int] = set()
     for record in records:
-        if not isinstance(record, SourceRecord) or record.expire is not None:
+        if not isinstance(record, SourceRecord) or record.before is not None:
             yield record
             continue
         span = Span.parse(record.at)
@@ -167,7 +167,7 @@ def migrate(
             seen |= lines
             yield record
             continue
-        yield replace(record, expire=stamp, source=old_segment)
+        yield replace(record, before=stamp, source=old_segment)
         if extent is None:
             continue
         new_start, new_stop = extent
@@ -176,7 +176,7 @@ def migrate(
             # the chain can still be followed to where the region stood.
             at = Span.from_bound(new_start, new_start, new_starts)
             old = Span.from_bound(start, stop, old_starts)
-            yield SourceRecord(at=str(at), cover=Cover(old, stamp))
+            yield SourceRecord(at=str(at), cover=At(old, stamp))
             continue
         for new_span, old_span in align.split(new_start, new_stop):
             if new_span.start_line in seen:
@@ -184,5 +184,5 @@ def migrate(
             seen.add(new_span.start_line)
             yield SourceRecord(
                 at=str(new_span),
-                cover=None if old_span is None else Cover(old_span, stamp),
+                cover=None if old_span is None else At(old_span, stamp),
             )

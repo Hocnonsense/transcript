@@ -39,8 +39,8 @@ export interface History {
 }
 
 /** Per-character marks of one row against the boundary above it (the row is
- *  the newer side: inserted characters get an overline, and a gap is left
- *  where the older side had text that the row lost). */
+ *  the newer side: inserted characters get an overline, and a gap is left where
+ *  the older side dropped text outright. */
 export function aboveMarks(previous: string, text: string) {
   const ins = new Array<boolean>(text.length).fill(false);
   const gaps: number[] = [];
@@ -50,7 +50,6 @@ export function aboveMarks(previous: string, text: string) {
       offset += slot.mod.length;
     } else if (slot.mod !== '') {
       for (let i = offset; i < offset + slot.mod.length; i += 1) ins[i] = true;
-      if (slot.orig !== '') gaps.push(offset);
       offset += slot.mod.length;
     } else {
       gaps.push(offset);
@@ -60,8 +59,8 @@ export function aboveMarks(previous: string, text: string) {
 }
 
 /** Per-character marks of one row against the boundary below it (the row is
- *  the older side: deleted characters get an underline, and a gap is left
- *  where the newer side added text). */
+ *  the older side: deleted characters get an underline, and a gap is left where
+ *  the newer side inserted text outright. */
 export function belowMarks(text: string, next: string) {
   const del = new Array<boolean>(text.length).fill(false);
   const gaps: number[] = [];
@@ -72,7 +71,6 @@ export function belowMarks(text: string, next: string) {
     } else if (slot.orig !== '') {
       for (let i = offset; i < offset + slot.orig.length; i += 1) del[i] = true;
       offset += slot.orig.length;
-      if (slot.mod !== '') gaps.push(offset);
     } else {
       gaps.push(offset);
     }

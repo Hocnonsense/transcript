@@ -42,17 +42,18 @@ export const markDel = (() => {
 })()
 
 /** One version's text with the marks of both adjacent boundaries, as a raw code
- *  box.  The row is the newer side above (insertions get an overline and a gap
- *  where the older side had text) and the older side below (deletions get an
- *  underline and a gap where the newer side adds text). */
+ *  box.  The row is the newer side above (inserted characters get an overline;
+ *  a run the older side dropped outright leaves a gap) and the older side below
+ *  (deleted characters get an underline; a run the newer side inserted outright
+ *  leaves a gap).  A replacement has a character to decorate on each side, so
+ *  it needs no chevron. */
 function sourceRow(text: string, above: ReturnType<typeof aboveMarks>,
   below: ReturnType<typeof belowMarks>, aboveColor: string, belowColor: string) {
   const row = document.createElement('pre');
   row.className = 'snd-rec-code';
   for (let index = 0; index <= text.length; index += 1) {
-    // Each side appends its own chevron, in its boundary colour; a replacement
-    // has a gap on both sides, so both appear — two zero-width anchors at the
-    // same boundary, one above and one below the line.
+    // Each side appends its own chevron, in its boundary colour, only where the
+    // adjacent version changed text this row has nothing to show for.
     if (above.gaps.includes(index)) row.appendChild(markDel('v', aboveColor));
     if (below.gaps.includes(index)) row.appendChild(markDel('^', belowColor));
     if (index === text.length) break;
