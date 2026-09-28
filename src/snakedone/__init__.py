@@ -26,6 +26,6 @@ def rule(name=None):
     Requires the optional ``snakemake`` extra, imported on first call so that
     ``import snakedone`` stays dependency-free.
     """
-    from ._rule import rule as declare
+    from ._rule.core import rule as declare
 
     return declare(name)

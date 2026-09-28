@@ -15,7 +15,7 @@ from .review.load import read_source, review_block
 from .snd import write
 
 if TYPE_CHECKING:
-    from ._rule import Rule
+    from ._rule.core import Rule
 
 
 def get_parser():
@@ -152,7 +152,7 @@ def write_smk(snd: Path, smk: Path, document_src: Path):
     The rule is read statically from ``archive``'s canonical block; ``document``
     is the source the rule's ``input.document`` and name are derived from.
     """
-    from ._rule import Rule
+    from ._rule.core import Rule
 
     source = snd.read_text(encoding="utf-8-sig")
     try:

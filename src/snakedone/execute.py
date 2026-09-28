@@ -11,7 +11,7 @@ import types
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from . import _registry
+from ._rule import registry
 from .parse import ReportBlock, span
 
 if TYPE_CHECKING:
@@ -34,7 +34,7 @@ class ExecutionScope:
 
     def __enter__(self):
         filename = str(self.path)
-        self.registry_scope = _registry.Execution(self.wildcards)
+        self.registry_scope = registry.Execution(self.wildcards)
         self.registry_scope.__enter__()
         self.old_path, self.old_argv = sys.path, sys.argv
         sys.path = [str(self.path.parent), *self.old_path]
@@ -186,13 +186,13 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
             if isinstance(node, ast.With):
                 context = eval_expression(node.items[0].context_expr)
                 if context is not report:
-                    if context is _registry.current():
+                    if context is registry.current():
                         if TYPE_CHECKING:
-                            context = _registry.current()
+                            context = registry.current()
                             assert context is not None
                         context.set_lambdas(node)
                     with_normal(context, node)
-                    job = _registry.current()
+                    job = registry.current()
                     if context is job and job is not None:
                         rule_s, rule_e = span(node.items[0].context_expr, self.position)
                         job.edit = span(node, self.position), self.source[rule_s:rule_e]
@@ -223,7 +223,7 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
             outputs.append(with_snakedone(context, blocks[-1], optional_vars))
             if rule_not_set:
                 rule_not_set = check_namespace(self, node, namespace)
-        job = _registry.current()
+        job = registry.current()
     if failures:
         raise failures[0]
     return blocks, outputs, job
@@ -234,7 +234,7 @@ def check_namespace(self: AstDocument, node: ast.stmt, namespace: dict):
 
     Return whether the rule is still unset.
     """
-    job = _registry.current()
+    job = registry.current()
     if job is None:
         return True
     for name, value in namespace.items():

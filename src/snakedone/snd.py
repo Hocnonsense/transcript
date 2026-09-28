@@ -17,7 +17,7 @@ from .parse import (
 )
 
 if TYPE_CHECKING:
-    from ._rule import Rule
+    from ._rule.core import Rule
     from .document import AstDocument
 
 

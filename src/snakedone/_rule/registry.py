@@ -3,6 +3,10 @@
 The values live in ``ContextVar``\\ s so that concurrent executions in one
 process (threads or asyncio tasks) cannot clobber each other.  A plain global
 would be shared by every execution.
+
+This module is imported by :mod:`snakedone.execute` on every run, so
+``_rule/__init__.py`` must not import :mod:`snakedone._rule.core`: importing
+this module has to stay independent of the optional ``snakemake`` extra.
 """
 
 from __future__ import annotations
@@ -11,7 +15,7 @@ from contextvars import ContextVar
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from ._rule import Rule
+    from .core import Rule
 
 _current: ContextVar[Rule | None] = ContextVar("snakedone_rule", default=None)
 _wildcards: ContextVar[dict[str, str] | None] = ContextVar(
