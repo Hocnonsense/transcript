@@ -118,3 +118,20 @@ function refine(slots: DiffSlot[]) {
   }
   return out;
 }
+
+/** The outermost changed window of *original* and *modified*: the common
+ *  prefix and suffix are trimmed, so ``start``/``end`` are offsets into
+ *  *original* and ``revised`` is the modified middle. */
+export function diffInfo(original: string, modified: string) {
+  const max = Math.min(original.length, modified.length);
+  let start = 0;
+  while (start < max && original[start] === modified[start]) start += 1;
+  let originalEnd = original.length;
+  let modifiedEnd = modified.length;
+  while (originalEnd > start && modifiedEnd > start
+    && original[originalEnd - 1] === modified[modifiedEnd - 1]) {
+    originalEnd -= 1;
+    modifiedEnd -= 1;
+  }
+  return { start, end: originalEnd, revised: modified.slice(start, modifiedEnd) };
+}

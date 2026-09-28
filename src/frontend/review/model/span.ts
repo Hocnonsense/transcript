@@ -145,6 +145,22 @@ export function lineStarts(text: string) {
   return starts;
 }
 
+/** The whole source line(s) a range spans: from the line start of *start* to
+ *  the line end of *end* (no trailing newline). */
+export function fullLines(text: string, start: number, end: number) {
+  const before = text.lastIndexOf('\n', start - 1);
+  const lineStart = before === -1 ? 0 : before + 1;
+  const lineEnd = text.indexOf('\n', end);
+  return { start: lineStart, end: lineEnd === -1 ? text.length : lineEnd };
+}
+
+/** One 0-based line of *text* from its precomputed *starts*, newline excluded. */
+export function lineAt(text: string, starts: number[], line: number) {
+  const start = line < starts.length ? starts[line] : text.length;
+  const end = line + 1 < starts.length ? starts[line + 1] - 1 : text.length;
+  return text.slice(start, end);
+}
+
 function partition(text: string, separator: string): [string, string, string] {
   const index = text.indexOf(separator);
   if (index === -1) return [text, '', ''];

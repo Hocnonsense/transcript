@@ -3,7 +3,8 @@
  *  unrendered code box (``raw``) beside its metadata (``comment``).  Rendering
  *  only; the data and per-character marks live in ``history.ts``. */
 
-import type { Annotation } from './annotation';
+import type { Annotation } from '../annotation';
+import { markDel } from '../render/marks';
 import {
   aboveMarks, belowMarks, HISTORY_PALETTE, History, HistoryEntry,
 } from './history';
@@ -15,31 +16,6 @@ function rgba(hex: string, alpha: number) {
   const b = parseInt(value.slice(4, 6), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 }
-
-/** A zero-width diff mark:
- *  - `v`: `last-del`, above the line (a run the last version had and this row lost),
- *  - `^`: `next-ins`, below it (a run the next version adds and this row lacks)
- *  - `|`: `edit-del`, the edit-box deletion bar
- *
- *  The reviewed range reuses the two chevrons for its ends.
- *  An optional `color` sets the anchor's `currentColor`*/
-export const markDel = (() => {
-  /** The zero-width anchor every diff mark is built on. It holds no inline space,
-   *  so the overlay fill stays aligned with the textarea. */
-  function markAnchor(inner: string) {
-    const span = document.createElement('span');
-    span.className = 'snd-diff-anchor';
-    span.innerHTML = inner;
-    return span;
-  }
-
-  const markDelMap = { 'v': 'last-del', '^': 'next-ins', '|': 'edit-del' } as const;
-  return (kind: 'v' | '^' | '|', color?: string) => {
-    const mark = markAnchor(`<i class="snd-diff-${markDelMap[kind]}"></i>`);
-    if (color) mark.style.color = color;
-    return mark;
-  }
-})()
 
 /** One version's text with the marks of both adjacent boundaries, as a raw code
  *  box.  The row is the newer side above (inserted characters get an overline;

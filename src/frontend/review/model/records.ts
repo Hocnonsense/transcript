@@ -7,7 +7,7 @@
  * the corresponding strings for superseded parts of a review. */
 
 import { At, Span } from './span';
-import type { DiffSlot } from './diff';
+import type { DiffSlot } from '../text/diff';
 
 /** The JSON shape of a source record. */
 export interface RawSourceRecord {

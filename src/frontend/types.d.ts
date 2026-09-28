@@ -1,6 +1,6 @@
-import type { Annotation } from './annotation';
-import type { ReviewStore } from './reviewstore';
-import type { Changes } from './diff';
+import type { Annotation } from './review/annotation';
+import type { ReviewStore } from './review/reviewstore';
+import type { Changes } from './review/text/diff';
 
 declare global {
   interface Window {

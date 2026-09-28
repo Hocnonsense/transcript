@@ -8,144 +8,21 @@
  */
 
 import { Annotation } from './annotation';
-import { DiffSlot, diffText } from './diff';
-import { History, HistoryEntry } from './history';
-import { RawRecordEntry, RecordEntry, ReviewRecord, SourceRecord, parseRecords } from './records';
-import { At, Span, lineStarts } from './span';
-import type { Point } from './span';
+import { History, HistoryEntry } from './history/history';
+import { exportIsland, exportSource, renderBlock } from './model/block';
+import { buildIndex, childAt, coveredBy, mapOffset, unmapOffset } from './model/chain';
+import type { ChainNode, ReviewIndex } from './model/chain';
+import {
+  decodedLineSpan as regionLineSpan,
+  decodedSpan as regionSpan,
+  spanToDecoded as toDecoded,
+} from './model/coords';
+import type { RegionInfo } from './model/coords';
+import { RawRecordEntry, RecordEntry, ReviewRecord, SourceRecord, parseRecords } from './model/records';
+import { At, Span, fullLines, lineAt, lineStarts } from './model/span';
+import type { Point } from './model/span';
+import { diffText } from './text/diff';
 import type { MarkdownReview } from './review';
-
-interface RegionInfo {
-  rawStart: number;
-  rawEnd: number;
-  text: string;
-  map: number[];
-}
-
-interface ReviewIndex {
-  /** Version → line → the source live there, where the version is its
-   *  ``before`` boundary (``null`` for the live version). Parents are found from a
-   *  source's ``cover`` and looked up here. */
-  byVersion: Map<string | null, Map<number, SourceRecord>>;
-  /** Parent version → old line → the successors that replaced it. Keyed by
-   *  the parent's ``before``, which is what a successor's ``cover`` names. */
-  successors: Map<string, Map<number, SourceRecord[]>>;
-}
-
-/** Index each source by the version it was live in and the line it covered
- *  (``byVersion``), and each successor by the parent version and old line its
- *  ``cover`` names (``successors``). */
-function buildIndex(records: RecordEntry[]) {
-  const byVersion = new Map<string | null, Map<number, SourceRecord>>();
-  const successors = new Map<string, Map<number, SourceRecord[]>>();
-  for (const record of records) {
-    if (record.type !== 'source') continue;
-    const span = record.at;
-    const stamp = record.before ?? null;
-    const lines = byVersion.get(stamp) ?? byVersion.set(stamp, new Map()).get(stamp)!;
-    for (let line = span.lastLine(); line >= span.start_line; line -= 1) {
-      lines.set(line, record);
-    }
-    if (record.cover) {
-      const { span: old, time } = record.cover;
-      const bucket = successors.get(time) ?? successors.set(time, new Map()).get(time)!;
-      for (let line = old.start_line; line <= old.lastLine(); line += 1) {
-        const list = bucket.get(line) ?? bucket.set(line, []).get(line)!;
-        list.push(record);
-      }
-    }
-  }
-  for (const bucket of successors.values()) {
-    bucket.forEach(list => list.sort((a, b) => {
-      const delta_line = a.cover!.span.start_line - b.cover!.span.start_line;
-      if (delta_line !== 0) return delta_line;
-      return a.cover!.span.start_column - b.cover!.span.start_column;
-    }));
-  }
-  return { byVersion, successors };
-}
-
-
-function fullLines(text: string, start: number, end: number) {
-  const before = text.lastIndexOf('\n', start - 1);
-  const lineStart = before === -1 ? 0 : before + 1;
-  const lineEnd = text.indexOf('\n', end);
-  return { start: lineStart, end: lineEnd === -1 ? text.length : lineEnd };
-}
-
-/** Whether ``[start, end)`` is fully contained in the union of *ranges*. */
-function coveredBy(ranges: { start: number; end: number }[], start: number, end: number) {
-  const spans = [...ranges].sort((a, b) => a.start - b.start);
-  let reach = start;
-  for (const span of spans) {
-    if (span.start > reach) break;
-    if (span.end > reach) reach = span.end;
-    if (reach >= end) return true;
-  }
-  return false;
-}
-
-/** One step of a line's version chain: the source and the line it names. */
-interface ChainNode {
-  source: SourceRecord;
-  span: Span;
-  line: number;
-}
-
-function escapeSlot(content: string) {
-  let text = content.replace(/\\/g, '\\\\').replace(/\r/g, '\\r').replace(/\t/g, '\\t');
-  text = text.replace(
-    /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g,
-    char => '\\x' + char.charCodeAt(0).toString(16).padStart(2, '0'));
-  return text.replace(/"{3,}|"+$/g, match => match.replace(/"/g, '\\"'));
-}
-
-/** Map an offset on the old side of an alignment to the new side.  Equal runs
- *  translate exactly; a replaced run spreads linearly, the same approximation
- *  the record spans already carry. */
-function mapOffset(slots: DiffSlot[], offset: number) {
-  let old = 0;
-  let next = 0;
-  for (const slot of slots) {
-    const width = slot.orig.length;
-    if (offset < old + width) {
-      return next + (width ? Math.round((offset - old) * slot.mod.length / width) : 0);
-    }
-    old += width;
-    next += slot.mod.length;
-  }
-  return next;
-}
-
-/** Map an offset on the new side back to the old side: the inverse of
- *  :func:`mapOffset`, used when walking a version chain backwards. */
-function unmapOffset(slots: DiffSlot[], offset: number) {
-  let old = 0;
-  let next = 0;
-  for (const slot of slots) {
-    const width = slot.mod.length;
-    if (offset < next + width) {
-      return old + (width ? Math.round((offset - next) * slot.orig.length / width) : 0);
-    }
-    old += slot.orig.length;
-    next += slot.mod.length;
-  }
-  return old;
-}
-
-/** The successor whose ``cover`` span holds *point* (left-closed),
- *  or the nearest one to its left when none does.
- *  Assume children at the same line of the point */
-function childAt(childs: SourceRecord[], point: Point) {
-  let best: SourceRecord | null = null;
-  for (const child of childs) {
-    if (!child.cover) continue;
-    const contain = child.cover.span.contains(point);
-    if (contain === 0) return child;
-    if (best === null || contain < 0) best = child;
-  }
-  return best;
-}
 
 export class ReviewStore {
   source: string;
@@ -277,10 +154,7 @@ export class ReviewStore {
 
   /** One line of the current body. */
   private bodyLine(line: number): string {
-    const start = line < this.lineStarts.length ? this.lineStarts[line] : this.source.length;
-    const end = line + 1 < this.lineStarts.length
-      ? this.lineStarts[line + 1] - 1 : this.source.length;
-    return this.source.slice(start, end);
+    return lineAt(this.source, this.lineStarts, line);
   }
 
   /** The recorded text of *source*'s line *line*: its own frozen ``source``
@@ -294,7 +168,6 @@ export class ReviewStore {
     return this.bodyLine(line);
   }
 
-  /** The versions of *line*, oldest first, as source plus line in that version. */
   /** The versions of *line*, oldest first, as source plus line in that version.
    *  Walks the ``cover`` chain backwards, mapping the point through the same
    *  cached diff the forward pass uses. */
@@ -386,11 +259,7 @@ export class ReviewStore {
   }
 
   private rawLine(line: number) {
-    const start = line < this.lineStarts.length
-      ? this.lineStarts[line] : this.source.length;
-    const end = line + 1 < this.lineStarts.length
-      ? this.lineStarts[line + 1] - 1 : this.source.length;
-    return this.source.slice(start, end);
+    return lineAt(this.source, this.lineStarts, line);
   }
 
   /** The version stack for *annotation*'s window: one text per version, oldest
@@ -557,28 +426,18 @@ export class ReviewStore {
   }
 
   exportSource() {
-    const body = this.source.replace(/\n+$/, '') + '\n';
-    if (!this.records.length) return body;
-    return body + '\n' + this.renderBlock() + '\n';
+    return exportSource(this.source, this.records, this.hash);
   }
 
   renderBlock() {
-    const lines = this.records.map(record => JSON.stringify(record.data()));
-    const inner = lines.length
-      ? '[\n' + lines.map(line => '    ' + line).join(',\n') + '\n    ]'
-      : '[]';
-    const marker = this.hash ? `snakedone.review=${this.hash}` : 'snakedone.review';
-    return `if "${marker}":\n    """${escapeSlot(inner)}"""`;
+    return renderBlock(this.records, this.hash);
   }
 
   /** Serialize the current records for the ``snakedone-reviews`` island, so a
    *  saved page reloads with the annotations the user added. The source island
    *  holds only the archive body and is never rewritten. */
   exportIsland() {
-    const payload = { records: this.records.map(record => record.data()), hash: this.hash };
-    return JSON.stringify(payload)
-      .replace(/</g, '\\u003c')
-      .replace(/>/g, '\\u003e');
+    return exportIsland(this.records, this.hash);
   }
 
   private ensureSource(span: Span) {
@@ -591,65 +450,15 @@ export class ReviewStore {
     this.records.push(new SourceRecord({ type: 'source', at: whole.format() }));
   }
 
-  private lineCol(raw: number) {
-    let low = 0;
-    let high = this.lineStarts.length - 1;
-    while (low < high) {
-      const mid = (low + high + 1) >> 1;
-      if (this.lineStarts[mid] <= raw) low = mid;
-      else high = mid - 1;
-    }
-    return { line: low, col: raw - this.lineStarts[low] };
-  }
-
-  private rawOf(line: number, col: number) {
-    const base = line < this.lineStarts.length ? this.lineStarts[line] : this.source.length;
-    return Math.min(base + col, this.source.length);
-  }
-
   private decodedSpan(info: RegionInfo, start: number, end: number) {
-    const startRaw = info.rawStart + this.decodedRaw(info, start);
-    const lastRaw = info.rawStart + this.decodedRaw(info, Math.max(end - 1, start));
-    const first = this.lineCol(startRaw);
-    const last = this.lineCol(lastRaw);
-    return new Span(first.line, first.col, last.line, last.col + 1);
+    return regionSpan(this.source, this.lineStarts, info, start, end);
   }
 
   private decodedLineSpan(info: RegionInfo, start: number, end: number) {
-    const startRaw = info.rawStart + this.decodedRaw(info, start);
-    const lastRaw = info.rawStart + this.decodedRaw(info, Math.max(end - 1, start));
-    return new Span(
-      this.lineCol(startRaw).line, 0, this.lineCol(lastRaw).line + 1, 0);
+    return regionLineSpan(this.source, this.lineStarts, info, start, end);
   }
 
   private spanToDecoded(info: RegionInfo, span: Span) {
-    if (span.isEmpty()) return null;
-    const startRaw = this.rawOf(span.start_line, span.start_column);
-    const endRaw = this.rawOf(span.end_line, span.end_column);
-    if (endRaw <= info.rawStart || startRaw >= info.rawEnd) return null;
-    const start = rawToIndex(info.map, Math.max(startRaw - info.rawStart, 0));
-    let end = rawToIndex(info.map, Math.min(endRaw - info.rawStart, info.rawEnd - info.rawStart));
-    // A whole-line span reaches the next line's first character; drop the
-    // trailing newline so the decoded range covers the line's content.
-    while (end > start && info.text[end - 1] === '\n') end -= 1;
-    if (end <= start) return null;
-    return { start, end };
+    return toDecoded(this.source, this.lineStarts, info, span);
   }
-
-  private decodedRaw(info: RegionInfo, decoded: number) {
-    if (decoded >= info.map.length) return info.rawEnd - info.rawStart;
-    return info.map[decoded];
-  }
-}
-
-/** The largest index whose ``map`` entry is <= *raw*, or the map length. */
-function rawToIndex(map: number[], raw: number) {
-  let low = 0;
-  let high = map.length;
-  while (low < high) {
-    const mid = (low + high) >> 1;
-    if (map[mid] < raw) low = mid + 1;
-    else high = mid;
-  }
-  return low;
 }

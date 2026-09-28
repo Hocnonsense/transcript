@@ -5,12 +5,10 @@
  * `record` yet; `ReviewStore.save` attaches one.
  */
 
-import type { ReviewRecord } from './records';
+import type { ReviewRecord } from './model/records';
+import type { Band } from './render/overlay';
 
 export interface Range { start: number; end: number; }
-
-/** Screen band of the drawn box, filled by the renderer. */
-export interface Band { l: number; r: number; t: number; b: number; }
 
 export class Annotation {
   /** The stored record this annotation edits, once it has been saved. */

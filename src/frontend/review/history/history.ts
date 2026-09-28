@@ -6,8 +6,8 @@
  * with the same diff as the edit view.  Pure: the drawing lives in
  * ``historyrender.ts``. */
 
-import type { Annotation } from './annotation';
-import { diffText } from './diff';
+import type { Annotation } from '../annotation';
+import { diffText } from '../text/diff';
 
 /** Okabe–Ito colour-blind safe palette; boundaries cycle through it. */
 export const HISTORY_PALETTE = ['#0072B2', '#D55E00', '#009E73', '#E69F00'];
