@@ -351,7 +351,7 @@
   const selector = '[data-snd-report][data-snd-renderer="datavzrd"]';
   for (const container of document.querySelectorAll(selector)) {
     try {
-      createReport(await filesFor(container.dataset.snakedoneReport), container);
+      createReport(await filesFor(container.dataset.sndReport), container);
     } catch (error) {
       const message = document.createElement("p");
       message.setAttribute("role", "alert");
