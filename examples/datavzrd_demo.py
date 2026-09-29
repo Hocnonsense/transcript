@@ -3,7 +3,7 @@
 import pandas as pd
 import polars as pl
 
-from snakedone import datavzrd
+from snakedone import datavzrd, table
 
 measurements = {
     "sample": ["A", "B", "C", "D"],
@@ -38,3 +38,9 @@ if "snakedone":
     polars_frame.write_csv()
     print(polars_frame.write_csv())
     polars_frame
+
+if "snakedone":
+    """
+    Or you can use the :func:`snakedone.table` renderer to simply show a static Markdown table.
+    """
+    table(pandas_frame)

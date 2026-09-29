@@ -3,7 +3,7 @@
 import pandas as pd
 import polars as pl
 
-from snakedone import datavzrd
+from snakedone import datavzrd, table
 
 measurements = {
     "sample": ["A", "B", "C", "D"],
@@ -155,4 +155,20 @@ if "snakedone":
     │ C      ┆ 0.9   ┆ 40    │
     │ D      ┆ 0.6   ┆ 15    │
     └────────┴───────┴───────┘
+    """
+
+if "snakedone":
+    """
+    Or you can use the :func:`snakedone.table` renderer to simply show a static Markdown table.
+    """
+    table(pandas_frame)
+    """
+    ```snakedone-output markdown=1
+    | sample | score | count |
+    | --- | --- | --- |
+    | A | 0.8 | 10 |
+    | B | 0.3 | 25 |
+    | C | 0.9 | 40 |
+    | D | 0.6 | 15 |
+    ```
     """

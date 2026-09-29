@@ -1,7 +1,6 @@
 """Render pandas and polars DataFrames as static and interactive charts."""
 
 import pandas as pd
-import polars as pl
 
 from snakedone import vegalite
 
@@ -11,7 +10,6 @@ measurements = {
     "count": [10, 25, 40, 15],
 }
 pandas_frame = pd.DataFrame(measurements)
-polars_frame = pl.DataFrame(measurements)
 
 if "snakedone":
     """
@@ -96,7 +94,7 @@ if "snakedone":
     """
     ## polars (interactive)
     """
-    vegalite(config_dict, polars_frame)
+    vegalite(config_dict, pandas_frame)
     """
     ```snakedone-output vegalite_interactive=1
     {
