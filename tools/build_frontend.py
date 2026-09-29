@@ -17,9 +17,12 @@ STAMP = ASSETS / ".frontend.sha256"
 def fingerprint(esbuild: str):
     digest = sha256(Path(__file__).read_bytes())
     digest.update(subprocess.check_output([esbuild, "--version"]))
-    for path in sorted((ROOT / "src" / "frontend").iterdir()):
-        if path.suffix in {".ts", ".css", ".json"}:
-            digest.update(path.name.encode())
+    srcdir = ROOT / "src" / "frontend"
+    for path in sorted(srcdir.rglob("*")):
+        if path.suffix in {".ts", ".css", ".json"} and path.is_file():
+            if path.with_suffix("").suffix in {".test", ".spec"}:
+                continue
+            digest.update(str(path.relative_to(srcdir)).encode())
             digest.update(path.read_bytes())
     return digest.hexdigest()
 

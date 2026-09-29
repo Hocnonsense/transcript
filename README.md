@@ -167,10 +167,19 @@ Use `image()` or `bitmap()` for embedded bitmap data, and Markdown image links r
 Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
 Rendering reads the archive without executing Python.
 
+Markdown blocks and `markdown()` outputs can be reviewed in place: select text, then click the floating `✎` button to propose an edit, leave a comment, or do both.
+Edits and comments can be transferred across document revisions; when an annotated range is superseded, its old source is retained to show the diff.
+Each annotated range has an outlined box and a badge that opens its revision record list.
+The list shows the reviewed window from oldest to newest, with one row per source version and one per review.
+A boundary timestamp separates successive source versions; each source row has a colored line on the left, and its associated edits and highlights use the same color.
+Every review row has a delete `×`; reviews that are not superseded also have an edit `✎`.
+
 ### Embedded source
 
 Exported page embeds the archive it was generated from.
-The **Export .snd** button downloads the embedded archive, and passing the `.html` back to `snakedone` writes the same text to a `.snd` file:
+The **Export .snd** button downloads the embedded archive body with the current annotations appended.
+The **Save .html** button instead downloads a copy of the page contains the current annotations.
+Passing that saved `.html` back to `snakedone` extracts the body and annotations into a `.snd` file:
 
 ```bash
 snakedone report.html               # (over)write report.snd next to the page
@@ -178,7 +187,25 @@ snakedone report.html -o copy.snd   # write copy.snd instead
 ```
 
 The `.snd` suffix is always used; an `.html` input never executes and never renders a new page.
-`--diff` and `--overwrite` flag works, and default is diff if `.snd` file exists.
+Both `--diff` and `--overwrite` work for this extraction; when the target `.snd` already exists, the default is `--diff`.
+
+### Transferring annotations
+
+`snakedone` migrates the review block onto the freshly generated body by diffing the two bodies.
+Records are never rewritten: the old version is kept and each new source links back to the region it replaced, so annotations stay attached to the lines they reviewed while their history is preserved.
+That link is stored as one `span@timestamp` string in the source's optional `cover`; a review's derived `coveredAt` array records the superseded subranges in the same form and omits ranges that are still live.
+The reference is chosen in this order: an explicit `--previous`, else the document's own review block, else an already existing target archive.
+
+- `snakedone document.py --overwrite` transfers the block from the existing `document.snd` automatically.
+- `snakedone document.py --overwrite --previous reviewed.snd` takes it from another archive. An explicit `--previous` wins over the input's own review block, so it also overrides a stale or regenerated one; it does not apply to a `.html` input.
+- `--previous reviewed.html` takes it from a page's body plus the annotations in its reviews island.
+
+Use `--diff` instead of `--overwrite` to inspect the migrated archive before writing it.
+The block's marker records a hash of the body before it. An archive that was hand-edited behind the block's back no longer matches, so an implicit transfer drops the annotations (with a warning), and an explicitly given `--previous` with a stale hash is refused with an error instead of writing anything.
+
+Try the demo with `pixi run demo-review`: `examples/review_demo.py` is one revision with live annotations only, and `examples/review_history.py` reviews a configuration block across revisions, so some of its annotations are now fully or partly superseded.
+
+### Demo pages
 
 Wrap generated Markdown in `markdown` when an expression's value should be rendered as document Markdown instead of plain text:
 
@@ -310,6 +337,28 @@ if "snakedone":
 The label renders as a `<figure>` carrying that `id`, so ordinary Markdown links jump to it and the caption becomes a `<figcaption>`.
 A non-renderer Python value is wrapped with the built-in `code` renderer, which shows the value as a bare expression.
 If an `id` is reused for different archived content, the exporter warns, appends a numeric suffix to make the label unique, and notes the duplicate in its caption.
+
+### Composed panel grids
+
+Wrap several outputs with `compose(*panels, ncol=2, labels=True)` to arrange them as a panel grid:
+
+```python
+from snakedone import compose, label
+
+if "snakedone":
+    """
+    ## Comparison
+    """
+    compose(
+        label(chart_control, "panel-a", "Control"),
+        label(chart_treated, "panel-b", "Treatment"),
+        ncol=2,
+    )
+```
+
+Panels fill row by row and share the same column widths; the grid collapses to one column on narrow screens.
+Each panel is tagged `(A)`, `(B)`, ... in reading order; pass `labels=False` to omit them.
+This first version only lays panels out; it does not align axes or merge their scales.
 
 ## Snakemake rules
 

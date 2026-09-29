@@ -63,14 +63,16 @@ snakedone = { path = ".", editable = true, extras = [
 [tool.pixi.tasks]
 frontend-build = "python tools/build_frontend.py"
 frontend-typecheck = "tsc -p src/frontend/tsconfig.json"
+frontend-test = "python tools/test_frontend.py"
 frontend = { depends-on = ["frontend-typecheck", "frontend-build"] }
 format = "ruff format ."
 lint = "ruff check ."
 typecheck = "pyright"
 build = "hatchling build"
 test = { depends-on = ["frontend-build"], cmd = "pytest" }
-check = { depends-on = ["lint", "typecheck", "frontend-typecheck", "test"] }
+check = { depends-on = ["lint", "typecheck", "frontend-typecheck", "frontend-test", "test"] }
 demo = { depends-on = ["frontend-build"], cmd = "snakedone examples/demo.py --html" }
+demo-review = { depends-on = ["frontend-build"], cmd = "python tools/build_review_demos.py" }
 demo-serve = "python examples/serve.py"
 
 [tool.pytest.ini_options]

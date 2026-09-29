@@ -204,10 +204,27 @@ if "snakedone":
     Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
     Rendering reads the archive without executing Python.
 
+    Markdown blocks and `markdown()` outputs can be reviewed in place (front-end prototype): select rendered text and open an annotation popup to edited and comment.
+    The annotated range gets a pale outlined box, and a bookmark tab on the box shows the comment or edit on hover, and clicking it opens a read view.
+    The original box holds the whole source line(s) the range spans and grows with its content; the range is pre-selected and, while the text is unchanged, delimited by a zero-width marker at each end whose bar and two chevrons sit outside the line.
+    A marked-up range opens with the box focused, so the pre-selected range is shown between the delimiters.
+    Dragging either end, or re-selecting in the box, changes the reviewed range; collapsing the caret clears the markers until something is selected again.
+    A comment-only annotation follows that range; once the text is modified the annotation always covers the whole source line(s) the box opened with, because the replacement text stands in for all of them.
+    Once you edit the box, only the runs actually added or removed are highlighted (character-level alignment): unchanged characters stay plain, additions get a background, and deletions a red vertical bar; the end markers disappear and the annotation box on the page shrinks to just the changed region.
+    The comment box has three states: pristine (empty), editing (the draft), and committed. An uncommitted draft is committed the first time you press Enter (which also inserts a new line while staying in the box); Ctrl+Enter commits and closes the popup; clicking outside keeps the committed text but discards an uncommitted draft; Esc closes and discards everything.
+    Committing with neither a comment nor a text change keeps nothing.
+    Clicking a badge opens a revision record list for the reviewed window, oldest at the top: one row per source version and one per review. Each row stacks an unrendered code box (`raw`) above its comment; the raw's own style tells the kinds apart, so there is no type label, and the live source carries no expiry text.
+    Adjacent source versions are character-aligned, an insertion is marked with an overline on the newer row and a `^` on the older, a deletion with an underline on the older row and a `v` on the newer; a source row's comment reads `valid before: <time>` and a source box is tinted with its version's colour from a colour-blind safe palette.
+    A comment-only review is a *highlight*: its raw repeats its source's text with only the annotated range tinted. A review that changed the text is an *edit*: its raw is the replacement padded back to the source window (so untouched lines of a cross-line range stay visible), with its changed runs tinted.
+    Only the outer reviews get a box and badge: a review whose whole range is covered by the union of newer visible reviews has none, and a superseded review still counts as newer for this purpose. A badge sits at the right end of its range's first line; when two badges would land on exactly the same spot (same first line, same right end), only the review with the larger line range keeps its badge and the smaller one draws no badge (its box stays, highlighting its range), though it still appears in the larger review's window. Each outer review's range fixes the window, so earlier source versions and the reviews between them are cropped to it. The clicked review sits at the bottom when it is still current (it belongs to the live version, which is last); a superseded one leaves the live source row at the bottom instead.
+    Every review row carries a delete `×`, and a review that is not locked also carries a pencil `✎`, which turns that row's raw into the inline editor (the same transparent textarea over the diff highlight) and its comment into an editable box.
+    An annotation whose range touches text that has since been superseded (or that no version tracks) is locked: its box and badge are muted and its row offers delete but no edit, because its recorded text no longer matches the current document.
+    Annotations live in the page until saved: **Export .snd** writes them into the archive's review block, and **Save .html** writes them into the page's `snakedone-reviews` island so a reloaded page keeps them.
+
     ### Embedded source
 
-    Exported page embeds the archive it was generated from.
-    The **Export .snd** button downloads the embedded archive, and passing the `.html` back to `snakedone` writes the same text to a `.snd` file:
+    Exported page embeds the archive it was generated from **without its review block**: the `snakedone-source` island carries the archive body, while the records and body hash live in the `snakedone-reviews` island.
+    The **Export .snd** button puts the two back together (body + review block) with the current annotations, and passing the `.html` back to `snakedone` writes that text to a `.snd` file:
 
     ```bash
     snakedone report.html               # (over)write report.snd next to the page
@@ -216,6 +233,27 @@ if "snakedone":
 
     The `.snd` suffix is always used; an `.html` input never executes and never renders a new page.
     `--diff` and `--overwrite` flag works, and default is diff if `.snd` file exists.
+
+    ### Transferring annotations
+
+    Annotations are coordinates into the reviewed archive, so re-executing the `.py` would otherwise drop them.
+    `snakedone` migrates the review block onto the freshly generated body by diffing the two bodies.
+    Records are never rewritten: the old version is kept and each new source links back to the region it replaced, so annotations stay attached to the lines they reviewed while their history is preserved.
+    That link is stored as one `span@timestamp` string in the source's optional `cover`; a review's derived `coveredAt` array records the superseded subranges in the same form and omits ranges that are still live.
+    The reference is chosen in this order: an explicit `--previous`, else the document's own review block, else an already existing target archive.
+
+    - `snakedone document.py --overwrite` transfers the block from the existing `document.snd` automatically.
+    - `snakedone document.py --overwrite --previous reviewed.snd` takes it from another archive. An explicit `--previous` wins over the input's own review block, so it also overrides a stale or regenerated one; it does not apply to a `.html` input.
+    - `--previous reviewed.html` takes it from a page's body plus the annotations in its reviews island.
+
+    Use `--diff` instead of `--overwrite` to inspect the migrated archive before writing it.
+    The block's marker records a hash of the body before it. An archive that was hand-edited behind the block's back no longer matches, so an implicit transfer drops the annotations (with a warning), and an explicitly given `--previous` with a stale hash is refused with an error instead of writing anything.
+
+    ### Demo pages
+
+    Two documents ship with ready-made annotations, so the review UI can be seen without annotating by hand: `examples/review_demo.py` is one revision with four live annotations, and `examples/review_history.py` reviews a configuration block across four revisions, so some of its annotations are now fully or partly superseded.
+    Regenerate their `.snd`/`.html` with `pixi run demo-review`, which authors the review blocks from fixed timestamps.
+    An annotation whose range touches superseded or untracked content is shown in a muted colour, its popup offers **Delete** but not **Edit**, and its comment cannot be changed; only deleting it is allowed.
 
     Wrap generated Markdown in `markdown` when an expression's value should be rendered as document Markdown instead of plain text:
 
