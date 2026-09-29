@@ -1,7 +1,8 @@
 snakedone
 =========
 
-`snakedone` turns a Python file into a document that records the output of its report blocks into an archive (`.snd`) and exports it as a standalone HTML report with Markdown docstrings.
+`snakedone` turns a Python file into an executable document.
+It records report-block output in a `.snd` archive and can export that archive as a single HTML report with rendered Markdown.
 
 ## Installation
 
@@ -12,13 +13,13 @@ Install from the repository root:
 python -m pip install -e .
 # Optional HTML renderer:
 python -m pip install -e '.[html]'
-# Optional extras (each includes the HTML renderer):
-python -m pip install -e '.[datavzrd]'   # interactive Datavzrd tables
+# Optional feature extras:
+python -m pip install -e '.[datavzrd]'   # Datavzrd snapshot support
 python -m pip install -e '.[vegalite]'   # Vega-Lite charts
 python -m pip install -e '.[snakemake]'  # Snakemake rule declarations
 ```
 
-Install pandas or polars separately for the DataFrames used by your document.
+Datavzrd HTML export also requires the `datavzrd` executable on `PATH`, for example from `conda install -c conda-forge datavzrd`.
 
 ## Usage
 
@@ -46,14 +47,14 @@ With the default output path (no `-o` and no rule-declared [document redirection
 
 `--diff` executes the input, prints a unified diff when recorded outputs differ, and is mutually exclusive with `--overwrite`.
 
-Without `-o` / `--output` given, execution writes the target when it differs from the input path and compares when they are the same.
+Without `-o` / `--output`, execution writes the target when it differs from the input path and compares when they are the same.
 A document whose rule declares `output.document` or `log.document` uses that target instead whenever the input executes, so a re-executed `.snd` can write a different target than the input archive.
 
 ### HTML export
 
 ```bash
 snakedone examples/demo.snd --html                # export stored results without executing
-snakedone examples/demo.py --html                 # execute, write report.snd, export report.html
+snakedone examples/demo.py --html                 # execute, write demo.snd, export demo.html
 snakedone examples/demo.py -o report.html         # an .html output path also selects export
 snakedone examples/demo.py --diff -o report.html  # create/compare before exporting
 ```
@@ -94,15 +95,15 @@ if "snakedone":
 - `if "snakedone":` is always true, so the file runs with plain Python and needs no dependency.
 - `with snakedone.report:` runs a real context manager and requires `import snakedone`.
 
-The two entries are equivalent and may be mixed in one document.
+The two forms are equivalent and may be mixed in one document.
 A top-level `with` is a report block when its context manager is the `report` imported from `snakedone`; any alias works.
 
 Inside a block:
 
 - The first docstring is the block's Markdown; a block may consist of Markdown alone.
 - A non-string expression statement runs and echoes its value like a REPL (`repr`, or a rich output for recorded values), including an f-string.
-- Any other statement (assignment, `import`, `for`, `if`, `try`, …) runs normally; its stdout is collected as one unit, so a loop prints all of its output into a single slot.
-- The stdout of each statement is written to a docstring directly below it on every run.
+- Any other statement (assignment, `import`, `for`, `if`, `try`, …) runs normally; its captured output is collected as one unit, so a loop writes all of its output into a single slot.
+- Each statement's captured output is written to a docstring directly below it on every run.
 
 ### Example
 
@@ -158,12 +159,12 @@ Unhandled execution errors prevent archive writes, leaving an existing archive i
 
 Reports follow source order, alternating script code and report blocks.
 The page renders Markdown docstrings and highlights Python in the browser from the embedded archive.
-On first use it downloads pinned `markdown-it` and `highlight.js` assets from jsDelivr and stores them in cache.
+On first use it downloads pinned browser libraries for Markdown, syntax highlighting, and review diffs from jsDelivr and stores them in a browser cache.
 An internet connection is therefore required only while those assets are not cached.
-Script code starts collapsed and occupies no height in the document flow.
+Script code starts collapsed and can be revealed with its adjacent toggle.
 
 CSV and other text outputs retain their original formatting.
-Use `image()` or `bitmap()` for embedded bitmap data, and Markdown image links render as online images.
+Use `image()` or `bitmap()` for embedded bitmap data; HTTP(S) image links in Markdown remain external images.
 Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
 Rendering reads the archive without executing Python.
 
@@ -178,7 +179,7 @@ Every review row has a delete `×`; reviews that are not superseded also have an
 
 Exported page embeds the archive it was generated from.
 The **Export .snd** button downloads the embedded archive body with the current annotations appended.
-The **Save .html** button instead downloads a copy of the page contains the current annotations.
+The **Save .html** button instead downloads a copy of the page containing the current annotations.
 Passing that saved `.html` back to `snakedone` extracts the body and annotations into a `.snd` file:
 
 ```bash
@@ -191,8 +192,8 @@ Both `--diff` and `--overwrite` work for this extraction; when the target `.snd`
 
 ### Transferring annotations
 
-`snakedone` migrates the review block onto the freshly generated body by diffing the two bodies.
-Records are never rewritten: the old version is kept and each new source links back to the region it replaced, so annotations stay attached to the lines they reviewed while their history is preserved.
+`snakedone` transfers annotations onto a freshly generated archive by diffing the old and new bodies.
+Old source versions and reviews remain in the history, while new source versions link back to the regions they replaced.
 That link is stored as one `span@timestamp` string in the source's optional `cover`; a review's derived `coveredAt` array records the superseded subranges in the same form and omits ranges that are still live.
 The reference is chosen in this order: an explicit `--previous`, else the document's own review block, else an already existing target archive.
 
@@ -205,7 +206,7 @@ The block's marker records a hash of the body before it. An archive that was han
 
 Try the demo with `pixi run demo-review`: `examples/review_demo.py` is one revision with live annotations only, and `examples/review_history.py` reviews a configuration block across revisions, so some of its annotations are now fully or partly superseded.
 
-### Demo pages
+### Rich outputs
 
 Wrap generated Markdown in `markdown` when an expression's value should be rendered as document Markdown instead of plain text:
 
@@ -218,7 +219,7 @@ if "snakedone":
 
 ### Bitmap images
 
-Use `bitmap()` to snapshot a PNG, JPEG, GIF, or WebP path, bytes, or binary IO object into the archive:
+Use `bitmap()` to snapshot a PNG, JPEG, GIF, or WebP path, bytes, or binary file-like object into the archive:
 
 ```python
 from snakedone import bitmap
@@ -263,7 +264,7 @@ if "snakedone":
 Every view must use the managed dataset `data`; snakedone supplies the data path itself, so no intermediate files are kept.
 A single-view configuration opens that table directly instead of Datavzrd's overview page; multiple views show the overview unless `default-view` selects one.
 
-To configure column plots, save this as `table.yaml` next to your document and use `datavzrd(frame, "table.yaml")`:
+To configure column plots, save this as `table.yaml` in the working directory and use `datavzrd(frame, "table.yaml")`:
 
 ```yaml
 views:
@@ -289,6 +290,8 @@ Wrap a [Vega-Lite](https://vega.github.io/vega-lite/) chart from [Altair](https:
 ```python
 import altair as alt
 import pandas as pd
+
+from snakedone import vegalite
 
 frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
 chart = (
@@ -320,17 +323,20 @@ Alternatively, `vegalite(config, data=None)` accepts a custom Vega-Lite configur
 Wrap a value or a rich output with `label(value, id, caption="")` to give it a stable document anchor and an optional caption:
 
 ```python
-from snakedone import markdown, label
+from snakedone import label, markdown
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
 
 if "snakedone":
     """
-    See the [measurements](#table.1) and the
+    See the [measurements](#sample-a) and the
     [quality decision](#sample-a-decision).
     """
-    label(markdown("## Decision\n\nSample A passed."), "sample-a-decision")
-    label(datavzrd(measurements, config), "table.1", "table.1 Sample A measurements")
+    label(measurements, "sample-a", "Sample A measurements")
+    label(
+        markdown("## Decision\n\nSample A passed."),
+        "sample-a-decision",
+    )
 ```
 
 `id` must be a valid snakedone id (a letter followed by letters, digits, `_`, `.`, `:` or `-`).
@@ -362,7 +368,7 @@ This first version only lays panels out; it does not align axes or merge their s
 
 ## Snakemake rules
 
-A document can declare rule like in Snakemake that generates its archive or report, so a Snakefile can manage its input and output with wildcards (this requires the `snakemake` extra).
+A document can declare a Snakemake-style rule that generates its archive or report, allowing a Snakefile to manage its inputs and outputs with wildcards. This requires the `snakemake` extra.
 Declarations live in a single `with snakedone.rule() as r:` block (the "rule block") at the top of the document:
 
 ```python
@@ -395,7 +401,7 @@ with snakedone.rule("demo_report") as r:
 r.wildcards(sample="boo")
 ```
 
-### Directives declaration
+### Directive declarations
 
 A document has at most one rule block. `snakedone.rule()` may be called only once; add further declarations to the object it returns.
 `input`, `output`, `log`, `params`, and `threads` declarations may also be scattered outside the block.
@@ -403,6 +409,10 @@ Declarations made through `r.input` / `r.output` / `r.log` / `r.params` are merg
 For example:
 
 ```python
+from pathlib import Path
+
+import snakedone
+
 with snakedone.rule("demo_report") as r:
     r.input(
         a="{sample}.tsv",
@@ -412,14 +422,14 @@ with snakedone.rule("demo_report") as r:
         seed=1,
         prefix="{sample}-",
     )
-r.input.a  # raises because wildcard `sample` is unknown.
-# once a pattern is matched, the wildcards update and the same value may be set repeatedly.
+r.input.a  # Raises because wildcard `sample` is unknown.
+# Once a pattern is matched, the wildcards update and the same value may be set repeatedly.
 (b,) = r.input("boo.yaml")
-assert b == Path("boo.yaml")  # the returned value is resolved as a path.
-assert r.input.a == Path("boo.tsv")  # wildcards now apply to every declaration.
-r.params.prefix = "haa-"  # raises: wildcard `haa` mismatches the previous `boo`.
-r.params.seed = 2  # raises: value does not match the declared pattern.
-# neither conflicts nor matches, so it is registered and written to the archive.
+assert b == Path("boo.yaml")  # The returned value is resolved as a path.
+assert r.input.a == Path("boo.tsv")  # Wildcards now apply to every declaration.
+r.params.prefix = "haa-"  # Raises: wildcard `haa` conflicts with `boo`.
+r.params.seed = 2  # Raises: the value does not match the declaration.
+# This name is new, so it is registered and written to the archive.
 r.params.seed2 = 2
 ```
 
@@ -430,7 +440,7 @@ A later same-list pattern that would rewrite an already-accepted literal is an e
 Declaring a default with `r.wildcards()` is the one point where existing literals are upgraded to patterns; a default that contradicts an inferred value is an error.
 `output` and `log` must use the same wildcard set; the other lists may use a subset.
 
-### Dynamic supports
+### Dynamic values
 
 Only literal values can be recorded; `lambda` functions declared inside the rule block are the exception.
 `r.conda(dependencies=..., pip=..., channels=...)` declares the conda environment (rule block only): `dependencies` and `pip` become dependencies (the latter as a `pip:` sublist), and `channels` defaults to `conda-forge`.
@@ -439,6 +449,8 @@ Values remain statically readable: ordinary paths, `conda` values, and ordinary 
 `input` accepts a self-contained `lambda wildcards: ...`, and `params` accepts self-contained lambdas with Snakemake auxiliary parameters:
 
 ```python
+import snakedone
+
 r = snakedone.rule()
 with r:
     r.params(
@@ -449,7 +461,7 @@ with r:
     r.input(table=lambda wildcards: f"results/{wildcards.sample}.tsv")
 ```
 
-The first positional parameter must be `wildcards`, matching Snakemake's auxiliary-parameter convention.
+The first positional parameter receives `wildcards`, matching Snakemake's auxiliary-parameter convention; its Python parameter name is not significant.
 Lambdas may use normal Python expressions, including calls and comprehensions; global or closure names, `:=`, nested lambda, and `*args`/`**kwargs` are rejected.
 Defaults, when present, must be literals.
 Snakemake's optional input-function `groupid` has no equivalent outside a group job and is not accepted yet.
@@ -457,7 +469,7 @@ Other functions and custom objects are not supported.
 
 ### Runtime wildcards
 
-Same to Snakemake, wildcards are named `{placeholders}` in `input`/`output`/`log` patterns; defaults are declared once with `r.wildcards(sample="boo")`.
+As in Snakemake, wildcards are named `{placeholders}` in `input`, `output`, and `log` patterns; defaults are declared once with `r.wildcards(sample="boo")`.
 Read the effective value with `r.wildcards.sample` (or `r.wildcards["sample"]`); like pattern resolution it reflects declared defaults, inferred captures, and `--wildcards` overrides, and an unknown name raises `WildcardError`.
 Assigning a concrete literal outside the block infers its pattern from the script-side wildcard values, so `r.output.report = "boo-1.tsv"` is recorded as `"{sample}-1.tsv"`.
 
@@ -474,7 +486,7 @@ It must be declared inside the rule block (for example `r.output(document="{samp
 The archive target is chosen in this order:
 
 1. `-o`/`--output` has the highest priority. The archive is written there, and the recorded `document` is reconciled with it:
-   - if the `-o` value can be converted to a pattern with the current wildcards values, the existing `output.document` (or else `log.document`, or else a new `output.document`) records that pattern, so repeated wildcards runs stay stable;
+   - if the `-o` value can be converted to a pattern with the current wildcard values, the existing `output.document` (or else `log.document`, or else a new `output.document`) records that pattern, so runs with different wildcard values remain stable;
    - otherwise the concrete `-o` cannot avoid overwriting, so any existing `document` is dropped.
 2. Without `-o`, a declared `document` from the rule block is resolved with the effective wildcards and used.
 3. Otherwise the archive falls back to the document's sibling `<stem>.snd` (or the `.snd` itself when the input already is an archive).
@@ -496,7 +508,7 @@ For example, the [rule demo](examples/rule_demo.py) declares `r.wildcards(sample
 | `rule_demo-B-count.snd` | `--overwrite -o examples/rule_demo.html`                       | writes `examples/rule_demo.snd/.html`               | the concrete `-o` cannot become a pattern, so the declared `document` is dropped; execution uses defaults (A/score). |
 | `rule_demo-B-count.snd` | `--overwrite --html --wildcards sample=B feature=count`        | rewrites `rule_demo-B-count.snd/.html`              | re-executes with an explicit override and reproduces the B-count target.                                             |
 
-In fact, it is recommended to run `snakedone examples/rule_demo.py -o rule_demo-A-score.html`, and from then on use the generated `.snd` as the template.
+In practice, run `snakedone examples/rule_demo.py -o rule_demo-A-score.html` once, then use the generated `.snd` as the template.
 
 ### Rule extraction
 
@@ -507,6 +519,7 @@ with `_`, and a leading digit is prefixed with `_`.
 
 `snakedone report.py --snakefile Snakefile` writes the matching Snakefile rule into
 the target and `<target stem>.conda.yaml` next to it:
+
 ```python
 rule report:
     input:
@@ -540,7 +553,7 @@ pixi install
 pixi run check
 ```
 
-`pixi run check` runs pytest, Ruff, and Pyright.
+`pixi run check` runs Ruff, Pyright, the frontend type-check and tests, the frontend build, and pytest.
 Use `pixi run format` to format the code.
 
 Browser sources live in `src/frontend` as TypeScript and CSS.
@@ -567,7 +580,7 @@ report-block
 ### Rich output convention
 
 Each `snakedone-output` fenced block represents one output item, so an output slot can mix ordinary text, images, and rich outputs.
-The wrapper writes this block automatically when displayed as a bare expression or passed to `print()`.
+Renderer objects write this block automatically when displayed as bare expressions or passed to `print()`.
 The fence header names the renderer and may pin a version constraint; the body is the renderer's serialized data:
 
 ````text
@@ -582,9 +595,10 @@ The fence header names the renderer and may pin a version constraint; the body i
 ```
 ````
 
-A `RecordedOutput` carries the renderer-serialized `data` string, the renderer that produced it, and any nested `children`; its `text` is the snd fence while the document executes and the HTML that fills the report slot once the archive is rendered.
-Each renderer defines, serializes (`to_snd`), validates, and renders (`to_html`) its own data format; `to_html` returns a `RecordedOutput`, and Datavzrd stores JSON with CSV text and the effective configuration, including loaded YAML contents.
-A block body may itself contain `snakedone-output` blocks (as `label` does): the exporter renders each child once, gives it its own report id and file namespace, and substitutes it for the parent's `{{i}}` placeholder, so nested renderers keep separate styles, runtimes, and report files.
+Each renderer owns its archive format: `serialize()` produces the fence body, `to_snd()` wraps it in the versioned fence, and `to_html()` validates a stored body and returns a `Rendered` value containing HTML, files, nested children, and display metadata.
+After parsing a fence, `RecordedOutput` associates that rendered value with its renderer class and source span.
+Datavzrd, for example, stores JSON containing CSV text and the effective configuration, including the contents of a loaded YAML file.
+A block body may itself contain `snakedone-output` blocks (as `label` and `compose` do): the exporter renders each child once, gives it its own report id and file namespace, and substitutes it for the parent's `{{i}}` placeholder, so nested renderers keep separate styles, runtimes, and report files.
 Nested outputs are recursively converted into reports, and browser assets are collected once per renderer name.
 Renderer styles and runtimes share the exported document. Renderers should use renderer-specific CSS classes, avoid modifying generic document selectors or global JavaScript state, and must not depend on renderer resource loading order.
 
