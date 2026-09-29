@@ -301,7 +301,7 @@ def dataframe_csv(frame):
     elif callable(getattr(frame, "write_csv", None)):
         content = frame.write_csv(line_terminator="\n")
     else:
-        raise TypeError("datavzrd expects a pandas or polars DataFrame")
+        raise TypeError("expects a pandas or polars DataFrame")
     if not isinstance(content, str):
         raise TypeError("DataFrame CSV export must return a string")
     return content

@@ -6,6 +6,7 @@ from .renderers.compose import compose
 from .renderers.datavzrd import datavzrd
 from .renderers.label import code, label
 from .renderers.markdown import markdown
+from .renderers.table import table
 from .renderers.vegalite import vegalite
 
 __all__ = [
@@ -18,6 +19,7 @@ __all__ = [
     "label",
     "report",
     "rule",
+    "table",
     "vegalite",
 ]
 
