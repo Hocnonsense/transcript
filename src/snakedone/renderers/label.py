@@ -175,7 +175,7 @@ class Label(Renderer):
         label_id = escape(id)
         note = (
             '<span class="snakedone-label-repeat-note">'
-            f'<a href="#{label_id}">origin ↩</a></span>'
+            f'<a href="#{label_id}">↩</a></span>'
         )
         if text.endswith("</figcaption></figure>"):  # has label
             return text.replace("</figcaption>", " " + note + "</figcaption>", 1)

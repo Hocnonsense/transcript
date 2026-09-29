@@ -2,6 +2,7 @@
 
 from .execute import report
 from .renderers.bitmap import bitmap, image
+from .renderers.compose import compose
 from .renderers.datavzrd import datavzrd
 from .renderers.label import code, label
 from .renderers.markdown import markdown
@@ -11,6 +12,7 @@ __all__ = [
     "markdown",
     "bitmap",
     "code",
+    "compose",
     "datavzrd",
     "image",
     "label",
