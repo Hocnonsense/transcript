@@ -222,9 +222,12 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
 
 .doc-md { position: relative; }
 /* A markdown() output is prose, not code: drop the monospace box font so it
-   reads like the document's own Markdown. */
+   reads like the document's own Markdown. The statement's own code record is
+   still code, so it keeps the monospace font and its `>>>` / `...` prompts. */
 .doctest-code:has(> .snakedone-report[data-snd-renderer="markdown"]) {
   font: inherit; }
+.doctest-code:has(> .snakedone-report[data-snd-renderer="markdown"]) > .doc-text {
+  font: .9em/1.5 ui-monospace, monospace; }
 .snd-md-popup[hidden], .snd-md-rendered[hidden] { display: none; }
 .snd-md-source[hidden], .snd-md-comment[hidden],
 .snd-rec-list[hidden] { display: none !important; }
