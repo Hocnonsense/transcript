@@ -241,7 +241,24 @@ if "snakedone":
     image(plot, alt="A line plot")
 ```
 
-### Datavzrd tables
+### tables
+
+Use `table()` to render a pandas or polars `DataFrame` as a basic GitHub-flavored Markdown table:
+
+```python
+import pandas as pd
+
+from snakedone import table
+
+frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
+
+if "snakedone":
+    """
+    ## Results
+    """
+    table(frame)
+```
+
 
 Wrap a pandas or polars `DataFrame` to render it as an interactive [Datavzrd](https://datavzrd.github.io/) table in the HTML report:
 
@@ -260,7 +277,8 @@ if "snakedone":
 ```
 
 `datavzrd(frame, config)` records a snapshot of the data as CSV plus the Datavzrd configuration in the archive.
-`config` may be a mapping or a YAML filename, resolved against the current working directory; when omitted, a single table view named `results` is created.
+`config` may be a mapping or a YAML filename, resolved against the current working directory.
+When `config` is omitted, a single view named `results` is recorded and Datavzrd renders it with its own defaults (it detects column types from the data).
 Every view must use the managed dataset `data`; snakedone supplies the data path itself, so no intermediate files are kept.
 A single-view configuration opens that table directly instead of Datavzrd's overview page; multiple views show the overview unless `default-view` selects one.
 
@@ -279,7 +297,7 @@ views:
               domain: [0, 1]
 ```
 
-The [pandas and polars example](examples/datavzrd_demo.py) uses a shared [YAML configuration](examples/datavzrd.yaml) with column bars, a heatmap, and two views of the same dataset.
+The [pandas and polars example](examples/table_demo.py) uses a shared [YAML configuration](examples/datavzrd.yaml) with column bars, a heatmap, and two views of the same dataset.
 HTML export runs the `datavzrd` executable once per distinct recorded snapshot and embeds the generated report into the single HTML file, so sorting, filtering, paging, and built-in plots keep working offline.
 If configuration validation or rendering fails, HTML export reports an error and preserves any existing HTML file.
 
