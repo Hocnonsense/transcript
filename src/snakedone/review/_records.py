@@ -226,9 +226,13 @@ class ReviewIndex:
     def _live_at(self, line: int, moment: datetime):
         """The source whose version was live at *moment* on *line*.
 
-        Find a line in the history: the first one whose boundary follows *moment*.
-        Returns ``None`` when no source covers the line.
+        Find a line in the history: the first one whose boundary follows *moment*,
+        skipping a source that had not appeared yet.  A source's birth is the
+        stamp of the zero-length ``cover`` an insertion carries; ``None`` means it
+        has always existed.  Returns ``None`` when no source covers the line.
         """
         for source in self.sources_by_line.get(line, ()):
+            if source.cover is not None and parse_time(source.cover.time) > moment:
+                continue
             if source.before is None or parse_time(source.before) > moment:
                 return source

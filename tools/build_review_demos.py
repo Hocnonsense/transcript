@@ -131,8 +131,11 @@ def cross_revision_records(body: str):
         # retries: 2, superseded earlier (T2).
         SourceRecord(at=str(whole(retries)), source="    - retries: 2\n", before=T2),
         SourceRecord(at=str(whole(retries)), cover=At(whole(retries), T2)),
-        # The batch line was added in the last revision, so it is live.
-        SourceRecord(at=str(whole(batch))),
+        # The batch line was added in the last revision: a zero-length cover at
+        # T6 records when it appeared, so older versions omit it.
+        SourceRecord(
+            at=str(whole(batch)), cover=At(Span.empty(batch, 0), T6),
+        ),
         ReviewRecord(
             time=T1, at=str(whole(timeout)),
             comment="30s may be tight when the table is large; it has since changed.",

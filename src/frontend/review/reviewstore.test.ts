@@ -7,6 +7,7 @@
  *  which pins the anchor.  Run by ``tools/test_frontend.py``. */
 
 import { ReviewStore } from './reviewstore';
+import { Annotation } from './annotation';
 import { ReviewRecord } from './model/records';
 import { At } from './model/span';
 
@@ -97,6 +98,37 @@ is('cover:format', parsed.format(), `L2@${v1}`);
     { type: 'source', at: 'L1', source: 'B\n', cover: `L1@${v1}`, before: v2 },
   ] as any, '');
   is('scrambled', review(store, 'L1', [`L1@${v1}`]), 'L1');
+}
+
+// A line inserted by a migration carries a zero-length cover stamping when it
+// appeared: older layers omit it (they never fabricate the live text), and its
+// own reviews still locate their run in the version they were written against.
+{
+  const source = 'a\nnew\nb\n';
+  const store = new ReviewStore(source, [
+    { type: 'source', at: 'L2', source: 'b\n', before: v1 },
+    { type: 'source', at: 'L3', cover: `L2@${v1}` },
+    { type: 'source', at: 'L2', cover: `L2C1+0@${v1}` },
+  ] as any, '');
+  const region: any = {};
+  const map = source.split('').map((_, index) => index);
+  store.addRegion(region, 0, source.length, source, map);
+  const old = new Annotation({
+    chosen: { start: 0, end: source.length }, original: source,
+    edit: source, comment: '', modified: false,
+    record: new ReviewRecord({ type: 'review', time: '2026-09-05T00:00:00.000Z', at: 'L2' }),
+  });
+  const live = new Annotation({
+    chosen: { start: 0, end: source.length }, original: source,
+    edit: source, comment: '', modified: false,
+    record: new ReviewRecord({ type: 'review', time: v1, at: 'L3' }),
+  });
+  store.annotations.get(region)!.push(old, live);
+
+  const history = store.history(region, old)!;
+  is('history:layers', history.layers.join('|'), 'a\nb|a\nnew\nb');
+  is('history:old-highlight', history.entries[0][0].highlight ?? '', 'b');
+  is('history:live-highlight', history.entries[1][0].highlight ?? '', 'b');
 }
 
 if (failures) {

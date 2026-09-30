@@ -178,9 +178,11 @@ export class ReviewStore {
     const nodes: ChainNode[] = [];
     while (node) {
       nodes.push({ source: node, span: node.at, line: at.line });
+      // A zero-length cover marks an inserted line: it records when the line
+      // appeared but has no predecessor, so the chain ends here.
+      if (!node.cover || node.cover.span.isEmpty()) break;
       const point = this.backPoint(node, at);
-      const parent = node.cover
-        ? byVersion.get(node.cover.time)?.get(point.line) : null;
+      const parent = byVersion.get(node.cover.time)?.get(point.line) ?? null;
       if (!parent || parent === node) break;
       node = parent;
       at = point;
@@ -296,6 +298,66 @@ export class ReviewStore {
       }
       return lines.join(' ');
     };
+
+    /** The source live on *line* in the version whose upper boundary is
+     *  *moment* (``null`` for the live version), or ``null`` when the line did
+     *  not exist then.  A source's birth is the stamp of the zero-length cover
+     *  an insertion carries; ``null`` means it has always existed. */
+    const nodeAt = (line: number, moment: string | null): ChainNode | null => {
+      for (const node of chains.get(line) ?? []) {
+        const source = node.source;
+        const before = source.before ?? null;
+        const born = source.cover ? source.cover.time : null;
+        const upper = before === null || (moment !== null && moment <= before);
+        const lower = born === null || moment === null || moment > born;
+        if (upper && lower) return node;
+      }
+      return null;
+    };
+
+    interface Slot {
+      /** The line number in this version, used to place a review's span. */
+      versionLine: number;
+      text: string;
+      /** Offset of this line in the assembled layer; leading indent dropped. */
+      start: number;
+      /** Characters the common indent removed from this line. */
+      shift: number;
+    }
+    interface Built { text: string; slots: Slot[]; }
+
+    const build = (moment: string | null): Built => {
+      const slots: Slot[] = [];
+      for (let line = sl; line <= el; line += 1) {
+        const nodes = chains.get(line) ?? [];
+        let raw: string;
+        let versionLine: number;
+        if (nodes.length === 0) {
+          // No record: the line has always existed, so show it in every version.
+          raw = this.rawLine(line);
+          versionLine = line;
+        } else {
+          const node = nodeAt(line, moment);
+          if (!node) continue; // the line did not exist in this version
+          if ((node.source.before ?? null) === null) {
+            raw = this.rawLine(line);
+            versionLine = line;
+          } else {
+            raw = oldLine(node, node.line) ?? '';
+            versionLine = node.line;
+          }
+        }
+        const text = strip(raw);
+        slots.push({ versionLine, text, start: 0, shift: raw.length - text.length });
+      }
+      let offset = 0;
+      for (const slot of slots) {
+        slot.start = offset;
+        offset += slot.text.length + 1;
+      }
+      return { text: slots.map(slot => slot.text).join('\n'), slots };
+    };
+
     const boundaries = new Set<string>();
     for (const list of chains.values()) {
       for (const node of list) {
@@ -304,23 +366,33 @@ export class ReviewStore {
     }
     const sorted = [...boundaries].sort();
     const moments: (string | null)[] = [...sorted, null];
-    const build = (moment: string | null) => {
-      const lines: string[] = [];
-      for (let line = sl; line <= el; line += 1) {
-        let text: string | null = null;
-        for (const node of chains.get(line) ?? []) {
-          const before = node.source.before ?? null;
-          if (before === null || (moment !== null && before >= moment)) {
-            text = before === null ? this.rawLine(line) : oldLine(node, node.line);
-            break;
-          }
-        }
-        lines.push(strip(text ?? this.rawLine(line)));
-      }
-      return lines.join('\n');
+    const built = moments.map(moment => build(moment));
+    const layers = built.map(entry => entry.text);
+
+    /** The offset a written point maps to inside *layer*, via its version line. */
+    const offsetIn = (layer: Built, versionLine: number, column: number) => {
+      const slot = layer.slots.find(item => item.versionLine === versionLine);
+      if (!slot) return null;
+      return slot.start + Math.max(column - slot.shift, 0);
     };
-    const layers = sorted.map(before => build(before));
-    layers.push(build(null));
+    /** The reviewed run as a range in *layer*, from the review's own span. */
+    const highlightOf = (layer: Built, span: Span) => {
+      if (span.isEmpty()) return null;
+      const start = offsetIn(layer, span.start_line, span.start_column);
+      if (start === null) return null;
+      let end: number;
+      if (span.end_column === 0) {
+        const last = layer.slots.find(item => item.versionLine === span.end_line - 1);
+        if (!last) return null;
+        const stop = last.start + last.text.length;
+        end = stop < layer.text.length ? stop + 1 : stop;
+      } else {
+        const value = offsetIn(layer, span.end_line, span.end_column);
+        if (value === null) return null;
+        end = value;
+      }
+      return end > start ? { start, end } : null;
+    };
 
     const entries: HistoryEntry[][] = layers.map(() => []);
     const placed: HistoryEntry[] = [];
@@ -335,37 +407,10 @@ export class ReviewStore {
       let layer = 0;
       for (const before of sorted) if (before <= time) layer += 1;
       if (layer >= layers.length) layer = layers.length - 1;
-      // The annotated text is the review's own range, not the whole line, so a
-      // partial or cross-line review aligns with the newest record.
+      // The review's own span is written in the version it was saved against,
+      // which is exactly this layer, so it locates the run directly.
+      const highlightRange = highlightOf(built[layer], other.record.at);
       const text = layers[layer];
-      const snippet = info.text.slice(other.chosen.start, other.chosen.end).trim();
-      // Prefer the exact annotated text; otherwise show the review's lines as
-      // that version had them (a superseded review's current text is stale).
-      let highlightRange: { start: number; end: number } | null = null;
-      if (snippet) {
-        const at = text.indexOf(snippet);
-        if (at !== -1) highlightRange = { start: at, end: at + snippet.length };
-      }
-      if (!highlightRange && other.record) {
-        try {
-          const span = this.currentSpan(other.record);
-          const first = Math.max(span.start_line, sl) - sl;
-          const last = Math.min(span.lastLine(), el) - sl;
-          const lines = text.split('\n');
-          if (first <= last && last < lines.length) {
-            const before = lines.slice(0, first)
-              .reduce((size, line) => size + line.length + 1, 0);
-            const width = lines.slice(first, last + 1)
-              .reduce((size, line) => size + line.length + 1, 0) - 1;
-            const slice = text.slice(before, before + Math.max(width, 0));
-            const lead = (slice.match(/^\s*/) || [''])[0].length;
-            const trail = (slice.match(/\s*$/) || [''])[0].length;
-            if (slice.trim()) {
-              highlightRange = { start: before + lead, end: before + slice.length - trail };
-            }
-          }
-        } catch (error) { /* leave unhighlighted */ }
-      }
       const entry: HistoryEntry = {
         annotation: other,
         time,

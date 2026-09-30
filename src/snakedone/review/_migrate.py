@@ -110,6 +110,19 @@ class _Align:
         end = _mapped_shift(stop, last[2], last[3], last[0], last[1], end=True)
         return None if end <= begin else (begin, end)
 
+    def insert(self: _Align, offset: int, stamp: str, old_starts: list[int]):
+        """Mark a new line with no old counterpart as born at ``stamp``.
+
+        ``cover`` names a zero-length point on the old line it was inserted before,
+        so ``cover.time`` records when the line first appeared and the chain ends
+        there instead of linking it to an unrelated neighbouring line.
+        """
+        segment = self.segments[_line(offset, self.new_segment_starts)]
+        point = _mapped_shift(
+            offset, segment[2], segment[3], segment[0], segment[1], end=False
+        )
+        return At(Span.empty(_line(point, old_starts), 0), stamp)
+
     def split(self, new_start: int, new_stop: int):
         """Cut a new character range at newlines, one record per line.
 
@@ -182,7 +195,18 @@ def migrate(
             if new_span.start_line in seen:
                 continue  # another live source already owns this line
             seen.add(new_span.start_line)
-            yield SourceRecord(
-                at=str(new_span),
-                cover=None if old_span is None else At(old_span, stamp),
+            cover = (
+                At(old_span, stamp)
+                if old_span is not None
+                else align.insert(new_starts[new_span.start_line], stamp, old_starts)
             )
+            yield SourceRecord(at=str(new_span), cover=cover)
+    for line in range(len(new_starts) - 1):
+        if line in seen:
+            continue
+        if align.new_to_old(new_starts[line], new_starts[line + 1]) is not None:
+            continue  # the line came from the old text
+        yield SourceRecord(
+            at=str(Span(line, 0, line + 1, 0)),
+            cover=align.insert(new_starts[line], stamp, old_starts),
+        )
