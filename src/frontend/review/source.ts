@@ -45,7 +45,7 @@ export class SourceView {
         } else {
           if (slot.orig !== '') this.fill.appendChild(markDel('|'));
           const span = document.createElement('span');
-          span.className = 'snd-diff-ins';
+          span.className = 'tmd-diff-ins';
           span.textContent = slot.mod;
           this.fill.appendChild(span);
         }
@@ -69,7 +69,7 @@ export class SourceView {
     const left = markDel('v');
     const right = markDel('^');
     const range = document.createElement('span');
-    range.className = 'snd-diff-range';
+    range.className = 'tmd-diff-range';
     range.append(left, document.createTextNode(text.slice(start, end)), right);
     this.fill.append(
       document.createTextNode(text.slice(0, start)),
@@ -90,8 +90,8 @@ export class SourceView {
   /** Drop the range delimiters and highlight while keeping the text in place. */
   clearMarkers() {
     this.markers = null;
-    this.fill.querySelectorAll('.snd-diff-anchor').forEach(node => node.remove());
-    this.fill.querySelectorAll('.snd-diff-range').forEach(node => {
+    this.fill.querySelectorAll('.tmd-diff-anchor').forEach(node => node.remove());
+    this.fill.querySelectorAll('.tmd-diff-range').forEach(node => {
       node.replaceWith(...Array.from(node.childNodes));
     });
   }

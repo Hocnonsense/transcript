@@ -2,7 +2,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import polars as pl
 
-from snakedone import image, markdown, rule
+from transcript import image, markdown, rule
 
 metadata = pl.DataFrame(
     {
@@ -20,7 +20,7 @@ with r:
 
 r.wildcards(sample="A", feature="score")
 
-if "snakedone":
+if "transcript":
     """
     # Rule Demo
 
@@ -78,7 +78,7 @@ def draw(t: float):
     return ax
 
 
-if "snakedone":
+if "transcript":
     value = metadata.filter(pl.col("sample") == r.wildcards.sample)[
         r.wildcards.feature
     ].item()

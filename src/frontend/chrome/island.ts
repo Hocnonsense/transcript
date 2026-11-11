@@ -11,41 +11,41 @@ function download(name, content, mime) {
 }
 
 /** Serialize the live page with the current annotations written into the
- *  ``snakedone-reviews`` island. The source island is left exactly as the page
+ *  ``transcript-reviews`` island. The source island is left exactly as the page
  *  was generated with, so extraction still sees the reviewed archive. */
 function pageHtml() {
   const clone = document.documentElement.cloneNode(true) as HTMLElement;
-  clone.querySelectorAll('.snd-toolbar, .navigate, [data-snd-library]')
+  clone.querySelectorAll('.tmd-toolbar, .navigate, [data-tmd-library]')
     .forEach(node => node.remove());
-  const store = window.snakedoneReviewStore;
+  const store = window.transcriptReviewStore;
   if (store) {
     const script = document.createElement('script');
-    script.id = 'snakedone-reviews';
+    script.id = 'transcript-reviews';
     script.type = 'application/json';
     script.textContent = store.exportIsland();
-    const existing = clone.querySelector('#snakedone-reviews');
+    const existing = clone.querySelector('#transcript-reviews');
     if (existing) existing.replaceWith(script);
-    else clone.querySelector('#snakedone-source')?.after(script);
+    else clone.querySelector('#transcript-source')?.after(script);
   }
   return '<!doctype html>\n' + clone.outerHTML;
 }
 
 (function () {
-  const island = document.getElementById('snakedone-source');
+  const island = document.getElementById('transcript-source');
   if (!island) return;
   let source;
   try { source = JSON.parse(island.textContent); } catch (error) { return; }
   if (typeof source !== 'string') return;
 
   const toolbar = document.createElement('div');
-  toolbar.className = 'snd-toolbar';
-  const sndButton = document.createElement('button');
-  sndButton.type = 'button';
-  sndButton.textContent = 'Export .snd';
-  sndButton.addEventListener('click', () => {
-    const store = window.snakedoneReviewStore;
+  toolbar.className = 'tmd-toolbar';
+  const tmdButton = document.createElement('button');
+  tmdButton.type = 'button';
+  tmdButton.textContent = 'Export .tmd.py';
+  tmdButton.addEventListener('click', () => {
+    const store = window.transcriptReviewStore;
     const content = store ? store.exportSource() : source;
-    download(document.title + '.snd', content, 'text/plain');
+    download(document.title + '.tmd.py', content, 'text/plain');
   });
   const htmlButton = document.createElement('button');
   htmlButton.type = 'button';
@@ -53,6 +53,6 @@ function pageHtml() {
   htmlButton.addEventListener('click', () => {
     download(document.title + '.html', pageHtml(), 'text/html');
   });
-  toolbar.append(sndButton, htmlButton);
+  toolbar.append(tmdButton, htmlButton);
   document.body.appendChild(toolbar);
 })();

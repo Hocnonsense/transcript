@@ -8,7 +8,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from snakedone import image
+from transcript import image
 
 
 def png_bytes(red: int):
@@ -40,7 +40,7 @@ def matplotlib_plot(value):
 data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-8"))
 message = f"Sample: {data['label']}"
 
-if "snakedone":
+if "transcript":
     """
     The following records archive a string, a table, and an inline image.
     """
@@ -48,7 +48,7 @@ if "snakedone":
 
 image_source = {"red": data["red"], "green": 64, "blue": 128}
 
-if "snakedone":
+if "transcript":
     """
     ## Image
 
@@ -58,7 +58,7 @@ if "snakedone":
     image(png_bytes(image_source["red"]), alt="A one-pixel RGB sample")
 
 
-if "snakedone":
+if "transcript":
     """
     ## Matplotlib plot
 
@@ -68,7 +68,7 @@ if "snakedone":
 
 table = pd.DataFrame([data], columns=["label", "value"])
 
-if "snakedone":
+if "transcript":
     """
     ## Interactive table
 
@@ -77,7 +77,7 @@ if "snakedone":
     """
     table
 
-if "snakedone":
+if "transcript":
     """
     This Markdown paragraph follows the final record and must remain unchanged.
     """

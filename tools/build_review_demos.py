@@ -1,9 +1,9 @@
 """Regenerate the review demo archives and pages.
 
-The trailing ``snakedone.review`` block is data that cannot be derived from the
-``.py`` alone, so the demos cannot use the usual ``snakedone <doc>.py`` flow.
+The trailing ``transcript.review`` block is data that cannot be derived from the
+``.py`` alone, so the demos cannot use the usual ``transcript <doc>.py`` flow.
 This script executes each document for its body, authors the review records
-with fixed timestamps, derives ``coveredAt`` from them, and writes each ``.snd``
+with fixed timestamps, derives ``coveredAt`` from them, and writes each ``.tmd.py``
 and ``.html`` next to its ``.py``.
 
     pixi run demo-review
@@ -16,11 +16,11 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from snakedone.document import parse
-from snakedone.review._block import render_block
-from snakedone.review._records import ReviewIndex, ReviewRecord, SourceRecord
-from snakedone.review._span import At, Span
-from snakedone.snd import body_hash, write
+from transcript.document import parse
+from transcript.review._block import render_block
+from transcript.review._records import ReviewIndex, ReviewRecord, SourceRecord
+from transcript.review._span import At, Span
+from transcript.tmd import body_hash, write
 
 ROOT = Path(__file__).resolve().parents[1]
 EXAMPLES = ROOT / "examples"
@@ -39,7 +39,7 @@ def body_of(path: Path):
     """Execute *path* and return its archive body (no review block)."""
     document = parse(path.read_text(encoding="utf-8"), str(path))
     blocks, outputs, job = document.execute(path)
-    return document.render_snd(blocks, outputs, job)
+    return document.render_tmd(blocks, outputs, job)
 
 
 def line_of(body: str, marker: str):
@@ -79,26 +79,31 @@ def single_revision_records(body: str):
         SourceRecord(at=str(csv)),
         SourceRecord(at=str(manifest)),
         ReviewRecord(
-            time=T1, at=str(sample),
+            time=T1,
+            at=str(sample),
             comment="Three samples is a small pilot; watch the spread.",
         ),
         ReviewRecord(
-            time=T1, at=str(tolerance),
+            time=T1,
+            at=str(tolerance),
             edit="A tolerance of 0.01 decides whether a sample is accepted.",
         ),
         ReviewRecord(
-            time=T1, at=str(csv),
+            time=T1,
+            at=str(csv),
             edit="Results are written next to the document as a single CSV file.",
             comment="Keep outputs beside the source so they travel together.",
         ),
         ReviewRecord(
-            time=T1, at=str(manifest),
+            time=T1,
+            at=str(manifest),
             comment="Is the manifest checksummed?",
         ),
         # Cross-line: both sampling lines edited together; it overlaps the
         # sample-only and tolerance-only reviews.
         ReviewRecord(
-            time=T1, at=str(pair),
+            time=T1,
+            at=str(pair),
             edit=(
                 "The pipeline draws five samples from the input table and"
                 " reports the median.\n"
@@ -108,7 +113,8 @@ def single_revision_records(body: str):
         ),
         # Partial overlap with the whole-line sample review above.
         ReviewRecord(
-            time=T1, at=str(part),
+            time=T1,
+            at=str(part),
             comment="Which three samples exactly?",
         ),
     ]
@@ -124,8 +130,10 @@ def cross_revision_records(body: str):
         # each successor linked back to the one it replaced.
         SourceRecord(at=str(whole(timeout)), source="    - timeout: 30s\n", before=T3),
         SourceRecord(
-            at=str(whole(timeout)), cover=At(whole(timeout), T3),
-            source="    - timeout: 60s\n", before=T5,
+            at=str(whole(timeout)),
+            cover=At(whole(timeout), T3),
+            source="    - timeout: 60s\n",
+            before=T5,
         ),
         SourceRecord(at=str(whole(timeout)), cover=At(whole(timeout), T5)),
         # retries: 2, superseded earlier (T2).
@@ -134,42 +142,48 @@ def cross_revision_records(body: str):
         # The batch line was added in the last revision: a zero-length cover at
         # T6 records when it appeared, so older versions omit it.
         SourceRecord(
-            at=str(whole(batch)), cover=At(Span.empty(batch, 0), T6),
+            at=str(whole(batch)),
+            cover=At(Span.empty(batch, 0), T6),
         ),
         ReviewRecord(
-            time=T1, at=str(whole(timeout)),
+            time=T1,
+            at=str(whole(timeout)),
             comment="30s may be tight when the table is large; it has since changed.",
         ),
         ReviewRecord(
-            time=T1, at=str(whole(retries)),
+            time=T1,
+            at=str(whole(retries)),
             comment="Two retries is plenty, but this line was raised to five.",
         ),
         # Spans the timeout and retry lines: written before the timeout change,
         # so only the timeout half is superseded and only deletion is allowed.
         ReviewRecord(
-            time=TMID, at=str(Span(timeout, 0, retries + 1, 0)),
+            time=TMID,
+            at=str(Span(timeout, 0, retries + 1, 0)),
             comment="The retry policy needs a review; timeout and retries interact.",
         ),
         ReviewRecord(
-            time=T4, at=str(whole(timeout)),
+            time=T4,
+            at=str(whole(timeout)),
             comment="60s was reviewed here, then raised to 90s.",
         ),
         ReviewRecord(
-            time=T6, at=str(whole(batch)),
+            time=T6,
+            at=str(whole(batch)),
             comment="New batch knob; the default looks fine.",
         ),
     ]
 
 
 def build(stem: str, records_for):
-    """Write ``examples/<stem>.snd`` and ``.html`` from authored *records_for*."""
+    """Write ``examples/<stem>.tmd.py`` and ``.html`` from authored *records_for*."""
     script = EXAMPLES / f"{stem}.py"
     body = body_of(script).rstrip("\n") + "\n"
     records = ReviewIndex(records_for(body)).records
-    archive = body + "\n" + render_block(records, hash=body_hash(body)) + "\n"
-    snd = EXAMPLES / f"{stem}.snd"
-    write(snd, archive)
-    page = parse(archive, str(snd)).render_html(title=stem)
+    content = body + "\n" + render_block(records, hash=body_hash(body)) + "\n"
+    archive = EXAMPLES / f"{stem}.tmd.py"
+    write(archive, content)
+    page = parse(content, str(archive)).render_html(title=stem)
     write(EXAMPLES / f"{stem}.html", page)
     print(f"{stem}: {len(records)} records, {len(page)} bytes of HTML")
     for record in records:

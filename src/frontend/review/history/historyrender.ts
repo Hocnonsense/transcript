@@ -26,7 +26,7 @@ function rgba(hex: string, alpha: number) {
 function sourceRow(text: string, above: ReturnType<typeof aboveMarks>,
   below: ReturnType<typeof belowMarks>, aboveColor: string, belowColor: string) {
   const row = document.createElement('pre');
-  row.className = 'snd-rec-code';
+  row.className = 'tmd-rec-code';
   for (let index = 0; index <= text.length; index += 1) {
     // Each side appends its own chevron, in its boundary colour, only where the
     // adjacent version changed text this row has nothing to show for.
@@ -40,7 +40,7 @@ function sourceRow(text: string, above: ReturnType<typeof aboveMarks>,
       continue;
     }
     const span = document.createElement('span');
-    span.className = isIns ? 'snd-diff-ins' : 'snd-diff-del';
+    span.className = isIns ? 'tmd-diff-ins' : 'tmd-diff-del';
     const color = isIns ? aboveColor : belowColor;
     span.style.color = color;
     span.style.textDecorationColor = color;
@@ -50,7 +50,7 @@ function sourceRow(text: string, above: ReturnType<typeof aboveMarks>,
       // boundary-above colour on the outer span, the underline the
       // boundary-below colour on an inner span, matching the two chevrons.
       const inner = document.createElement('span');
-      inner.className = 'snd-diff-del';
+      inner.className = 'tmd-diff-del';
       inner.style.background = 'transparent';
       inner.style.textDecorationColor = belowColor;
       inner.textContent = text[index];
@@ -67,7 +67,7 @@ function sourceRow(text: string, above: ReturnType<typeof aboveMarks>,
  *  the annotated run carrying the source's colour. */
 function highlightRow(text: string, range: { start: number; end: number } | null, color: string) {
   const row = document.createElement('pre');
-  row.className = 'snd-rec-code';
+  row.className = 'tmd-rec-code';
   const start = range ? Math.max(0, Math.min(range.start, text.length)) : -1;
   const end = range ? Math.max(start, Math.min(range.end, text.length)) : -1;
   if (start < 0 || end <= start) {
@@ -84,7 +84,7 @@ function highlightRow(text: string, range: { start: number; end: number } | null
 
 function markHighlight(text: string, color: string) {
   const span = document.createElement('span');
-  span.className = 'snd-rec-hl';
+  span.className = 'tmd-rec-hl';
   span.style.color = color;
   span.style.background = rgba(color, 0.18);
   span.textContent = text;
@@ -113,7 +113,7 @@ function editRow(text: string, source: string,
 function recordRow(kind: string, raw: HTMLElement, meta: HTMLElement | null,
   color: string) {
   const row = document.createElement('div');
-  row.className = `snd-rec snd-rec-${kind}`;
+  row.className = `tmd-rec tmd-rec-${kind}`;
   row.style.setProperty('--rec-color', color);
   row.append(raw);
   if (meta) row.appendChild(meta);
@@ -123,7 +123,7 @@ function recordRow(kind: string, raw: HTMLElement, meta: HTMLElement | null,
 /** The highlighted timestamp shared by a review's comment and a source divider. */
 function timeStamp(text: string) {
   const date = document.createElement('time');
-  date.className = 'snd-rec-time';
+  date.className = 'tmd-rec-time';
   date.textContent = text;
   return date;
 }
@@ -132,7 +132,7 @@ function timeStamp(text: string) {
  *  one that is not locked (superseded or untracked). */
 function actionsFor(annotation: Annotation | null, opts: RecordOptions) {
   const actions = document.createElement('div');
-  actions.className = 'snd-rec-actions';
+  actions.className = 'tmd-rec-actions';
   if (!annotation) return actions;
   if (!annotation.locked) {
     const edit = document.createElement('button');
@@ -227,10 +227,10 @@ export function renderRecords(container: HTMLElement, history: History | null,
  *  rest of the line.  The time carries the source version's colour. */
 function sourceSeparator(before: string, color: string) {
   const divider = document.createElement('div');
-  divider.className = 'snd-rec-sep';
+  divider.className = 'tmd-rec-sep';
   divider.style.setProperty('--rec-color', color);
   const rule = document.createElement('span');
-  rule.className = 'snd-rec-sep-rule';
+  rule.className = 'tmd-rec-sep-rule';
   divider.append(timeStamp(before), rule);
   return divider;
 }
@@ -242,11 +242,11 @@ function entryRow(entry: HistoryEntry, source: string, color: string,
     ? editRow(entry.text, source, entry.highlightRange, color)
     : highlightRow(source, entry.highlightRange, color);
   const meta = document.createElement('div');
-  meta.className = 'snd-rec-meta';
+  meta.className = 'tmd-rec-meta';
   // The timestamp leads the comment: it is the first thing in the comment box,
   // so the review reads as one line rather than a separate metadata row.
   const body = document.createElement('div');
-  body.className = 'snd-rec-comment';
+  body.className = 'tmd-rec-comment';
   body.appendChild(timeStamp(entry.time));
   if (entry.comment) body.appendChild(document.createTextNode(entry.comment));
   meta.appendChild(body);
@@ -256,7 +256,7 @@ function entryRow(entry: HistoryEntry, source: string, color: string,
     // (or an action) must not re-render and discard the edit.
     const open = (event: Event) => {
       const target = event.target as HTMLElement | null;
-      if (target?.closest('textarea, button, .snd-md-source, .snd-md-comment')) return;
+      if (target?.closest('textarea, button, .tmd-md-source, .tmd-md-comment')) return;
       opts.onOpen?.(annotation);
     };
     raw.addEventListener('click', open);

@@ -11,7 +11,7 @@
  *  so the overlay fill stays aligned with the textarea. */
 function markAnchor(inner: string) {
   const span = document.createElement('span');
-  span.className = 'snd-diff-anchor';
+  span.className = 'tmd-diff-anchor';
   span.innerHTML = inner;
   return span;
 }
@@ -19,7 +19,7 @@ function markAnchor(inner: string) {
 const markDelMap = { 'v': 'last-del', '^': 'next-ins', '|': 'edit-del' } as const;
 
 export function markDel(kind: 'v' | '^' | '|', color?: string) {
-  const mark = markAnchor(`<i class="snd-diff-${markDelMap[kind]}"></i>`);
+  const mark = markAnchor(`<i class="tmd-diff-${markDelMap[kind]}"></i>`);
   if (color) mark.style.color = color;
   return mark;
 }

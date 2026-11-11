@@ -11,7 +11,7 @@ superseded cannot be edited: its recorded text no longer matches the current
 document, so there is nothing coherent to edit. It can only be deleted.
 """
 
-if "snakedone":
+if "transcript":
     """
     ## Revisions
 
@@ -27,7 +27,7 @@ if "snakedone":
     *partly superseded* and can no longer be edited, only deleted.
     """
 
-if "snakedone":
+if "transcript":
     """
     ## Configuration
 
@@ -37,7 +37,7 @@ if "snakedone":
     - batch size: 100
     """
 
-if "snakedone":
+if "transcript":
     """
     The timeout and retry lines are annotated; the log level is not.
     """

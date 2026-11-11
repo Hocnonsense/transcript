@@ -1,4 +1,4 @@
-/** Serialize the trailing ``snakedone.review`` block and its island form.
+/** Serialize the trailing ``transcript.review`` block and its island form.
  *  Pure: the store supplies the source body, records, and body hash. */
 
 import type { RecordEntry } from './records';
@@ -12,24 +12,24 @@ function escapeSlot(content: string) {
 }
 
 /** The archive body plus the newline-separated review block, ready to export
- *  as a ``.snd``.  With no records the body is returned unchanged. */
+ *  as a ``.tmd.py``.  With no records the body is returned unchanged. */
 export function exportSource(source: string, records: RecordEntry[], hash: string) {
   const body = source.replace(/\n+$/, '') + '\n';
   if (!records.length) return body;
   return body + '\n' + renderBlock(records, hash) + '\n';
 }
 
-/** The ``if "snakedone.review=<hash>": \"\"\"[...]\"\"\"`` block. */
+/** The ``if "transcript.review=<hash>": \"\"\"[...]\"\"\"`` block. */
 export function renderBlock(records: RecordEntry[], hash: string) {
   const lines = records.map(record => JSON.stringify(record.data()));
   const inner = lines.length
     ? '[\n' + lines.map(line => '    ' + line).join(',\n') + '\n    ]'
     : '[]';
-  const marker = hash ? `snakedone.review=${hash}` : 'snakedone.review';
+  const marker = hash ? `transcript.review=${hash}` : 'transcript.review';
   return `if "${marker}":\n    """${escapeSlot(inner)}"""`;
 }
 
-/** Serialize the current records for the ``snakedone-reviews`` island, so a
+/** Serialize the current records for the ``transcript-reviews`` island, so a
  *  saved page reloads with the annotations the user added. The source island
  *  holds only the archive body and is never rewritten. */
 export function exportIsland(records: RecordEntry[], hash: string) {

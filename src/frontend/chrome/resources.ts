@@ -54,7 +54,7 @@ async function install(resource, text) {
   if (resource.type === 'style') {
     // A stylesheet is inlined
     const style = document.createElement('style');
-    style.dataset.sndLibrary = resource.name;
+    style.dataset.tmdLibrary = resource.name;
     style.textContent = text;
     document.head.appendChild(style);
     return Promise.resolve();
@@ -66,7 +66,7 @@ async function install(resource, text) {
     const url = URL.createObjectURL(blob);
     const script = document.createElement('script');
     script.src = url;
-    script.dataset.sndLibrary = resource.name;
+    script.dataset.tmdLibrary = resource.name;
     script.onload = () => { URL.revokeObjectURL(url); resolve(); };
     script.onerror = () => { URL.revokeObjectURL(url); reject(new Error(`could not execute ${resource.name}`)); };
     document.head.appendChild(script);

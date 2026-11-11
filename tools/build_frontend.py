@@ -8,7 +8,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 ENTRY = ROOT / "src" / "frontend" / "index.ts"
-TARGET = ROOT / "src" / "snakedone" / "html" / "_assets" / "snakedone.min.js"
+TARGET = ROOT / "src" / "transcript" / "html" / "_assets" / "transcript.min.js"
 ASSETS = TARGET.parent
 STYLE = ASSETS / "style.min.css"
 STAMP = ASSETS / ".frontend.sha256"

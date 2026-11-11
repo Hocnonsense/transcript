@@ -1,21 +1,21 @@
 (function () {
   function wire(navigate: HTMLElement) {
-    if (navigate.dataset.sndWired === 'true') return;
-    navigate.dataset.sndWired = 'true';
+    if (navigate.dataset.tmdWired === 'true') return;
+    navigate.dataset.tmdWired = 'true';
     const tabs = Array.from(navigate.querySelectorAll<HTMLElement>('.navigate-tab'));
     const list = navigate.querySelector<HTMLElement>('.navigate-list');
     if (!list) return;
-    const entries = Array.from(list.querySelectorAll<HTMLElement>('[data-snd-type]'));
+    const entries = Array.from(list.querySelectorAll<HTMLElement>('[data-tmd-type]'));
     function enabled() {
-      return (list.dataset.sndShow || '').split(/\s+/).filter(Boolean);
+      return (list.dataset.tmdShow || '').split(/\s+/).filter(Boolean);
     }
     function setEnabled(names: string[]) {
-      list.dataset.sndShow = names.join(' ');
+      list.dataset.tmdShow = names.join(' ');
       entries.forEach(entry => {
-        entry.hidden = !names.includes(entry.dataset.sndType);
+        entry.hidden = !names.includes(entry.dataset.tmdType);
       });
       tabs.forEach(tab => {
-        const on = names.includes(tab.dataset.sndType);
+        const on = names.includes(tab.dataset.tmdType);
         tab.dataset.active = String(on);
         tab.querySelector('.navigate-tab-toggle')
           ?.setAttribute('aria-pressed', String(on));
@@ -23,7 +23,7 @@
       navigate.dataset.collapsed = String(names.length === 0);
     }
     tabs.forEach(tab => {
-      const type = tab.dataset.sndType;
+      const type = tab.dataset.tmdType;
       tab.querySelector('.navigate-tab-toggle')?.addEventListener('click', () => {
         const names = enabled();
         setEnabled(names.includes(type)
@@ -35,7 +35,7 @@
     });
     if (!tabs.length) return;
     const narrow = window.matchMedia('(max-width: 920px)');
-    const firstType = tabs[0].dataset.sndType;
+    const firstType = tabs[0].dataset.tmdType;
     function sync(event: MediaQueryList | MediaQueryListEvent) {
       setEnabled(event.matches ? [] : [firstType]);
     }
@@ -51,6 +51,6 @@
     document.querySelectorAll<HTMLElement>('.navigate').forEach(wire);
   }
 
-  window.snakedoneInitNavigate = initialize;
+  window.transcriptInitNavigate = initialize;
   initialize();
 })();

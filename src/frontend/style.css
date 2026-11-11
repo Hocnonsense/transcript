@@ -1,4 +1,4 @@
-/* snakedone frontend stylesheet.
+/* transcript frontend stylesheet.
    Order: design tokens, document base, then each component, and finally the
    media queries (dark scheme, narrow width, print) so they always win. */
 
@@ -200,7 +200,7 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
                     user-select: none; -webkit-user-select: none; }
 .doc-line:first-child::before { content: ">>> "; }
 .doc-line.multiline-string::before { content: ""; }
-.snd-render-error { margin: 1rem 0; padding: .75rem 1rem;
+.tmd-render-error { margin: 1rem 0; padding: .75rem 1rem;
                     border: 1px solid var(--danger); border-radius: var(--radius);
                     color: var(--danger); background: var(--danger-bg); }
 .doc-out { padding-bottom: .65rem; }
@@ -210,13 +210,13 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
 
 /* ----------------------------------------------------------- export toolbar */
 
-.snd-toolbar { position: fixed; right: var(--unit); bottom: var(--unit); z-index: 30;
+.tmd-toolbar { position: fixed; right: var(--unit); bottom: var(--unit); z-index: 30;
   display: flex; gap: .4rem; }
-.snd-toolbar button { padding: .3rem .7rem; cursor: pointer;
+.tmd-toolbar button { padding: .3rem .7rem; cursor: pointer;
   color: var(--ink); background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); box-shadow: 0 1px 4px var(--shadow);
   font: 600 .8rem/1.4 system-ui, sans-serif; }
-.snd-toolbar button:hover { background: var(--accent-soft); }
+.tmd-toolbar button:hover { background: var(--accent-soft); }
 
 /* ---------------------------------------- markdown source view and review */
 
@@ -224,70 +224,70 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
 /* A markdown() output is prose, not code: drop the monospace box font so it
    reads like the document's own Markdown. The statement's own code record is
    still code, so it keeps the monospace font and its `>>>` / `...` prompts. */
-.doctest-code:has(> .snakedone-report[data-snd-renderer="markdown"]) {
+.doctest-code:has(> .transcript-report[data-tmd-renderer="markdown"]) {
   font: inherit; }
-.doctest-code:has(> .snakedone-report[data-snd-renderer="markdown"]) > .doc-text {
+.doctest-code:has(> .transcript-report[data-tmd-renderer="markdown"]) > .doc-text {
   font: .9em/1.5 ui-monospace, monospace; }
-.snd-md-popup[hidden], .snd-md-rendered[hidden] { display: none; }
-.snd-md-source[hidden], .snd-md-comment[hidden],
-.snd-rec-list[hidden] { display: none !important; }
+.tmd-md-popup[hidden], .tmd-md-rendered[hidden] { display: none; }
+.tmd-md-source[hidden], .tmd-md-comment[hidden],
+.tmd-rec-list[hidden] { display: none !important; }
 /* Floating popup: the editable original-text box plus the comment. Body
    width, wrapping, and it never replaces the rendered Markdown underneath. */
-.snd-md-popup { position: absolute; left: 0; right: 0; z-index: 10;
+.tmd-md-popup { position: absolute; left: 0; right: 0; z-index: 10;
   margin: 0; padding: .65rem 1rem; display: flex; flex-direction: column;
   gap: .5rem;
   border: 1px solid var(--border); border-radius: var(--radius);
   box-shadow: 0 8px 24px var(--shadow);
   background: var(--code-bg); color: var(--code-ink); }
-.snd-md-overlay { position: absolute; inset: 0; width: 100%; height: 100%;
+.tmd-md-overlay { position: absolute; inset: 0; width: 100%; height: 100%;
   overflow: visible; pointer-events: none; z-index: 5; }
-.snd-md-box { fill: var(--accent-faint); stroke: var(--accent-stroke); stroke-width: 3;
+.tmd-md-box { fill: var(--accent-faint); stroke: var(--accent-stroke); stroke-width: 3;
   filter: drop-shadow(0 1px 2px var(--shadow-soft)); }
-.snd-md-box-active { fill: var(--accent-mid); stroke: var(--accent); }
+.tmd-md-box-active { fill: var(--accent-mid); stroke: var(--accent); }
 /* A superseded annotation (part of its range expired): read-only, delete only. */
-.snd-md-box.snd-md-locked { fill: var(--locked-veil); stroke: var(--locked-stroke); }
-.snd-md-wave { fill: none; stroke: var(--accent); stroke-width: 1.6;
+.tmd-md-box.tmd-md-locked { fill: var(--locked-veil); stroke: var(--locked-stroke); }
+.tmd-md-wave { fill: none; stroke: var(--accent); stroke-width: 1.6;
   stroke-linecap: round; }
-.snd-md-controls { position: absolute; inset: 0; pointer-events: none;
+.tmd-md-controls { position: absolute; inset: 0; pointer-events: none;
   z-index: 6; }
-.snd-md-controls > * { position: absolute; pointer-events: auto; }
-.snd-md-trigger { padding: .15rem .45rem; cursor: pointer; color: var(--accent);
+.tmd-md-controls > * { position: absolute; pointer-events: auto; }
+.tmd-md-trigger { padding: .15rem .45rem; cursor: pointer; color: var(--accent);
   background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); box-shadow: 0 1px 4px var(--shadow);
   font: 600 .75rem/1.2 system-ui, sans-serif; }
-.snd-md-trigger:hover { background: var(--accent-soft); }
-.snd-md-trigger:focus-visible,
-.snd-md-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tmd-md-trigger:hover { background: var(--accent-soft); }
+.tmd-md-trigger:focus-visible,
+.tmd-md-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* A bookmark tab, hidden until the pointer is over its box. */
-.snd-md-badge { width: 1.15rem; height: 1.45rem; padding: 0; border: 0;
+.tmd-md-badge { width: 1.15rem; height: 1.45rem; padding: 0; border: 0;
   background: var(--accent); color: #fff; cursor: pointer;
   /* A bookmark tab: no swallowtail, the bottom is a shallow downward point. */
   clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
   font: 700 .7rem/1.45 system-ui, sans-serif; display: grid;
   place-items: center; box-shadow: 0 1px 3px var(--shadow-strong); }
-.snd-md-badge[hidden] { display: none; }
-.snd-md-badge:hover { background: var(--accent-dark); }
-.snd-md-badge.snd-md-locked { background: var(--locked); }
-.snd-md-badge.snd-md-locked:hover { background: var(--locked-strong); }
+.tmd-md-badge[hidden] { display: none; }
+.tmd-md-badge:hover { background: var(--accent-dark); }
+.tmd-md-badge.tmd-md-locked { background: var(--locked); }
+.tmd-md-badge.tmd-md-locked:hover { background: var(--locked-strong); }
 /* Modify/delete actions in the popup's top-right corner. */
-.snd-md-actions { display: flex; justify-content: flex-end; gap: .35rem; }
-.snd-md-actions button { padding: .15rem .55rem; cursor: pointer;
+.tmd-md-actions { display: flex; justify-content: flex-end; gap: .35rem; }
+.tmd-md-actions button { padding: .15rem .55rem; cursor: pointer;
   color: var(--accent); background: var(--surface); border: 1px solid var(--border);
   border-radius: var(--radius-sm); font: 600 .75rem/1.2 system-ui, sans-serif; }
-.snd-md-actions button:hover { background: var(--accent-soft); }
-.snd-md-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.tmd-md-actions button:hover { background: var(--accent-soft); }
+.tmd-md-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 /* The original-text box: a transparent textarea over a diff-highlighting fill
    keeps the caret visible while it marks what is new relative to the baseline. */
-.snd-md-source { position: relative; max-height: 40vh; overflow: hidden;
+.tmd-md-source { position: relative; max-height: 40vh; overflow: hidden;
   border: 1px solid var(--border); border-radius: var(--radius-sm); }
-.snd-md-source:focus-within { border-color: var(--accent);
+.tmd-md-source:focus-within { border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft); }
-.snd-diff-fill { position: absolute; inset: 0; margin: 0;
+.tmd-diff-fill { position: absolute; inset: 0; margin: 0;
   padding: .35rem .5rem; overflow: hidden; pointer-events: none;
   font: .9em/1.5 ui-monospace, monospace;
   white-space: pre-wrap; overflow-wrap: anywhere;
   color: var(--code-ink); }
-.snd-diff-input { position: relative; z-index: 1; display: block;
+.tmd-diff-input { position: relative; z-index: 1; display: block;
   box-sizing: border-box; width: 100%; resize: none; border: 0;
   padding: .35rem .5rem; margin: 0;
   font: .9em/1.5 ui-monospace, monospace;
@@ -296,54 +296,54 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
   color: transparent !important;
   -webkit-text-fill-color: transparent !important;
   caret-color: var(--accent); }
-.snd-diff-input::selection { background: var(--accent-mid); }
-.snd-diff-input:focus { outline: none; }
+.tmd-diff-input::selection { background: var(--accent-mid); }
+.tmd-diff-input:focus { outline: none; }
 /* The raised middle is the modification range: insertions get a background and
    a red vertical bar marks characters the baseline lost. */
-.snd-diff-ins { background: var(--diff-ins-bg); border-radius: .15rem;
+.tmd-diff-ins { background: var(--diff-ins-bg); border-radius: .15rem;
   text-decoration: overline; text-decoration-color: var(--diff-ins-line);
   text-decoration-thickness: .12em; }
-.snd-diff-del { background: var(--diff-del-bg); border-radius: .15rem;
+.tmd-diff-del { background: var(--diff-del-bg); border-radius: .15rem;
   text-decoration: underline; text-decoration-color: var(--diff-del-line);
   text-decoration-thickness: .12em; }
 /* Every diff mark is one zero-width inline anchor on the baseline, so the
    surrounding text stays aligned; its single child is the visual part. The
    colour follows `color`; history sets it per boundary. */
-.snd-diff-anchor {
+.tmd-diff-anchor {
   position: relative; display: inline-block; width: 0; height: 0;
   color: var(--diff-del-line); }
 /* The deletion bar: only the edit box draws one, where a deletion has no
    character to decorate. */
-.snd-diff-edit-del { position: absolute; left: -1px; top: -.8em;
+.tmd-diff-edit-del { position: absolute; left: -1px; top: -.8em;
   width: 2px; height: 1.1em; background: currentColor; border-radius: 1px; }
 /* The reviewed range: a background behind its text, its two ends accented. */
-.snd-diff-range { background: var(--accent-faint); border-radius: .15rem; }
-.snd-diff-range .snd-diff-anchor { color: var(--accent); }
+.tmd-diff-range { background: var(--accent-faint); border-radius: .15rem; }
+.tmd-diff-range .tmd-diff-anchor { color: var(--accent); }
 /* Open chevrons (SVG masks) instead of filled triangles, so no horizontal base.
    `last-del` is the v above the line: a run the last version had and this row
    lost. `next-ins` is the ^ below it: a run the next version adds and this row
    lacks. The reviewed range reuses them for its start (above) and end (below). */
-.snd-diff-last-del, .snd-diff-next-ins {
+.tmd-diff-last-del, .tmd-diff-next-ins {
   position: absolute; left: 0; width: .62rem; height: .34rem;
   background-color: currentColor;
   -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
   -webkit-mask-position: center; mask-position: center;
   -webkit-mask-size: contain; mask-size: contain; }
-.snd-diff-last-del { top: -.8em; transform: translate(-50%, -100%);
-  --snd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  -webkit-mask-image: var(--snd-chevron); mask-image: var(--snd-chevron); }
-.snd-diff-next-ins { top: .3em; transform: translate(-50%, 0);
-  --snd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-  -webkit-mask-image: var(--snd-chevron); mask-image: var(--snd-chevron); }
-.snd-md-comment { display: block; }
-.snd-md-comment textarea { box-sizing: border-box; width: 100%; resize: none;
+.tmd-diff-last-del { top: -.8em; transform: translate(-50%, -100%);
+  --tmd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--tmd-chevron); mask-image: var(--tmd-chevron); }
+.tmd-diff-next-ins { top: .3em; transform: translate(-50%, 0);
+  --tmd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--tmd-chevron); mask-image: var(--tmd-chevron); }
+.tmd-md-comment { display: block; }
+.tmd-md-comment textarea { box-sizing: border-box; width: 100%; resize: none;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   padding: .35rem .5rem;
   font: .85em/1.5 system-ui, sans-serif; background: var(--surface); color: var(--ink);
   caret-color: var(--accent); }
-.snd-md-comment textarea:focus { outline: none; border-color: var(--accent);
+.tmd-md-comment textarea:focus { outline: none; border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--accent-soft); }
-.snd-md-comment textarea[readonly] { background: var(--border-soft);
+.tmd-md-comment textarea[readonly] { background: var(--border-soft);
   caret-color: transparent; }
 
 /* ------------------------------------------------------- revision records */
@@ -351,52 +351,52 @@ th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
 /* The popup's record list: one row per source version or review, oldest at the
    top. Each row pairs an unrendered code box (raw) with its metadata to the
    right; its `--rec-color` is the source version's main colour. */
-.snd-rec-list { display: flex; flex-direction: column; gap: .45rem;
+.tmd-rec-list { display: flex; flex-direction: column; gap: .45rem;
   max-height: 50vh; overflow: auto; }
 /* raw above, comment below: the raw's own style (colour border on a source,
    tinted range on a highlight, diff marks on an edit) tells the kinds apart. */
-.snd-rec { display: flex; flex-direction: column; gap: .2rem; }
-.snd-rec-code { margin: 0; padding: .35rem .5rem;
+.tmd-rec { display: flex; flex-direction: column; gap: .2rem; }
+.tmd-rec-code { margin: 0; padding: .35rem .5rem;
   border: 1px solid var(--border); border-radius: var(--radius-sm);
   font: .9em/1.5 ui-monospace, monospace;
   white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
-.snd-rec-source .snd-rec-code { border-left: 3px solid var(--rec-color, var(--border));
+.tmd-rec-source .tmd-rec-code { border-left: 3px solid var(--rec-color, var(--border));
   cursor: default; }
 /* The comment and its actions share one row: the comment takes the space, the
    two icon buttons sit tightly joined at its right end. */
-.snd-rec-meta { display: flex; align-items: flex-start; gap: .3rem;
+.tmd-rec-meta { display: flex; align-items: flex-start; gap: .3rem;
   padding: 0 .1rem; }
 /* The timestamp is a pill whose background follows the source version's colour;
    it leads the comment and heads a source's boundary divider. */
-.snd-rec-time { padding: 0 .35rem; border-radius: var(--radius-sm);
+.tmd-rec-time { padding: 0 .35rem; border-radius: var(--radius-sm);
   background: color-mix(in srgb, var(--rec-color, var(--accent)) 18%, transparent);
   color: var(--ink-soft);
   font: 600 .72rem/1.5 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
-.snd-rec-comment { flex: 1; min-width: 0; font: .8em/1.4 system-ui, sans-serif;
+.tmd-rec-comment { flex: 1; min-width: 0; font: .8em/1.4 system-ui, sans-serif;
   white-space: pre-wrap; color: var(--ink-soft); }
-.snd-rec-comment .snd-rec-time { margin-right: .4rem; }
+.tmd-rec-comment .tmd-rec-time { margin-right: .4rem; }
 /* A source's boundary time closes its group: the time on the left, a rule
    filling the rest of the line. */
-.snd-rec-sep { display: flex; align-items: center; gap: .5rem; }
-.snd-rec-sep-rule { flex: 1; border-top: 1px solid var(--border); }
-.snd-rec-hl { border-radius: .15rem; }
-.snd-rec-actions { display: inline-flex; flex: none; }
-.snd-rec-actions button { padding: 0 .35rem; cursor: pointer;
+.tmd-rec-sep { display: flex; align-items: center; gap: .5rem; }
+.tmd-rec-sep-rule { flex: 1; border-top: 1px solid var(--border); }
+.tmd-rec-hl { border-radius: .15rem; }
+.tmd-rec-actions { display: inline-flex; flex: none; }
+.tmd-rec-actions button { padding: 0 .35rem; cursor: pointer;
   color: var(--accent); background: var(--surface); border: 1px solid var(--border);
   border-radius: 0; font: 600 .75rem/1.4 system-ui, sans-serif; }
-.snd-rec-actions button:first-child {
+.tmd-rec-actions button:first-child {
   border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
-.snd-rec-actions button:last-child {
+.tmd-rec-actions button:last-child {
   border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
-.snd-rec-actions button:only-child { border-radius: var(--radius-sm); }
-.snd-rec-actions button + button { border-left: 0; }
-.snd-rec-actions button:hover { background: var(--accent-soft); }
-.snd-rec-actions button:focus-visible { outline: 2px solid var(--accent);
+.tmd-rec-actions button:only-child { border-radius: var(--radius-sm); }
+.tmd-rec-actions button + button { border-left: 0; }
+.tmd-rec-actions button:hover { background: var(--accent-soft); }
+.tmd-rec-actions button:focus-visible { outline: 2px solid var(--accent);
   outline-offset: 2px; }
 /* The inline editor replaces the raw slot; the comment editor replaces the
    comment text, so both keep the row's full width. */
-.snd-rec .snd-md-source { width: 100%; }
-.snd-rec .snd-md-comment { width: 100%; }
+.tmd-rec .tmd-md-source { width: 100%; }
+.tmd-rec .tmd-md-comment { width: 100%; }
 
 /* ------------------------------------------------------------------ images */
 
@@ -417,7 +417,7 @@ main img:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
     --diff-del-bg: #c6282833;
   }
   /* The comment box keeps the popup's surface rather than the page surface. */
-  .snd-md-popup textarea { background: var(--code-bg); color: var(--code-ink); }
+  .tmd-md-popup textarea { background: var(--code-bg); color: var(--code-ink); }
 }
 
 @media (max-width: 920px) {
@@ -443,8 +443,8 @@ main img:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; 
   .navigate { display: none; }
   .script-toggle { display: none !important; }
   .script-block:not([open]) { min-height: 0; }
-  .snd-toolbar { display: none !important; }
-  .snd-md-controls, .snd-md-overlay { display: none !important; }
-  .snd-md-popup { display: none !important; }
-  .snd-md-rendered { display: block !important; }
+  .tmd-toolbar { display: none !important; }
+  .tmd-md-controls, .tmd-md-overlay { display: none !important; }
+  .tmd-md-popup { display: none !important; }
+  .tmd-md-rendered { display: block !important; }
 }

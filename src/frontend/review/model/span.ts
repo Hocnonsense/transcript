@@ -1,6 +1,6 @@
 /** The 0-based half-open ``L``/``C`` coordinate grammar of review records.
  *
- * Mirrors ``snakedone/review/_span.py``: the grammar is 1-based but a span
+ * Mirrors ``transcript/review/_span.py``: the grammar is 1-based but a span
  * stores 0-based ``[start, end)`` positions, so a whole line ``L5`` ends at the
  * next line's start and a point ``L5C3+0`` has ``start == end``.
  */

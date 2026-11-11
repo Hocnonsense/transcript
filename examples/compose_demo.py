@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from snakedone import compose, label, vegalite
+from transcript import compose, label, vegalite
 
 frame = pd.DataFrame(
     {
@@ -34,7 +34,7 @@ score_by_count = {
 
 fig1 = label(vegalite(score_by_sample, frame), "fig1", "Score")
 
-if "snakedone":
+if "transcript":
     """
     # Composed panel grid
 
@@ -42,7 +42,7 @@ if "snakedone":
     """
     fig1
 
-if "snakedone":
+if "transcript":
     """
     # Composed panel grid
 

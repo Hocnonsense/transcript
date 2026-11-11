@@ -53,7 +53,7 @@ export function drawBands(svg: SVGSVGElement, bands: Band[], className: string) 
   const last = bands[bands.length - 1];
   const wave = document.createElementNS(SVG_NS, 'path');
   wave.setAttribute('d', wavePath(last.l, last.r, last.b));
-  wave.setAttribute('class', 'snd-md-wave');
+  wave.setAttribute('class', 'tmd-md-wave');
   svg.appendChild(wave);
 }
 
@@ -98,7 +98,7 @@ export function addBadge(
   const badge = document.createElement('button');
   badge.type = 'button';
   badge.className = annotation.locked
-    ? 'snd-md-badge snd-md-locked' : 'snd-md-badge';
+    ? 'tmd-md-badge tmd-md-locked' : 'tmd-md-badge';
   badge.textContent = '⋯';
   // Hovering shows what the annotation carries: its comment, else the added
   // text of the change runs, as found by the same alignment as the box.
@@ -107,7 +107,7 @@ export function addBadge(
   const hint = annotation.locked ? '[superseded: delete only] ' : '';
   badge.title = hint
     + (annotation.comment || revised || annotation.edit || 'Mark Up');
-  badge.sndAnnotation = annotation;
+  badge.tmdAnnotation = annotation;
   badge.addEventListener('click', event => {
     event.stopPropagation();
     open(annotation);
@@ -127,18 +127,18 @@ export function addBadge(
 /** Show a badge and cancel any pending hide, so a pointer crossing the gap
  *  between the box and the tab has time to reach it. */
 export function revealBadge(badge: HTMLButtonElement) {
-  if (badge.sndHideTimer !== undefined) {
-    clearTimeout(badge.sndHideTimer);
-    badge.sndHideTimer = undefined;
+  if (badge.tmdHideTimer !== undefined) {
+    clearTimeout(badge.tmdHideTimer);
+    badge.tmdHideTimer = undefined;
   }
   badge.hidden = false;
 }
 
 /** Hide a badge after a short grace period, unless the pointer comes back. */
 export function hideBadge(badge: HTMLButtonElement) {
-  if (badge.sndHideTimer !== undefined) return;
-  badge.sndHideTimer = window.setTimeout(() => {
-    badge.sndHideTimer = undefined;
+  if (badge.tmdHideTimer !== undefined) return;
+  badge.tmdHideTimer = window.setTimeout(() => {
+    badge.tmdHideTimer = undefined;
     badge.hidden = true;
   }, 220);
 }

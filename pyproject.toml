@@ -3,8 +3,8 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "snakedone"
-version = "0.0.1"
+name = "py-transcript"
+version = "0.0.2"
 description = "Executable Python documents with recorded outputs"
 requires-python = ">=3.11"
 dependencies = []
@@ -21,13 +21,13 @@ vegalite = [
 snakemake = ["snakemake>=9,<10"]
 
 [project.scripts]
-snakedone = "snakedone.cli:main"
+transcript = "transcript.cli:main"
 
 [tool.hatch.build]
-artifacts = ["src/snakedone/html/_assets/*.css", "src/snakedone/html/_assets/*.js"]
+artifacts = ["src/transcript/html/_assets/*.css", "src/transcript/html/_assets/*.js"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/snakedone"]
+packages = ["src/transcript"]
 exclude = ["**/.gitignore"]
 
 [tool.hatch.build.hooks.custom]
@@ -54,7 +54,7 @@ hatchling = "*"
 
 [tool.pixi.pypi-dependencies]
 snakemake = ">=9.20"
-snakedone = { path = ".", editable = true, extras = [
+py-transcript = { path = ".", editable = true, extras = [
     "html",
     "datavzrd",
     "vegalite",
@@ -71,7 +71,7 @@ typecheck = "pyright"
 build = "hatchling build"
 test = { depends-on = ["frontend-build"], cmd = "pytest" }
 check = { depends-on = ["lint", "typecheck", "frontend-typecheck", "frontend-test", "test"] }
-demo = { depends-on = ["frontend-build"], cmd = "snakedone examples/demo.py --html" }
+demo = { depends-on = ["frontend-build"], cmd = "transcript examples/demo.py --html" }
 demo-review = { depends-on = ["frontend-build"], cmd = "python tools/build_review_demos.py" }
 demo-serve = "python examples/serve.py"
 
@@ -81,12 +81,14 @@ addopts = "-q"
 
 [tool.ruff]
 target-version = "py314"
+extend-exclude = ["*.tmd.py", "**/*.tmd.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
 [tool.pyright]
 include = ["src", "tests", "examples"]
+exclude = ["**/*.tmd.py"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
 reportUnusedExpression = false

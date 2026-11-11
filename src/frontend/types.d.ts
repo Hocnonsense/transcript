@@ -15,12 +15,12 @@ declare global {
       enable(name: string): unknown;
       render(source: string): string;
     };
-    snakedoneInitNavigate?: () => void;
-    snakedoneReviewStore?: ReviewStore;
+    transcriptInitNavigate?: () => void;
+    transcriptReviewStore?: ReviewStore;
   }
 
   interface HTMLButtonElement {
-    sndAnnotation?: Annotation;
-    sndHideTimer?: number;
+    tmdAnnotation?: Annotation;
+    tmdHideTimer?: number;
   }
 }

@@ -9,17 +9,17 @@ range, and overlapping ranges (a partial range inside a whole-line one, and a
 two-line range over both single-line ones).
 """
 
-if "snakedone":
+if "transcript":
     """
     ## Reviewing a document
 
     Markdown blocks can be reviewed in place. Select rendered text, open the
     annotation popup, and edit the original box, write a comment, or both. The
-    annotations stay in the page until saved with **Export .snd** or **Save
+    annotations stay in the page until saved with **Export .tmd.py** or **Save
     .html**.
     """
 
-if "snakedone":
+if "transcript":
     """
     ## Sampling
 
@@ -27,7 +27,7 @@ if "snakedone":
     A tolerance of 0.05 decides whether a sample is accepted.
     """
 
-if "snakedone":
+if "transcript":
     """
     ## Outputs
 

@@ -2,7 +2,7 @@
 
 import pandas as pd
 
-from snakedone import vegalite
+from transcript import vegalite
 
 measurements = {
     "sample": ["A", "B", "C", "D"],
@@ -11,7 +11,7 @@ measurements = {
 }
 pandas_frame = pd.DataFrame(measurements)
 
-if "snakedone":
+if "transcript":
     """
     # Vega-Lite charts
 
@@ -39,7 +39,7 @@ config_dict = {
     },
 }
 
-if "snakedone":
+if "transcript":
     """
     ## polars (interactive)
     """

@@ -15,13 +15,13 @@ export function slug(text: string) {
 export function outline(document: Document) {
   const main = document.querySelector('main');
   if (!main) return;
-  const labels = Array.from(main.querySelectorAll('figure.snakedone-label[id]'));
+  const labels = Array.from(main.querySelectorAll('figure.transcript-label[id]'));
   const seen = new Map(labels.map(label => [label.id, 0]));
   const entries = [];
   let level = 0;
-  main.querySelectorAll('h1,h2,h3,h4,h5,h6,figure.snakedone-label[id]')
+  main.querySelectorAll('h1,h2,h3,h4,h5,h6,figure.transcript-label[id]')
     .forEach(node => {
-      if (node.matches('figure.snakedone-label')) {
+      if (node.matches('figure.transcript-label')) {
         const caption = node.querySelector(':scope > figcaption')?.textContent?.trim();
         entries.push({
           type: 'labels', level: Math.min(level + 1, 6),
@@ -42,7 +42,7 @@ export function outline(document: Document) {
       node.id = id;
       entries.push({ type: 'contents', level, text, id });
     });
-  const reviewStore = window.snakedoneReviewStore;
+  const reviewStore = window.transcriptReviewStore;
   if (reviewStore) {
     let index = 0;
     for (const record of reviewStore.records) {
@@ -50,7 +50,7 @@ export function outline(document: Document) {
       entries.push({
         type: 'reviews', level: 0,
         text: record.comment || record.edit || 'Review',
-        id: `snd-review-${index}`,
+        id: `tmd-review-${index}`,
       });
       index += 1;
     }
@@ -74,7 +74,7 @@ export function outline(document: Document) {
   for (const type of types) {
     const tab = document.createElement('div');
     tab.className = 'navigate-tab';
-    tab.dataset.sndType = type;
+    tab.dataset.tmdType = type;
     tab.dataset.active = String(type === shown);
     tab.innerHTML =
       `<button class="navigate-tab-body" type="button">${titles[type]}</button>` +
@@ -84,7 +84,7 @@ export function outline(document: Document) {
   }
   const list = document.createElement('ol');
   list.className = 'navigate-list';
-  list.dataset.sndShow = shown;
+  list.dataset.tmdShow = shown;
   const css = {
     contents: entry => `toc-heading toc-l${entry.level}`,
     labels: () => 'toc-label',
@@ -93,7 +93,7 @@ export function outline(document: Document) {
   for (const entry of entries) {
     const item = document.createElement('li');
     item.className = css[entry.type](entry);
-    item.dataset.sndType = entry.type;
+    item.dataset.tmdType = entry.type;
     item.hidden = entry.type !== shown;
     const link = document.createElement('a');
     link.href = `#${entry.id}`;
@@ -104,5 +104,5 @@ export function outline(document: Document) {
   nav.append(tabs, list);
   page.className = 'page page--navigate';
   page.insertBefore(nav, main);
-  window.snakedoneInitNavigate?.();
+  window.transcriptInitNavigate?.();
 }

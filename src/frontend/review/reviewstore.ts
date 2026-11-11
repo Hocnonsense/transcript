@@ -4,7 +4,7 @@
  * region works on its decoded literal. The store keeps, for each region, the
  * raw source span and the decoded-to-raw index map, so a record's ``at`` can be
  * translated both ways. It also owns the record list and serializes the
- * trailing ``snakedone.review`` block when the page is exported.
+ * trailing ``transcript.review`` block when the page is exported.
  */
 
 import { Annotation } from './annotation';
@@ -478,7 +478,7 @@ export class ReviewStore {
     return renderBlock(this.records, this.hash);
   }
 
-  /** Serialize the current records for the ``snakedone-reviews`` island, so a
+  /** Serialize the current records for the ``transcript-reviews`` island, so a
    *  saved page reloads with the annotations the user added. The source island
    *  holds only the archive body and is never rewritten. */
   exportIsland() {

@@ -3,7 +3,7 @@
 import pandas as pd
 import polars as pl
 
-from snakedone import datavzrd, table
+from transcript import datavzrd, table
 
 measurements = {
     "sample": ["A", "B", "C", "D"],
@@ -13,7 +13,7 @@ measurements = {
 pandas_frame = pd.DataFrame(measurements)
 polars_frame = pl.DataFrame(measurements)
 
-if "snakedone":
+if "transcript":
     """
     # Interactive DataFrames
 
@@ -24,14 +24,14 @@ if "snakedone":
     """
     datavzrd(pandas_frame, "datavzrd.yaml")
 
-if "snakedone":
+if "transcript":
     """
     ## polars
     """
     datavzrd(polars_frame, "datavzrd.yaml")
     polars_frame.write_csv()
 
-if "snakedone":
+if "transcript":
     """
     The exported HTML contains both reports and can be shared as one offline file.
     """
@@ -39,8 +39,9 @@ if "snakedone":
     print(polars_frame.write_csv())
     polars_frame
 
-if "snakedone":
+if "transcript":
     """
-    Or you can use the :func:`snakedone.table` renderer to simply show a static Markdown table.
+    Or you can use the :func:`transcript.table` renderer to simply show a
+    static Markdown table.
     """
     table(pandas_frame)

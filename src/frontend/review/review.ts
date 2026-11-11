@@ -73,37 +73,37 @@ export class MarkdownReview {
 
   constructor(node: HTMLElement, raw: string, rawStart = 0, rawEnd = 0) {
     this.node = node;
-    this.store = window.snakedoneReviewStore!;
+    this.store = window.transcriptReviewStore!;
     const { text, map } = markdownMap(raw);
     this.map = new LiteralMap(text);
     this.annotations = this.store.addRegion(this, rawStart, rawEnd, text, map);
     // The popup holds the revision record list (existing annotations) or the
     // two-box editor (a new annotation): the original text is edited in place
     // (transparent textarea over the diff highlight) and the comment below.
-    this.sourceFill = element('pre', 'snd-diff-fill');
-    this.sourceInput = element('textarea', 'snd-diff-input',
+    this.sourceFill = element('pre', 'tmd-diff-fill');
+    this.sourceInput = element('textarea', 'tmd-diff-input',
       { rows: 1, spellcheck: false });
     inputRegions.set(this.sourceInput, this);
-    this.source = element('div', 'snd-md-source', { hidden: true },
+    this.source = element('div', 'tmd-md-source', { hidden: true },
       this.sourceFill, this.sourceInput);
     this.sourceView = new SourceView(this.sourceFill, this.sourceInput, () => this.session);
-    this.list = element('div', 'snd-rec-list', { hidden: true });
+    this.list = element('div', 'tmd-rec-list', { hidden: true });
     this.commentInput = element('textarea', '', {
       placeholder: 'comment (Ctrl+Enter to submit) . . .', rows: 2,
     });
-    this.comment = element('label', 'snd-md-comment', { hidden: true },
+    this.comment = element('label', 'tmd-md-comment', { hidden: true },
       this.commentInput);
-    this.popup = element('form', 'snd-md-popup',
+    this.popup = element('form', 'tmd-md-popup',
       { hidden: true, noValidate: true },
       this.list, this.source, this.comment);
     this.popup.addEventListener('submit', event => event.preventDefault());
-    this.rendered = element('div', 'snd-md-rendered');
-    this.svg = svgElement('snd-md-overlay');
-    this.controls = element('div', 'snd-md-controls');
+    this.rendered = element('div', 'tmd-md-rendered');
+    this.svg = svgElement('tmd-md-overlay');
+    this.controls = element('div', 'tmd-md-controls');
 
     node.style.position = 'relative';
     node.replaceChildren(this.rendered, this.popup, this.svg, this.controls);
-    node.dataset.sndMdView = 'rendered';
+    node.dataset.tmdMdView = 'rendered';
   }
 
   get literal() {
@@ -117,13 +117,13 @@ export class MarkdownReview {
 
   clearTransient() {
     // Keep the per-annotation badges; drop only the floating trigger.
-    this.controls.querySelectorAll('.snd-md-trigger').forEach(node => node.remove());
+    this.controls.querySelectorAll('.tmd-md-trigger').forEach(node => node.remove());
   }
 
   showRendered() {
     this.view = 'rendered';
     openRegions.delete(this);
-    this.node.dataset.sndMdView = 'rendered';
+    this.node.dataset.tmdMdView = 'rendered';
     this.rendered.hidden = false;
     this.popup.hidden = true;
     this.selection = null;
@@ -151,7 +151,7 @@ export class MarkdownReview {
       annotation.bands = bands;
       drawBands(
         this.svg, bands,
-        annotation.locked ? 'snd-md-box snd-md-locked' : 'snd-md-box');
+        annotation.locked ? 'tmd-md-box tmd-md-locked' : 'tmd-md-box');
       if (keep.has(annotation)) {
         addBadge(this.controls, annotation, bands, a => this.openAnnotation(a));
       }
@@ -164,7 +164,7 @@ export class MarkdownReview {
     this.editing = annotation;
     this.view = 'list';
     openRegions.add(this);
-    this.node.dataset.sndMdView = 'source';
+    this.node.dataset.tmdMdView = 'source';
     this.popup.hidden = false;
     this.selection = { start: annotation.chosen.start, end: annotation.chosen.end };
     this.controls.replaceChildren();
@@ -250,7 +250,7 @@ export class MarkdownReview {
   openSource(start: number, end: number, anchorTop: number, mode = 'edit') {
     this.view = 'source';
     openRegions.add(this);
-    this.node.dataset.sndMdView = 'source';
+    this.node.dataset.tmdMdView = 'source';
     this.popup.hidden = false;
     this.selection = { start, end };
     this.controls.replaceChildren();
@@ -423,7 +423,7 @@ export class MarkdownReview {
     const origin = this.node.getBoundingClientRect();
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'snd-md-trigger';
+    button.className = 'tmd-md-trigger';
     button.textContent = '✎';
     button.addEventListener('mousedown', event => event.preventDefault());
     button.addEventListener('click', () => {
@@ -458,8 +458,8 @@ export class MarkdownReview {
       const origin = this.node.getBoundingClientRect();
       const x = event.clientX - origin.left;
       const y = event.clientY - origin.top;
-      this.controls.querySelectorAll<HTMLButtonElement>('.snd-md-badge').forEach(badge => {
-        const bands = badge.sndAnnotation?.bands;
+      this.controls.querySelectorAll<HTMLButtonElement>('.tmd-md-badge').forEach(badge => {
+        const bands = badge.tmdAnnotation?.bands;
         const overBox = !!bands && bands.some(band =>
           x >= band.l - 2 && x <= band.r + 2 &&
           y >= band.t - 2 && y <= band.b + 2);
@@ -469,7 +469,7 @@ export class MarkdownReview {
       });
     });
     this.node.addEventListener('mouseleave', () => {
-      this.controls.querySelectorAll<HTMLButtonElement>('.snd-md-badge')
+      this.controls.querySelectorAll<HTMLButtonElement>('.tmd-md-badge')
         .forEach(badge => hideBadge(badge));
     });
     this.rendered.addEventListener('mousedown', () => {

@@ -5,7 +5,7 @@
 
 import { MarkdownReview } from '../review/review';
 
-/** Decode `data-snd-string-lines` (e.g. "1,4-5") into a set of 1-based lines. */
+/** Decode `data-tmd-string-lines` (e.g. "1,4-5") into a set of 1-based lines. */
 export function lineRanges(text: string) {
   const result: Set<number> = new Set();
   for (const part of (text || '').split(',')) {
@@ -16,22 +16,22 @@ export function lineRanges(text: string) {
   return result;
 }
 
-/** `data-snd-span` is the source range `start,end` the server recorded. */
+/** `data-tmd-span` is the source range `start,end` the server recorded. */
 export function sourceSpan(node): [number, number] {
-  const [start, end] = node.dataset.sndSpan.split(',');
+  const [start, end] = node.dataset.tmdSpan.split(',');
   return [Number(start), Number(end)];
 }
 
 /** Rebuild one physical statement from the island. Shared indentation is
  *  stripped before highlighting, except on continuation lines of a multiline
  *  string, which keep their indentation and drop the `>>>` prompt. The server
- *  precomputes which lines those are (`data-snd-string-lines`). */
+ *  precomputes which lines those are (`data-tmd-string-lines`). */
 function codeLines(node, source: string) {
   const [start, end] = sourceSpan(node);
   const raw = source.slice(start, end);
   const lines = raw.split('\n');
   const indent = (lines.find(line => line.trim()) || '').match(/^[ \t]*/)[0];
-  const interior = lineRanges(node.dataset.sndStringLines);
+  const interior = lineRanges(node.dataset.tmdStringLines);
   return lines.map((line, index) => ({
     interior: interior.has(index + 1),
     text: interior.has(index + 1) ? line : line.startsWith(indent)
