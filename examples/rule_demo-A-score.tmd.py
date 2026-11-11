@@ -27,7 +27,7 @@ with r:  # transcript:rule demo:
 
 r.wildcards(sample="A", feature="score")
 
-if "transcript":
+if "transcript.md":
     """
     # Rule Demo
 
@@ -93,7 +93,7 @@ def draw(t: float):
     return ax
 
 
-if "transcript":
+if "transcript.md":
     value = metadata.filter(pl.col("sample") == r.wildcards.sample)[
         r.wildcards.feature
     ].item()

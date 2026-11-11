@@ -1,6 +1,6 @@
 """Executable Python documents with recorded outputs."""
 
-from .execute import report
+from .execute import md
 from .renderers.bitmap import bitmap, image
 from .renderers.compose import compose
 from .renderers.datavzrd import datavzrd
@@ -10,14 +10,14 @@ from .renderers.table import table
 from .renderers.vegalite import vegalite
 
 __all__ = [
-    "markdown",
     "bitmap",
     "code",
     "compose",
     "datavzrd",
     "image",
     "label",
-    "report",
+    "markdown",
+    "md",
     "rule",
     "table",
     "vegalite",

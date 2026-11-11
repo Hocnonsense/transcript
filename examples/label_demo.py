@@ -6,11 +6,11 @@ Jump to the [measurements](#sample-a) or the
 
 from pathlib import Path
 
-from transcript import label, markdown
+from transcript import label, md
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
 
-if "transcript":
+with md:
     """
     # Labelled outputs
 
@@ -23,16 +23,16 @@ if "transcript":
 
 readme = Path(__file__).parent.parent / "README.md"
 
-if "transcript":
-    markdown(readme.read_text(encoding="utf-8"))
+with md:
+    md(readme.read_text(encoding="utf-8"))
 
 
-if "transcript":
+with md:
     """
     The [measurements above](#sample-a) use the fallback renderer. A label can
     also wrap another renderer without changing its presentation.
     """
     label(
-        markdown("## Quality decision\n\nSample A passed the quality threshold."),
+        md("## Quality decision\n\nSample A passed the quality threshold."),
         "sample-a-decision",
     )

@@ -6,11 +6,11 @@ Jump to the [measurements](#sample-a) or the
 
 from pathlib import Path
 
-from transcript import label, markdown
+from transcript import label, md
 
 measurements = {"sample": "A", "score": 0.8, "passed": True}
 
-if "transcript":
+with md:  # transcript.md
     """
     # Labelled outputs
 
@@ -31,8 +31,8 @@ if "transcript":
 
 readme = Path(__file__).parent.parent / "README.md"
 
-if "transcript":
-    markdown(readme.read_text(encoding="utf-8"))
+with md:  # transcript.md
+    md(readme.read_text(encoding="utf-8"))
     """
     `````transcript-output markdown=1
     transcript
@@ -122,18 +122,18 @@ if "transcript":
     ```python
     value = 7
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         # Analysis
         \"\"\"
         value
     ```
 
-    - `if "transcript":` is always true, so the file runs with plain Python and needs no dependency.
-    - `with transcript.report:` runs a real context manager and requires `import transcript`.
+    - `if "transcript.md":` is always true, so the file runs with plain Python and needs no dependency.
+    - `with transcript.md:` runs a real context manager and requires `import transcript`.
 
     The two forms are equivalent and may be mixed in one document.
-    A top-level `with` is a report block when its context manager is the `report` imported from `transcript`; any alias works.
+    A top-level `with` is a report block when its context manager is the `md` renderer imported from `transcript`; any alias (e.g., `markdown`) works.
 
     Inside a block:
 
@@ -149,7 +149,7 @@ if "transcript":
     ```python
     value = 7
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         # Analysis
         \"\"\"
@@ -165,7 +165,7 @@ if "transcript":
     ```python
     value = 7
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         # Analysis
         \"\"\"
@@ -250,7 +250,7 @@ if "transcript":
     ```python
     from transcript import markdown
 
-    if "transcript":
+    if "transcript.md":
         markdown("## Generated result\\n\\n- first\\n- second")
     ```
 
@@ -261,7 +261,7 @@ if "transcript":
     ```python
     from transcript import bitmap
 
-    if "transcript":
+    if "transcript.md":
         bitmap("result.png", alt="Simulation result")
     ```
 
@@ -274,7 +274,7 @@ if "transcript":
 
     plot = plt.plot([0, 1, 2], [0, 1, 0])
 
-    if "transcript":
+    if "transcript.md":
         image(plot, alt="A line plot")
     ```
 
@@ -289,7 +289,7 @@ if "transcript":
 
     frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         ## Results
         \"\"\"
@@ -306,7 +306,7 @@ if "transcript":
 
     frame = pd.DataFrame({"sample": ["A", "B"], "score": [0.8, 0.3]})
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         ## Interactive table
         \"\"\"
@@ -359,7 +359,7 @@ if "transcript":
         )
     )
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         ## Altair chart
         \"\"\"
@@ -382,7 +382,7 @@ if "transcript":
 
     measurements = {"sample": "A", "score": 0.8, "passed": True}
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         See the [measurements](#sample-a) and the
         [quality decision](#sample-a-decision).
@@ -406,7 +406,7 @@ if "transcript":
     ```python
     from transcript import compose, label
 
-    if "transcript":
+    if "transcript.md":
         \"\"\"
         ## Comparison
         \"\"\"
@@ -552,14 +552,14 @@ if "transcript":
     An archive created with `-o` records the reconciled `document` pattern but neither the concrete name nor the `--wildcards` values, so re-executing it without `--wildcards` falls back to the recorded defaults.
     For example, the [rule demo](examples/rule_demo.py) declares `r.wildcards(sample="A", feature="score")`:
 
-    | input file              | parameter                                                      | files changed on disk                               | behavior                                                                                                             |
-    | ----------------------- | -------------------------------------------------------------- | --------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
-    | `examples/rule_demo.py` | `-o rule_demo-B-count.html --wildcards sample=B feature=count` | writes `rule_demo-B-count.tmd.py/.html`                | adds `document="rule_demo-{sample}-{feature}.html"` to the document.                                                 |
+    | input file                 | parameter                                                      | files changed on disk                                  | behavior                                                                                                             |
+    | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+    | `examples/rule_demo.py`    | `-o rule_demo-B-count.html --wildcards sample=B feature=count` | writes `rule_demo-B-count.tmd.py/.html`                | adds `document="rule_demo-{sample}-{feature}.html"` to the document.                                                 |
     | `rule_demo-B-count.tmd.py` |                                                                | writes `rule_demo-A-score.tmd.py/.html`, not B-count   | executes the archive and resolves the declared document with the recorded defaults (A/score).                        |
-    | `rule_demo-B-count.tmd.py` | `--diff`                                                       |                                                     | compares that re-execution against `rule_demo-A-score.tmd.py`, not the input archive; exit 1 if missing target.         |
+    | `rule_demo-B-count.tmd.py` | `--diff`                                                       |                                                        | compares that re-execution against `rule_demo-A-score.tmd.py`, not the input archive; exit 1 if missing target.      |
     | `rule_demo-B-count.tmd.py` | `--overwrite --html`                                           | creates/overwrites `rule_demo-A-score.tmd.py/.html`    | similar to above                                                                                                     |
     | `rule_demo-B-count.tmd.py` | `--diff --html`                                                | create/check `rule_demo-A-score.tmd.py`, write `.html` | creates a missing target archive, a difference against an existing archive still blocks export.                      |
-    | `rule_demo-B-count.tmd.py` | `--html`                                                       | renders `rule_demo-B-count.html`                    | renders the stored results directly without executing, so this one keeps the input name.                             |
+    | `rule_demo-B-count.tmd.py` | `--html`                                                       | renders `rule_demo-B-count.html`                       | renders the stored results directly without executing, so this one keeps the input name.                             |
     | `rule_demo-B-count.tmd.py` | `--overwrite -o examples/rule_demo.html`                       | writes `examples/rule_demo.tmd.py/.html`               | the concrete `-o` cannot become a pattern, so the declared `document` is dropped; execution uses defaults (A/score). |
     | `rule_demo-B-count.tmd.py` | `--overwrite --html --wildcards sample=B feature=count`        | rewrites `rule_demo-B-count.tmd.py/.html`              | re-executes with an explicit override and reproduces the B-count target.                                             |
 
@@ -625,12 +625,12 @@ if "transcript":
         └── output slot
     ```
 
-    | Term           | Meaning                                                            |
-    | -------------- | ------------------------------------------------------------------ |
-    | `report-block` | A module-level `if "transcript":` or `with transcript.report:` block |
-    | `markdown`     | The first docstring inside the block                               |
-    | `code`         | A top-level statement that runs and may produce output             |
-    | `output slot`  | A docstring after a code statement, replaced on each update        |
+    | Term           | Meaning                                                             |
+    | -------------- | ------------------------------------------------------------------- |
+    | `report-block` | A module-level `if "transcript.md":` or `with transcript.md:` block |
+    | `markdown`     | The first docstring inside the block                                |
+    | `code`         | A top-level statement that runs and may produce output              |
+    | `output slot`  | A docstring after a code statement, replaced on each update         |
 
     ### Roadmap
 
@@ -682,13 +682,13 @@ if "transcript":
     """
 
 
-if "transcript":
+with md:  # transcript.md
     """
     The [measurements above](#sample-a) use the fallback renderer. A label can
     also wrap another renderer without changing its presentation.
     """
     label(
-        markdown("## Quality decision\n\nSample A passed the quality threshold."),
+        md("## Quality decision\n\nSample A passed the quality threshold."),
         "sample-a-decision",
     )
     """

@@ -11,7 +11,7 @@ superseded cannot be edited: its recorded text no longer matches the current
 document, so there is nothing coherent to edit. It can only be deleted.
 """
 
-if "transcript":
+if "transcript.md":
     """
     ## Revisions
 
@@ -27,7 +27,7 @@ if "transcript":
     *partly superseded* and can no longer be edited, only deleted.
     """
 
-if "transcript":
+if "transcript.md":
     """
     ## Configuration
 
@@ -37,12 +37,12 @@ if "transcript":
     - batch size: 100
     """
 
-if "transcript":
+if "transcript.md":
     """
     The timeout and retry lines are annotated; the log level is not.
     """
 
-if "transcript.review=sha256:2629cda2b382d51e7e72dda4e67b680592a35f032b7917f71eeca214891d55e3":
+if "transcript.review=sha256:2078ee290652d5f406892202557cb5161a713ff884133438c676f306952f639a":
     """[
     {"type": "source", "at": "L34", "source": "    - timeout: 30s\\n", "before": "2026-09-10T09:00:00.000Z"},
     {"type": "source", "at": "L34", "source": "    - timeout: 60s\\n", "cover": "L34@2026-09-10T09:00:00.000Z", "before": "2026-09-15T09:00:00.000Z"},

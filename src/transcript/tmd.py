@@ -75,7 +75,7 @@ def _find_line_start(source: str, token: tokenize.TokenInfo):
 
 
 def _strip_stale_markers(document: AstDocument, blocks: list[ReportBlock]):
-    """Remove ``# transcript`` from ``with`` regions that are not report blocks."""
+    """Remove ``# transcript.md`` from ``with`` regions that are not report blocks."""
 
     confirmed = {id(block.node) for block in blocks}
     for region in document.regions.values():

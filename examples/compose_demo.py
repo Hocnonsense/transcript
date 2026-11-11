@@ -34,7 +34,7 @@ score_by_count = {
 
 fig1 = label(vegalite(score_by_sample, frame), "fig1", "Score")
 
-if "transcript":
+if "transcript.md":
     """
     # Composed panel grid
 
@@ -42,7 +42,7 @@ if "transcript":
     """
     fig1
 
-if "transcript":
+if "transcript.md":
     """
     # Composed panel grid
 

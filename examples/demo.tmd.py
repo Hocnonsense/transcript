@@ -40,7 +40,7 @@ def matplotlib_plot(value):
 data = json.loads(Path(__file__).with_name("data.json").read_text(encoding="utf-8"))
 message = f"Sample: {data['label']}"
 
-if "transcript":
+if "transcript.md":
     """
     The following records archive a string, a table, and an inline image.
     """
@@ -51,7 +51,7 @@ if "transcript":
 
 image_source = {"red": data["red"], "green": 64, "blue": 128}
 
-if "transcript":
+if "transcript.md":
     """
     ## Image
 
@@ -69,7 +69,7 @@ if "transcript":
     """
 
 
-if "transcript":
+if "transcript.md":
     """
     ## Matplotlib plot
 
@@ -84,7 +84,7 @@ if "transcript":
 
 table = pd.DataFrame([data], columns=["label", "value"])
 
-if "transcript":
+if "transcript.md":
     """
     ## Interactive table
 
@@ -97,7 +97,7 @@ if "transcript":
     0  baseline      7
     """
 
-if "transcript":
+if "transcript.md":
     """
     This Markdown paragraph follows the final record and must remain unchanged.
     """

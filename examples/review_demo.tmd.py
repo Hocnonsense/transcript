@@ -9,7 +9,7 @@ range, and overlapping ranges (a partial range inside a whole-line one, and a
 two-line range over both single-line ones).
 """
 
-if "transcript":
+if "transcript.md":
     """
     ## Reviewing a document
 
@@ -19,7 +19,7 @@ if "transcript":
     .html**.
     """
 
-if "transcript":
+if "transcript.md":
     """
     ## Sampling
 
@@ -27,7 +27,7 @@ if "transcript":
     A tolerance of 0.05 decides whether a sample is accepted.
     """
 
-if "transcript":
+if "transcript.md":
     """
     ## Outputs
 
@@ -35,7 +35,7 @@ if "transcript":
     A run manifest is written alongside it.
     """
 
-if "transcript.review=sha256:874f12b86a18ce2404973aca6e1d7c6db3f3cf4b19aa927d3d1e585b8e7becb0":
+if "transcript.review=sha256:fd26ce607ebecde491fc565fbaa0f1101d8142bd55567dd08a701d35901a2652":
     """[
     {"type": "source", "at": "L26"},
     {"type": "source", "at": "L27"},

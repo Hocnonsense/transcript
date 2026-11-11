@@ -13,7 +13,7 @@ measurements = {
 pandas_frame = pd.DataFrame(measurements)
 polars_frame = pl.DataFrame(measurements)
 
-if "transcript":
+if "transcript.md":
     """
     # Interactive DataFrames
 
@@ -24,14 +24,14 @@ if "transcript":
     """
     datavzrd(pandas_frame, "datavzrd.yaml")
 
-if "transcript":
+if "transcript.md":
     """
     ## polars
     """
     datavzrd(polars_frame, "datavzrd.yaml")
     polars_frame.write_csv()
 
-if "transcript":
+if "transcript.md":
     """
     The exported HTML contains both reports and can be shared as one offline file.
     """
@@ -39,7 +39,7 @@ if "transcript":
     print(polars_frame.write_csv())
     polars_frame
 
-if "transcript":
+if "transcript.md":
     """
     Or you can use the :func:`transcript.table` renderer to simply show a
     static Markdown table.

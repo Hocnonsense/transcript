@@ -7,7 +7,7 @@ import tokenize
 from collections.abc import Callable
 from typing import NamedTuple, TypeGuard
 
-REPORT_MARKER = "transcript"
+REPORT_MARKER = "transcript.md"
 REPORT_MARKER_COMMENT = f"# {REPORT_MARKER}"
 
 _STRING_PREFIXES = "rRbBuUfF"
@@ -171,10 +171,10 @@ def _string_interior(source: str, span: tuple[int, int]):
 
 
 class Region(NamedTuple):
-    """A module-level report entry (``if "transcript":`` or a top-level ``with``)."""
+    """A module-level report entry (``if "transcript.md":`` or a top-level ``with``)."""
 
     node: ast.If | ast.With
-    marker: bool  # the comment right after the ``with`` colon is ``# transcript``
+    marker: bool  # the comment right after the ``with`` colon is ``# transcript.md``
 
     @property
     def kind(self):

@@ -9,7 +9,7 @@ range, and overlapping ranges (a partial range inside a whole-line one, and a
 two-line range over both single-line ones).
 """
 
-if "transcript":
+if "transcript.md":
     """
     ## Reviewing a document
 
@@ -19,7 +19,7 @@ if "transcript":
     .html**.
     """
 
-if "transcript":
+if "transcript.md":
     """
     ## Sampling
 
@@ -27,7 +27,7 @@ if "transcript":
     A tolerance of 0.05 decides whether a sample is accepted.
     """
 
-if "transcript":
+if "transcript.md":
     """
     ## Outputs
 

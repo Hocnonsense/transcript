@@ -10,8 +10,16 @@ from ..output import Renderer
 from . import register
 
 
+class _Report(type(Renderer)):
+    def __enter__(cls):
+        return cls
+
+    def __exit__(cls, *exc):
+        return False
+
+
 @register
-class markdown(Renderer):
+class markdown(Renderer, metaclass=_Report):
     """Mark a string output for normal Markdown rendering in exported HTML."""
 
     name = "markdown"

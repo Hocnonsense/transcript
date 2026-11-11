@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from ._rule import registry
 from .parse import ReportBlock, span
+from .renderers.markdown import markdown
 
 if TYPE_CHECKING:
     from .document import AstDocument
@@ -56,17 +57,7 @@ class ExecutionScope:
         self.registry_scope.__exit__(exc_type, exc, tb)
 
 
-class _Report:
-    """Plain context manager for ``with transcript.report:`` report blocks."""
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, *exc):
-        return False
-
-
-report = _Report()
+md = markdown
 
 
 def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = None):
@@ -185,7 +176,7 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
                 continue
             if isinstance(node, ast.With):
                 context = eval_expression(node.items[0].context_expr)
-                if context is not report:
+                if context is not md:
                     if context is registry.current():
                         if TYPE_CHECKING:
                             context = registry.current()
@@ -217,7 +208,7 @@ def execute(self: AstDocument, path: Path, wildcards: dict[str, str] | None = No
                     continue
                 optional_vars = node.items[0].optional_vars
             else:
-                context = report
+                context = md
                 optional_vars = None
             blocks.append(self.regions[i].parse_block(self.source, self.position))
             outputs.append(with_transcript(context, blocks[-1], optional_vars))

@@ -11,7 +11,7 @@ measurements = {
 }
 pandas_frame = pd.DataFrame(measurements)
 
-if "transcript":
+if "transcript.md":
     """
     # Vega-Lite charts
 
@@ -90,7 +90,7 @@ config_dict = {
     },
 }
 
-if "transcript":
+if "transcript.md":
     """
     ## polars (interactive)
     """
