@@ -3,11 +3,6 @@
 ## 0.1.0 (2026-11-12)
 
 
-### ⚠ BREAKING CHANGES
-
-* between opencode and codex
-* between codex and opencode
-
 ### Features
 
 * _rule ([333b3fe](https://github.com/Hocnonsense/transcript/commit/333b3fe6f388f43ae91a88e5ef9f8003a89aae72))
