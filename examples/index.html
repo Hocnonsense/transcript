@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>transcript examples</title>
+<style>
+:root { color-scheme: light dark; }
+body { max-width: 40rem; margin: 3rem auto; padding: 0 1.25rem;
+       font: 17px/1.65 system-ui, sans-serif; }
+h1 { line-height: 1.25; }
+ul { padding-left: 1.2rem; }
+li { margin: .35rem 0; }
+a { color: #3984c6; }
+small { color: #888; }
+code { font-family: ui-monospace, monospace; font-size: .9em; }
+</style>
+</head>
+<body>
+<h1>transcript examples</h1>
+<ul id="reports"><li><small>Loading…</small></li></ul>
+<p id="hint" hidden><small>Run <code>pixi run serve</code> and open this page
+through the server to list reports automatically.</small></p>
+<script>
+(async () => {
+  const list = document.getElementById('reports');
+  try {
+    const response = await fetch('/__reports.json', {cache: 'no-store'});
+    if (!response.ok) throw new Error(response.status);
+    const names = await response.json();
+    if (!names.length) {
+      list.innerHTML = '<li><small>No reports yet.</small></li>';
+      return;
+    }
+    list.replaceChildren(...names.map(name => {
+      const item = document.createElement('li');
+      const link = document.createElement('a');
+      link.href = name;
+      link.textContent = name.replace(/\.html$/, '');
+      item.append(link);
+      return item;
+    }));
+  } catch {
+    list.replaceChildren();
+    document.getElementById('hint').hidden = false;
+  }
+})();
+</script>
+</body>
+</html>

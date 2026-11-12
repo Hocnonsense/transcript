@@ -1,0 +1,450 @@
+/* transcript frontend stylesheet.
+   Order: design tokens, document base, then each component, and finally the
+   media queries (dark scheme, narrow width, print) so they always win. */
+
+:root {
+  color-scheme: light dark;
+
+  /* Layout */
+  --unit: 1.25rem;
+  --body-max: 860px;
+  --side: 15rem;
+  --side-rail: 2.25rem;
+  --radius: .4rem;
+  --radius-sm: .25rem;
+
+  /* Accent (blue) and its translucent steps */
+  --accent: #3984c6;
+  --accent-dark: #2f6ea8;
+  --accent-soft: #3984c622;
+  --accent-faint: #3984c61a;
+  --accent-mid: #3984c633;
+  --accent-stroke: #3984c680;
+
+  /* Neutrals, surfaces, and shadows */
+  --border: #8885;
+  --border-soft: #8881;
+  --muted: #888;
+  --surface: canvas;
+  --ink: canvastext;
+  --ink-soft: #172033cc;
+  --shadow-soft: #0002;
+  --shadow: #0003;
+  --shadow-strong: #0004;
+
+  /* Code surfaces */
+  --code-bg: #f1f5f9;
+  --code-ink: #172033;
+
+  /* Diff: green = inserted, red = deleted */
+  --diff-ins-bg: #28a74526;
+  --diff-ins-line: #2e7d32;
+  --diff-del-bg: #c6282818;
+  --diff-del-line: #c62828;
+
+  /* Semantic states */
+  --danger: #b42318;
+  --danger-bg: #fff1f0;
+  --locked: #b4531a;
+  --locked-veil: #b4531a1a;
+  --locked-stroke: #b4531a99;
+  --locked-strong: #8f3f12;
+}
+
+/* ---------------------------------------------------------------- document */
+
+body { margin: 0; font: 17px/1.65 system-ui, sans-serif; }
+.page { max-width: var(--body-max); margin: 3rem auto;
+        padding: 0 1.25rem 0 3rem; }
+h1, h2, h3 { line-height: 1.25; }
+a { color: var(--accent); }
+code { font-family: ui-monospace, monospace; font-size: .9em; }
+blockquote { margin-left: 0; padding-left: 1rem; border-left: 3px solid var(--border); }
+table { border-collapse: collapse; }
+th, td { border: 1px solid var(--border); padding: .35rem .7rem; }
+
+/* ---------------------------------------------------------------- navigate */
+
+/* The body and navigate share one centered grid. The navigate keeps the same
+   top-right position at every width; only the body's reservation changes, so
+   nothing jumps. Below the breakpoint it floats over the body instead. */
+.page--navigate { display: grid; grid-template-columns: minmax(0, 1fr) auto;
+                 gap: var(--unit); margin: 3rem auto;
+                 padding: 0 var(--unit);
+                 max-width: calc(var(--body-max) + var(--side) + 3 * var(--unit)); }
+.page--navigate > main { grid-area: 1 / 1; max-width: var(--body-max); }
+.page--navigate > .navigate { grid-area: 1 / 2; }
+.navigate { position: sticky; top: 3rem; align-self: start; z-index: 20;
+           width: var(--side); max-height: calc(100vh - 6rem);
+           overflow-y: auto; box-sizing: border-box;
+           padding-right: .75rem; border-right: 1px solid var(--border);
+           font-size: .9rem; transition: width .2s ease; }
+.navigate-tabs { display: flex; gap: .25rem; margin-bottom: .5rem; }
+.navigate-tab { display: flex; align-items: center; flex: 1; min-width: 0;
+               border-bottom: 2px solid transparent; }
+.navigate-tab[data-active="true"] { border-bottom-color: var(--accent); }
+.navigate-tab-body { flex: 1; min-width: 0; padding: .15rem .25rem;
+                    background: none; border: 0; cursor: pointer;
+                    color: var(--muted); font: inherit; text-align: left;
+                    white-space: nowrap; overflow: hidden;
+                    text-overflow: ellipsis; }
+.navigate-tab[data-active="true"] .navigate-tab-body {
+  color: inherit; font-weight: 600; }
+.navigate-tab-toggle { flex: none; width: 1.4rem; height: 1.4rem; display: grid;
+                      place-items: center; background: none; border: 0;
+                      cursor: pointer; border-radius: var(--radius-sm);
+                      font: 700 .9rem/1 ui-monospace, monospace; }
+.navigate-tab-toggle[aria-pressed="true"] { color: var(--accent); }
+.navigate-tab-toggle[aria-pressed="false"] { color: var(--muted); }
+.navigate-eye { display: grid; width: 1rem; height: 1rem; }
+.navigate-eye svg { grid-area: 1 / 1; width: 100%; height: 100%; fill: none;
+                    stroke: currentColor; stroke-width: 1.5;
+                    stroke-linecap: round; stroke-linejoin: round; }
+.navigate-tab-toggle[aria-pressed="true"] .navigate-eye-closed,
+.navigate-tab-toggle[aria-pressed="false"] .navigate-eye-open { display: none; }
+.navigate-tab-toggle:hover { background: var(--accent-soft); }
+.navigate-tab-body:focus-visible, .navigate-tab-toggle:focus-visible {
+  outline: 2px solid var(--accent); outline-offset: 2px; }
+/* Nothing open: a compact bordered box of vertical tabs, same at every width. */
+.navigate[data-collapsed="true"] { top: 3rem; width: var(--side-rail);
+                                  height: auto; max-height: calc(100vh - 6rem);
+                                  padding: .4rem .2rem;
+                                  border: 1px solid var(--border);
+                                  border-radius: var(--radius);
+                                  background: var(--surface); box-shadow: none; }
+.navigate[data-collapsed="true"] .navigate-list { display: none; }
+.navigate[data-collapsed="true"] .navigate-tabs { flex-direction: column; gap: .3rem;
+                                                margin-bottom: 0; }
+.navigate[data-collapsed="true"] .navigate-tab { flex: none; border-bottom: 0;
+                                               border-left: 2px solid transparent; }
+.navigate[data-collapsed="true"] .navigate-tab-toggle { display: none; }
+.navigate[data-collapsed="true"] .navigate-tab-body { flex: none; padding: .4rem .1rem;
+                                                    writing-mode: vertical-rl; }
+.navigate ol { list-style: none; margin: 0; padding: 0; }
+.navigate li { margin: .1rem 0; }
+.navigate a { display: block; padding: .1rem .5rem; color: inherit;
+             text-decoration: none; border-left: 2px solid transparent; }
+.navigate a:hover { color: var(--accent); border-left-color: var(--accent); }
+.navigate .toc-l1 a { font-weight: 600; }
+.navigate .toc-l2 a { padding-left: 1.25rem; }
+.navigate .toc-l3 a { padding-left: 2rem; }
+.navigate .toc-l4 a, .navigate .toc-l5 a, .navigate .toc-l6 a { padding-left: 2.75rem; }
+.navigate .toc-label a { padding-left: 1.25rem; }
+.navigate .toc-label a::before { content: "◆ "; color: var(--muted); font-size: .7em;
+                                vertical-align: .15em; }
+.navigate .toc-review a { padding-left: 1.25rem; }
+.navigate .toc-review a::before { content: "✎ "; color: var(--muted); font-size: .7em;
+                                 vertical-align: .15em; }
+
+/* ------------------------------------------------------------ code boxes */
+
+/* scripts */
+.script-code, .doctest-code {
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.script-block { position: relative; margin: 0; padding: 0; border: 0; }
+.script-block[open] { display: flow-root; }
+/* A collapsed block shows only its gutter toggle, so it must still reserve a
+   row; otherwise its toggle overlaps the next block's toggle in the gutter. */
+.script-block:not([open]) { min-height: var(--unit); }
+.script-code { margin: 0 0 1.5rem; padding: 1rem; overflow-x: auto;
+               line-height: 1.5; }
+/* The toggle lives in the left gutter, whose width is the layout unit, so it
+   never takes space from the body. */
+.script-toggle { position: absolute; left: calc(-1 * var(--unit)); top: 0;
+                 width: var(--unit); height: var(--unit); display: grid;
+                 place-items: center; cursor: pointer; list-style: none;
+                 color: var(--accent); border-radius: var(--radius-sm); line-height: 1;
+                 font: 700 .6rem/1 ui-monospace, monospace; }
+.script-toggle::-webkit-details-marker { display: none; }
+.script-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.script-toggle:hover, .script-block[open] > .script-toggle { background: var(--accent-soft); }
+.script-block[open] > .script-toggle {
+  position: sticky; top: .5rem; left: auto; z-index: 1;
+  margin-left: calc(-1 * var(--unit)); margin-bottom: calc(-1 * var(--unit));
+}
+
+/* docstring and code records */
+.report-block { display: flow-root; }
+/* The border width is mirrored in custom properties so the absolutely
+   positioned toggle can cancel it; otherwise collapsing the box would shift
+   the toggle by the removed border. */
+.doctest-code { position: relative; margin: .3rem 0; overflow: hidden;
+                border-left: 3px solid var(--accent);
+                --box-border-left: 3px; --box-border-top: 1px;
+                font: .9em/1.5 ui-monospace, monospace; }
+.doctest-code[data-boxed] { overflow: visible; }
+.doctest-code[data-boxed="false"] {
+  margin: 0; border: 0; border-radius: 0;
+  --box-border-left: 0px; --box-border-top: 0px;
+  /* The code is hidden but the gutter toggle is not; keep a row for it so a
+     report shorter than the toggle cannot spill into the next block. */
+  min-height: calc(var(--unit) + .3rem);
+}
+.doctest-code[data-boxed="false"] > .doc-text { display: none; }
+.output-box-toggle {
+  position: absolute;
+  left: calc(-1 * var(--unit) - var(--box-border-left));
+  top: calc(.3rem - var(--box-border-top));
+  width: var(--unit); height: var(--unit); cursor: pointer;
+  color: var(--accent); border: 0; border-radius: var(--radius-sm);
+  background: transparent; font: 700 .6rem/1 ui-monospace, monospace; }
+.output-box-toggle:hover { background: var(--accent-soft); }
+.output-box-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.doc-text { margin: 0; overflow-x: auto; font: inherit; }
+.doc-code, .doc-out { display: block; padding: 0 1rem; font: inherit; }
+.doc-code { min-width: fit-content; padding-top: .65rem;
+            background: var(--code-bg); color: var(--code-ink); }
+.doc-line { position: relative; display: block; padding-left: 4ch; }
+.doc-line::before { position: absolute; left: 0; content: "... ";
+                    user-select: none; -webkit-user-select: none; }
+.doc-line:first-child::before { content: ">>> "; }
+.doc-line.multiline-string::before { content: ""; }
+.tmd-render-error { margin: 1rem 0; padding: .75rem 1rem;
+                    border: 1px solid var(--danger); border-radius: var(--radius);
+                    color: var(--danger); background: var(--danger-bg); }
+.doc-out { padding-bottom: .65rem; }
+.doc-code + .doc-out { padding-top: .35rem; }
+.doc-code:only-child { padding-bottom: .65rem; }
+.doc-out:only-child { padding-top: .65rem; }
+
+/* ----------------------------------------------------------- export toolbar */
+
+.tmd-toolbar { position: fixed; right: var(--unit); bottom: var(--unit); z-index: 30;
+  display: flex; gap: .4rem; }
+.tmd-toolbar button { padding: .3rem .7rem; cursor: pointer;
+  color: var(--ink); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: 0 1px 4px var(--shadow);
+  font: 600 .8rem/1.4 system-ui, sans-serif; }
+.tmd-toolbar button:hover { background: var(--accent-soft); }
+
+/* ---------------------------------------- markdown source view and review */
+
+.doc-md { position: relative; }
+/* A markdown() output is prose, not code: drop the monospace box font so it
+   reads like the document's own Markdown. The statement's own code record is
+   still code, so it keeps the monospace font and its `>>>` / `...` prompts. */
+.doctest-code:has(> .transcript-report[data-tmd-renderer="markdown"]) {
+  font: inherit; }
+.doctest-code:has(> .transcript-report[data-tmd-renderer="markdown"]) > .doc-text {
+  font: .9em/1.5 ui-monospace, monospace; }
+.tmd-md-popup[hidden], .tmd-md-rendered[hidden] { display: none; }
+.tmd-md-source[hidden], .tmd-md-comment[hidden],
+.tmd-rec-list[hidden] { display: none !important; }
+/* Floating popup: the editable original-text box plus the comment. Body
+   width, wrapping, and it never replaces the rendered Markdown underneath. */
+.tmd-md-popup { position: absolute; left: 0; right: 0; z-index: 10;
+  margin: 0; padding: .65rem 1rem; display: flex; flex-direction: column;
+  gap: .5rem;
+  border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: 0 8px 24px var(--shadow);
+  background: var(--code-bg); color: var(--code-ink); }
+.tmd-md-overlay { position: absolute; inset: 0; width: 100%; height: 100%;
+  overflow: visible; pointer-events: none; z-index: 5; }
+.tmd-md-box { fill: var(--accent-faint); stroke: var(--accent-stroke); stroke-width: 3;
+  filter: drop-shadow(0 1px 2px var(--shadow-soft)); }
+.tmd-md-box-active { fill: var(--accent-mid); stroke: var(--accent); }
+/* A superseded annotation (part of its range expired): read-only, delete only. */
+.tmd-md-box.tmd-md-locked { fill: var(--locked-veil); stroke: var(--locked-stroke); }
+.tmd-md-wave { fill: none; stroke: var(--accent); stroke-width: 1.6;
+  stroke-linecap: round; }
+.tmd-md-controls { position: absolute; inset: 0; pointer-events: none;
+  z-index: 6; }
+.tmd-md-controls > * { position: absolute; pointer-events: auto; }
+.tmd-md-trigger { padding: .15rem .45rem; cursor: pointer; color: var(--accent);
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); box-shadow: 0 1px 4px var(--shadow);
+  font: 600 .75rem/1.2 system-ui, sans-serif; }
+.tmd-md-trigger:hover { background: var(--accent-soft); }
+.tmd-md-trigger:focus-visible,
+.tmd-md-badge:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* A bookmark tab, hidden until the pointer is over its box. */
+.tmd-md-badge { width: 1.15rem; height: 1.45rem; padding: 0; border: 0;
+  background: var(--accent); color: #fff; cursor: pointer;
+  /* A bookmark tab: no swallowtail, the bottom is a shallow downward point. */
+  clip-path: polygon(0 0, 100% 0, 100% 72%, 50% 100%, 0 72%);
+  font: 700 .7rem/1.45 system-ui, sans-serif; display: grid;
+  place-items: center; box-shadow: 0 1px 3px var(--shadow-strong); }
+.tmd-md-badge[hidden] { display: none; }
+.tmd-md-badge:hover { background: var(--accent-dark); }
+.tmd-md-badge.tmd-md-locked { background: var(--locked); }
+.tmd-md-badge.tmd-md-locked:hover { background: var(--locked-strong); }
+/* Modify/delete actions in the popup's top-right corner. */
+.tmd-md-actions { display: flex; justify-content: flex-end; gap: .35rem; }
+.tmd-md-actions button { padding: .15rem .55rem; cursor: pointer;
+  color: var(--accent); background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--radius-sm); font: 600 .75rem/1.2 system-ui, sans-serif; }
+.tmd-md-actions button:hover { background: var(--accent-soft); }
+.tmd-md-actions button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+/* The original-text box: a transparent textarea over a diff-highlighting fill
+   keeps the caret visible while it marks what is new relative to the baseline. */
+.tmd-md-source { position: relative; max-height: 40vh; overflow: hidden;
+  border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.tmd-md-source:focus-within { border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft); }
+.tmd-diff-fill { position: absolute; inset: 0; margin: 0;
+  padding: .35rem .5rem; overflow: hidden; pointer-events: none;
+  font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  color: var(--code-ink); }
+.tmd-diff-input { position: relative; z-index: 1; display: block;
+  box-sizing: border-box; width: 100%; resize: none; border: 0;
+  padding: .35rem .5rem; margin: 0;
+  font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  background: transparent !important;
+  color: transparent !important;
+  -webkit-text-fill-color: transparent !important;
+  caret-color: var(--accent); }
+.tmd-diff-input::selection { background: var(--accent-mid); }
+.tmd-diff-input:focus { outline: none; }
+/* The raised middle is the modification range: insertions get a background and
+   a red vertical bar marks characters the baseline lost. */
+.tmd-diff-ins { background: var(--diff-ins-bg); border-radius: .15rem;
+  text-decoration: overline; text-decoration-color: var(--diff-ins-line);
+  text-decoration-thickness: .12em; }
+.tmd-diff-del { background: var(--diff-del-bg); border-radius: .15rem;
+  text-decoration: underline; text-decoration-color: var(--diff-del-line);
+  text-decoration-thickness: .12em; }
+/* Every diff mark is one zero-width inline anchor on the baseline, so the
+   surrounding text stays aligned; its single child is the visual part. The
+   colour follows `color`; history sets it per boundary. */
+.tmd-diff-anchor {
+  position: relative; display: inline-block; width: 0; height: 0;
+  color: var(--diff-del-line); }
+/* The deletion bar: only the edit box draws one, where a deletion has no
+   character to decorate. */
+.tmd-diff-edit-del { position: absolute; left: -1px; top: -.8em;
+  width: 2px; height: 1.1em; background: currentColor; border-radius: 1px; }
+/* The reviewed range: a background behind its text, its two ends accented. */
+.tmd-diff-range { background: var(--accent-faint); border-radius: .15rem; }
+.tmd-diff-range .tmd-diff-anchor { color: var(--accent); }
+/* Open chevrons (SVG masks) instead of filled triangles, so no horizontal base.
+   `last-del` is the v above the line: a run the last version had and this row
+   lost. `next-ins` is the ^ below it: a run the next version adds and this row
+   lacks. The reviewed range reuses them for its start (above) and end (below). */
+.tmd-diff-last-del, .tmd-diff-next-ins {
+  position: absolute; left: 0; width: .62rem; height: .34rem;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center; mask-position: center;
+  -webkit-mask-size: contain; mask-size: contain; }
+.tmd-diff-last-del { top: -.8em; transform: translate(-50%, -100%);
+  --tmd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,1 5,5 9,1' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--tmd-chevron); mask-image: var(--tmd-chevron); }
+.tmd-diff-next-ins { top: .3em; transform: translate(-50%, 0);
+  --tmd-chevron: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 10 6'%3E%3Cpolyline points='1,5 5,1 9,5' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+  -webkit-mask-image: var(--tmd-chevron); mask-image: var(--tmd-chevron); }
+.tmd-md-comment { display: block; }
+.tmd-md-comment textarea { box-sizing: border-box; width: 100%; resize: none;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  padding: .35rem .5rem;
+  font: .85em/1.5 system-ui, sans-serif; background: var(--surface); color: var(--ink);
+  caret-color: var(--accent); }
+.tmd-md-comment textarea:focus { outline: none; border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent-soft); }
+.tmd-md-comment textarea[readonly] { background: var(--border-soft);
+  caret-color: transparent; }
+
+/* ------------------------------------------------------- revision records */
+
+/* The popup's record list: one row per source version or review, oldest at the
+   top. Each row pairs an unrendered code box (raw) with its metadata to the
+   right; its `--rec-color` is the source version's main colour. */
+.tmd-rec-list { display: flex; flex-direction: column; gap: .45rem;
+  max-height: 50vh; overflow: auto; }
+/* raw above, comment below: the raw's own style (colour border on a source,
+   tinted range on a highlight, diff marks on an edit) tells the kinds apart. */
+.tmd-rec { display: flex; flex-direction: column; gap: .2rem; }
+.tmd-rec-code { margin: 0; padding: .35rem .5rem;
+  border: 1px solid var(--border); border-radius: var(--radius-sm);
+  font: .9em/1.5 ui-monospace, monospace;
+  white-space: pre-wrap; overflow-wrap: anywhere; cursor: pointer; }
+.tmd-rec-source .tmd-rec-code { border-left: 3px solid var(--rec-color, var(--border));
+  cursor: default; }
+/* The comment and its actions share one row: the comment takes the space, the
+   two icon buttons sit tightly joined at its right end. */
+.tmd-rec-meta { display: flex; align-items: flex-start; gap: .3rem;
+  padding: 0 .1rem; }
+/* The timestamp is a pill whose background follows the source version's colour;
+   it leads the comment and heads a source's boundary divider. */
+.tmd-rec-time { padding: 0 .35rem; border-radius: var(--radius-sm);
+  background: color-mix(in srgb, var(--rec-color, var(--accent)) 18%, transparent);
+  color: var(--ink-soft);
+  font: 600 .72rem/1.5 system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+.tmd-rec-comment { flex: 1; min-width: 0; font: .8em/1.4 system-ui, sans-serif;
+  white-space: pre-wrap; color: var(--ink-soft); }
+.tmd-rec-comment .tmd-rec-time { margin-right: .4rem; }
+/* A source's boundary time closes its group: the time on the left, a rule
+   filling the rest of the line. */
+.tmd-rec-sep { display: flex; align-items: center; gap: .5rem; }
+.tmd-rec-sep-rule { flex: 1; border-top: 1px solid var(--border); }
+.tmd-rec-hl { border-radius: .15rem; }
+.tmd-rec-actions { display: inline-flex; flex: none; }
+.tmd-rec-actions button { padding: 0 .35rem; cursor: pointer;
+  color: var(--accent); background: var(--surface); border: 1px solid var(--border);
+  border-radius: 0; font: 600 .75rem/1.4 system-ui, sans-serif; }
+.tmd-rec-actions button:first-child {
+  border-radius: var(--radius-sm) 0 0 var(--radius-sm); }
+.tmd-rec-actions button:last-child {
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0; }
+.tmd-rec-actions button:only-child { border-radius: var(--radius-sm); }
+.tmd-rec-actions button + button { border-left: 0; }
+.tmd-rec-actions button:hover { background: var(--accent-soft); }
+.tmd-rec-actions button:focus-visible { outline: 2px solid var(--accent);
+  outline-offset: 2px; }
+/* The inline editor replaces the raw slot; the comment editor replaces the
+   comment text, so both keep the row's full width. */
+.tmd-rec .tmd-md-source { width: 100%; }
+.tmd-rec .tmd-md-comment { width: 100%; }
+
+/* ------------------------------------------------------------------ images */
+
+img { max-width: 100%; height: auto; }
+main img { display: block; margin: .35rem auto; max-height: 50vh;
+           object-fit: contain; cursor: zoom-in; }
+main img.image-expanded { width: 100%; max-height: none; cursor: zoom-out; }
+main img:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* ------------------------------------------------------------------- media */
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --code-bg: #202b3b;
+    --code-ink: #e5eaf1;
+    --ink-soft: #e5eaf1cc;
+    --diff-ins-bg: #28a7453d;
+    --diff-del-bg: #c6282833;
+  }
+  /* The comment box keeps the popup's surface rather than the page surface. */
+  .tmd-md-popup textarea { background: var(--code-bg); color: var(--code-ink); }
+}
+
+@media (max-width: 920px) {
+  /* Below the body's limit the navigate floats over the text instead of taking
+     a column, so the body uses the full width and the navigate starts closed.
+     Its top-right position is unchanged, so it does not jump. */
+  .page--navigate { display: block; }
+  .page--navigate > main { margin: 0 auto; }
+  /* A collapsed box sits between the body and the right edge, so the body
+     yields its width; an opened panel just floats over the body. */
+  .page--navigate:has(.navigate[data-collapsed="true"]) > main {
+    margin-left: 0;
+    margin-right: calc(var(--side-rail) + var(--unit)); }
+  .navigate { position: fixed; top: 3rem; right: var(--unit); left: auto;
+             background: var(--surface); color: var(--ink);
+             border: 1px solid var(--border); border-radius: var(--radius);
+             box-shadow: -2px 0 12px var(--shadow-soft); }
+}
+
+@media print {
+  .page { max-width: none; margin: 0; padding: 0; }
+  .page--navigate { display: block; }
+  .navigate { display: none; }
+  .script-toggle { display: none !important; }
+  .script-block:not([open]) { min-height: 0; }
+  .tmd-toolbar { display: none !important; }
+  .tmd-md-controls, .tmd-md-overlay { display: none !important; }
+  .tmd-md-popup { display: none !important; }
+  .tmd-md-rendered { display: block !important; }
+}

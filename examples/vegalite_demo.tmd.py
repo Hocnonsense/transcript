@@ -1,0 +1,154 @@
+"""Render pandas and polars DataFrames as static and interactive charts."""
+
+import pandas as pd
+
+from transcript import vegalite
+
+measurements = {
+    "sample": ["A", "B", "C", "D"],
+    "score": [0.8, 0.3, 0.9, 0.6],
+    "count": [10, 25, 40, 15],
+}
+pandas_frame = pd.DataFrame(measurements)
+
+if "transcript.md":
+    """
+    # Vega-Lite charts
+
+    The pandas chart is a pure static SVG built from the adjacent
+    `vegalite.yaml`; the polars chart upgrades to an interactive scatter from
+    an inline specification when the page is online (hover a point for its
+    recorded values).
+
+    ## pandas (offline)
+    """
+    vegalite("vegalite.yaml", pandas_frame, offline=True)
+    """
+    ```transcript-output vegalite_offline=1
+    {
+      "$schema": "https://vega.github.io/schema/vega-lite/v5.json",
+      "data": {
+        "values": [
+          {
+            "count": 10,
+            "sample": "A",
+            "score": 0.8
+          },
+          {
+            "count": 25,
+            "sample": "B",
+            "score": 0.3
+          },
+          {
+            "count": 40,
+            "sample": "C",
+            "score": 0.9
+          },
+          {
+            "count": 15,
+            "sample": "D",
+            "score": 0.6
+          }
+        ]
+      },
+      "encoding": {
+        "color": {
+          "field": "count",
+          "scale": {
+            "scheme": "blues"
+          },
+          "type": "quantitative"
+        },
+        "x": {
+          "field": "sample",
+          "type": "nominal"
+        },
+        "y": {
+          "field": "score",
+          "type": "quantitative"
+        }
+      },
+      "height": 250,
+      "mark": "bar",
+      "width": 400
+    }
+    ```
+    """
+
+config_dict = {
+    "width": 500,
+    "height": 300,
+    "mark": "point",
+    "encoding": {
+        "x": {"field": "sample", "type": "nominal"},
+        "y": {"field": "score", "type": "quantitative"},
+        "tooltip": [
+            {"field": "sample", "type": "nominal"},
+            {"field": "score", "type": "quantitative"},
+            {"field": "count", "type": "quantitative"},
+        ],
+    },
+}
+
+if "transcript.md":
+    """
+    ## polars (interactive)
+    """
+    vegalite(config_dict, pandas_frame)
+    """
+    ```transcript-output vegalite_interactive=1
+    {
+      "data": {
+        "values": [
+          {
+            "count": 10,
+            "sample": "A",
+            "score": 0.8
+          },
+          {
+            "count": 25,
+            "sample": "B",
+            "score": 0.3
+          },
+          {
+            "count": 40,
+            "sample": "C",
+            "score": 0.9
+          },
+          {
+            "count": 15,
+            "sample": "D",
+            "score": 0.6
+          }
+        ]
+      },
+      "encoding": {
+        "tooltip": [
+          {
+            "field": "sample",
+            "type": "nominal"
+          },
+          {
+            "field": "score",
+            "type": "quantitative"
+          },
+          {
+            "field": "count",
+            "type": "quantitative"
+          }
+        ],
+        "x": {
+          "field": "sample",
+          "type": "nominal"
+        },
+        "y": {
+          "field": "score",
+          "type": "quantitative"
+        }
+      },
+      "height": 300,
+      "mark": "point",
+      "width": 500
+    }
+    ```
+    """

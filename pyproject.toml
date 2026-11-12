@@ -3,20 +3,35 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "snakedone"
-version = "0.0.1"
+name = "py-transcript"
+version = "0.0.2"
 description = "Executable Python documents with recorded outputs"
 requires-python = ">=3.11"
 dependencies = []
 
 [project.optional-dependencies]
-html = ["markdown-it-py>=3,<5", "pygments>=2.18,<3"]
+html = ["markdown-it-py>=3,<5"]
+datavzrd = ["markdown-it-py>=3,<5", "PyYAML>=6,<7"]
+vegalite = [
+    "altair>=5,<7",
+    "markdown-it-py>=3,<5",
+    "vl-convert-python>=1,<2",
+    "PyYAML>=6,<7",
+]
+snakemake = ["snakemake>=9,<10"]
 
 [project.scripts]
-snakedone = "snakedone.cli:main"
+transcript = "transcript.cli:main"
+
+[tool.hatch.build]
+artifacts = ["src/transcript/html/_assets/*.css", "src/transcript/html/_assets/*.js"]
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/snakedone"]
+packages = ["src/transcript"]
+exclude = ["**/.gitignore"]
+
+[tool.hatch.build.hooks.custom]
+path = "tools/hatch_build.py"
 
 [tool.pixi.workspace]
 channels = ["conda-forge"]
@@ -24,21 +39,41 @@ platforms = ["linux-64"]
 
 [tool.pixi.dependencies]
 python = "3.14.*"
+packaging = ">=24.0,<26" # Match Snakemake's PyPI requirement in Pixi's Conda solve.
 pytest = "*"
 ruff = "*"
 pyright = "*"
 pandas = "*"
+polars = "*"
+altair = "*"
+datavzrd = "*"
+matplotlib = "*"
+esbuild = "*"
+typescript = ">=5,<6"
+hatchling = "*"
 
 [tool.pixi.pypi-dependencies]
-snakedone = { path = ".", editable = true, extras = ["html"] }
+snakemake = ">=9.20"
+py-transcript = { path = ".", editable = true, extras = [
+    "html",
+    "datavzrd",
+    "vegalite",
+] }
 
 [tool.pixi.tasks]
-test = "pytest"
+frontend-build = "python tools/build_frontend.py"
+frontend-typecheck = "tsc -p src/frontend/tsconfig.json"
+frontend-test = "python tools/test_frontend.py"
+frontend = { depends-on = ["frontend-typecheck", "frontend-build"] }
 format = "ruff format ."
 lint = "ruff check ."
 typecheck = "pyright"
-check = { depends-on = ["test", "lint", "typecheck"] }
-demo = "snakedone examples/demo.py"
+build = "hatchling build"
+test = { depends-on = ["frontend-build"], cmd = "pytest" }
+check = { depends-on = ["lint", "typecheck", "frontend-typecheck", "frontend-test", "test"] }
+demo = { depends-on = ["frontend-build"], cmd = "transcript examples/demo.py --html" }
+demo-review = { depends-on = ["frontend-build"], cmd = "python tools/build_review_demos.py" }
+demo-serve = "python examples/serve.py"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -46,13 +81,16 @@ addopts = "-q"
 
 [tool.ruff]
 target-version = "py314"
+extend-exclude = ["*.tmd.py", "**/*.tmd.py"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]
 
 [tool.pyright]
 include = ["src", "tests", "examples"]
+exclude = ["**/*.tmd.py"]
 pythonVersion = "3.14"
 typeCheckingMode = "basic"
+reportUnusedExpression = false
 venvPath = ".pixi/envs"
 venv = "default"

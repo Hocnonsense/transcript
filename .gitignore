@@ -4,6 +4,12 @@
 !pyproject.toml
 !*release-please-config.json
 !*.py
+!*.js
+!*.ts
+!*.css
+!tsconfig.json
+*.min.js
+*.min.css
 
 !src/
 !tests/

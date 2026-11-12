@@ -1,0 +1,16 @@
+$schema: https://vega.github.io/schema/vega-lite/v5.json
+width: 400
+height: 250
+mark: bar
+encoding:
+  x:
+    field: sample
+    type: nominal
+  y:
+    field: score
+    type: quantitative
+  color:
+    field: count
+    type: quantitative
+    scale:
+      scheme: blues
