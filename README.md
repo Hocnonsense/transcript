@@ -7,16 +7,15 @@ It records report-block output in a `.tmd.py` archive and can export that archiv
 ## Installation
 
 Requires Python ≥3.11.
-Install from the repository root:
+Install from PyPI:
 
 ```bash
-python -m pip install -e .
-# Optional HTML renderer:
-python -m pip install -e '.[html]'
+python -m pip install transcript.md
 # Optional feature extras:
-python -m pip install -e '.[datavzrd]'   # Datavzrd snapshot support
-python -m pip install -e '.[vegalite]'   # Vega-Lite charts
-python -m pip install -e '.[snakemake]'  # Snakemake rule declarations
+python -m pip install 'transcript.md[html]'      # HTML renderer
+python -m pip install 'transcript.md[datavzrd]'  # Datavzrd snapshot support
+python -m pip install 'transcript.md[vegalite]'  # Vega-Lite charts
+python -m pip install 'transcript.md[snakemake]' # Snakemake rule declarations
 ```
 
 Datavzrd HTML export also requires the `datavzrd` executable on `PATH`, for example from `conda install -c conda-forge datavzrd`.
@@ -33,7 +32,7 @@ transcript examples/demo.tmd.py --overwrite    # execute and update in place
 In brief, use `-o` / `--output` to choose another destination. `--diff` never updates an existing archive; `--overwrite` updates the resolved target.
 `.py` files are never modified, and an archived `.tmd.py` can be used in place of the original `.py`.
 
-The [demo](examples/demo.py) reads the adjacent `data.json` and records text, a DataFrame table, RGB data, and images.
+The [demo](https://github.com/Hocnonsense/transcript/blob/main/examples/demo.py) reads the adjacent `data.json` and records text, a DataFrame table, RGB data, and images.
 
 ### Archive generation and comparison
 
@@ -83,20 +82,25 @@ See [HTML reports](#html-reports) for rendering details.
 Write a report block at module level using either entry point:
 
 ```python
+import transcript
+
+
 value = 7
+with transcript.md:
+    """
+    A top-level `with` is a report block when its context manager is the `md` renderer imported from `transcript`;
+    any alias (e.g., `markdown`) works.
+    """
 
 if "transcript.md":
     """
-    # Analysis
+    The two forms are equivalent and may be mixed in one document.
     """
     value
+
 ```
 
-- `if "transcript.md":` is always true, so the file runs with plain Python and needs no dependency.
-- `with transcript.md:` runs a real context manager and requires `import transcript`.
 
-The two forms are equivalent and may be mixed in one document.
-A top-level `with` is a report block when its context manager is the `md` renderer imported from `transcript`; any alias (e.g., `markdown`) works.
 
 Inside a block:
 
@@ -159,21 +163,14 @@ Unhandled execution errors prevent archive writes, leaving an existing archive i
 
 Reports follow source order, alternating script code and report blocks.
 The page renders Markdown docstrings and highlights Python in the browser from the embedded archive.
-On first use it downloads pinned browser libraries for Markdown, syntax highlighting, and review diffs from jsDelivr and stores them in a browser cache.
-An internet connection is therefore required only while those assets are not cached.
 Script code starts collapsed and can be revealed with its adjacent toggle.
+If rendering fails, HTML export reports an error and preserves any existing HTML file.
 
-CSV and other text outputs retain their original formatting.
 Use `image()` or `bitmap()` for embedded bitmap data; HTTP(S) image links in Markdown remain external images.
 Text, images, and explicitly selected rich outputs appear in their recorded order within the same output section.
-Rendering reads the archive without executing Python.
 
-Markdown blocks and `markdown()` outputs can be reviewed in place: select text, then click the floating `✎` button to propose an edit, leave a comment, or do both.
+Markdown blocks and `markdown()` outputs can be reviewed in place: select text, then click the floating `✎` button to propose an edit or leave a comment.
 Edits and comments can be transferred across document revisions; when an annotated range is superseded, its old source is retained to show the diff.
-Each annotated range has an outlined box and a badge that opens its revision record list.
-The list shows the reviewed window from oldest to newest, with one row per source version and one per review.
-A boundary timestamp separates successive source versions; each source row has a colored line on the left, and its associated edits and highlights use the same color.
-Every review row has a delete `×`; reviews that are not superseded also have an edit `✎`.
 
 ### Embedded source
 
@@ -193,8 +190,6 @@ Both `--diff` and `--overwrite` work for this extraction; when the target `.tmd.
 ### Transferring annotations
 
 `transcript` transfers annotations onto a freshly generated archive by diffing the old and new bodies.
-Old source versions and reviews remain in the history, while new source versions link back to the regions they replaced.
-That link is stored as one `span@timestamp` string in the source's optional `cover`; a review's derived `coveredAt` array records the superseded subranges in the same form and omits ranges that are still live.
 The reference is chosen in this order: an explicit `--previous`, else the document's own review block, else an already existing target archive.
 
 - `transcript document.py --overwrite` transfers the block from the existing `document.tmd.py` automatically.
@@ -202,7 +197,8 @@ The reference is chosen in this order: an explicit `--previous`, else the docume
 - `--previous reviewed.html` takes it from a page's body plus the annotations in its reviews island.
 
 Use `--diff` instead of `--overwrite` to inspect the migrated archive before writing it.
-The block's marker records a hash of the body before it. An archive that was hand-edited behind the block's back no longer matches, so an implicit transfer drops the annotations (with a warning), and an explicitly given `--previous` with a stale hash is refused with an error instead of writing anything.
+The block's marker records a hash of the body before it.
+An archive that was hand-edited behind the block's back no longer matches, so an implicit transfer drops the annotations (with a warning), and an explicitly given `--previous` with a stale hash is refused with an error instead of writing anything.
 
 Try the demo with `pixi run demo-review`: `examples/review_demo.py` is one revision with live annotations only, and `examples/review_history.py` reviews a configuration block across revisions, so some of its annotations are now fully or partly superseded.
 
@@ -277,29 +273,10 @@ if "transcript.md":
 ```
 
 `datavzrd(frame, config)` records a snapshot of the data as CSV plus the Datavzrd configuration in the archive.
-`config` may be a mapping or a YAML filename, resolved against the current working directory.
-When `config` is omitted, a single view named `results` is recorded and Datavzrd renders it with its own defaults (it detects column types from the data).
-Every view must use the managed dataset `data`; transcript supplies the data path itself, so no intermediate files are kept.
-A single-view configuration opens that table directly instead of Datavzrd's overview page; multiple views show the overview unless `default-view` selects one.
+`config` may be omitted, a mapping or a YAML filename, resolved against the current working directory, and could be generated by `datavzrd.infer_config(frame)` dynamically.
 
-To configure column plots, save this as `table.yaml` in the working directory and use `datavzrd(frame, "table.yaml")`:
-
-```yaml
-views:
-  results:
-    dataset: data
-    render-table:
-      columns:
-        score:
-          plot:
-            bars:
-              scale: linear
-              domain: [0, 1]
-```
-
-The [pandas and polars example](examples/table_demo.py) uses a shared [YAML configuration](examples/datavzrd.yaml) with column bars, a heatmap, and two views of the same dataset.
-HTML export runs the `datavzrd` executable once per distinct recorded snapshot and embeds the generated report into the single HTML file, so sorting, filtering, paging, and built-in plots keep working offline.
-If configuration validation or rendering fails, HTML export reports an error and preserves any existing HTML file.
+The [pandas and polars example](https://github.com/Hocnonsense/transcript/blob/main/examples/table_demo.py) uses a shared [YAML configuration](https://github.com/Hocnonsense/transcript/blob/main/examples/datavzrd.yaml) with column bars, a heatmap, and two views of the same dataset.
+HTML export runs the `datavzrd` embeds the generated report into the single HTML file offline.
 
 ### Vega-Lite charts
 
@@ -329,12 +306,10 @@ if "transcript.md":
     vegalite(chart)
 ```
 
-transcript snapshots the chart's Vega-Lite specification and data, so the archive does not depend on the original DataFrame.
-
-HTML export inlines a static SVG preview with `vl-convert`, so the report stays a single offline file.
+HTML export inlines a static SVG preview, so the report stays a single offline file.
 Online, the preview is upgraded to an interactive chart by default; pass `offline=True` to keep a pure static SVG.
 
-Alternatively, `vegalite(config, data=None)` accepts a custom Vega-Lite configuration and optional pandas or polars data. See the [custom configuration and data example](examples/vegalite_demo.py).
+Alternatively, `vegalite(config, data=None)` accepts a custom Vega-Lite configuration and optional pandas or polars data. See the [custom configuration and data example](https://github.com/Hocnonsense/transcript/blob/main/examples/vegalite_demo.py).
 
 ### Labelled outputs
 
@@ -358,7 +333,6 @@ if "transcript.md":
 ```
 
 `id` must be a valid transcript id (a letter followed by letters, digits, `_`, `.`, `:` or `-`).
-The label renders as a `<figure>` carrying that `id`, so ordinary Markdown links jump to it and the caption becomes a `<figcaption>`.
 A non-renderer Python value is wrapped with the built-in `code` renderer, which shows the value as a bare expression.
 If an `id` is reused for different archived content, the exporter warns, appends a numeric suffix to make the label unique, and notes the duplicate in its caption.
 
@@ -479,11 +453,10 @@ with r:
     r.input(table=lambda wildcards: f"results/{wildcards.sample}.tsv")
 ```
 
-The first positional parameter receives `wildcards`, matching Snakemake's auxiliary-parameter convention; its Python parameter name is not significant.
+The first positional parameter receives `wildcards`, matching Snakemake's auxiliary-parameter convention.
 Lambdas may use normal Python expressions, including calls and comprehensions; global or closure names, `:=`, nested lambda, and `*args`/`**kwargs` are rejected.
 Defaults, when present, must be literals.
 Snakemake's optional input-function `groupid` has no equivalent outside a group job and is not accepted yet.
-Other functions and custom objects are not supported.
 
 ### Runtime wildcards
 
@@ -493,7 +466,6 @@ Assigning a concrete literal outside the block infers its pattern from the scrip
 
 Pass `--wildcards KEY=VALUE` (repeatable) to `transcript` to override the effective values for a single execution.
 Every declared pattern and the declared document target then resolve with the override, so `--wildcards sample=B` turns `"{sample}-1.tsv"` into `"B-1.tsv"`.
-This is how the generated Snakefile rule forwards Snakemake's wildcard values.
 The override never changes the defaults stored in the archive; without `--wildcards`, the next run uses the recorded defaults.
 
 ### Output redirection
@@ -513,7 +485,7 @@ A declared `.html` document makes the effective target `.html`, which selects HT
 
 The target follows the rule, not the input filename.
 An archive created with `-o` records the reconciled `document` pattern but neither the concrete name nor the `--wildcards` values, so re-executing it without `--wildcards` falls back to the recorded defaults.
-For example, the [rule demo](examples/rule_demo.py) declares `r.wildcards(sample="A", feature="score")`:
+For example, the [rule demo](https://github.com/Hocnonsense/transcript/blob/main/examples/rule_demo.py) declares `r.wildcards(sample="A", feature="score")`:
 
 | input file                 | parameter                                                      | files changed on disk                                  | behavior                                                                                                             |
 | -------------------------- | -------------------------------------------------------------- | ------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |

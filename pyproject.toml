@@ -1,11 +1,15 @@
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27"]
 build-backend = "hatchling.build"
 
 [project]
 name = "transcript.md"
 version = "0.1.0"
 description = "Executable Python documents with recorded outputs"
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "Aoran Hu" }]
 requires-python = ">=3.11"
 dependencies = []
 
@@ -22,6 +26,11 @@ snakemake = ["snakemake>=9,<10"]
 
 [project.scripts]
 transcript = "transcript.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Hocnonsense/transcript"
+Repository = "https://github.com/Hocnonsense/transcript"
+Issues = "https://github.com/Hocnonsense/transcript/issues"
 
 [tool.hatch.build]
 artifacts = ["src/transcript/html/_assets/*.css", "src/transcript/html/_assets/*.js"]
