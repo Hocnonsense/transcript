@@ -227,7 +227,7 @@ class Rule:
             (
                 self._wildcard_state.inferred,
                 self._wildcard_state.defaults,
-            ) = snapshot[0], snapshot[1]
+            ) = (snapshot[0], snapshot[1])
             for container, saved in zip(containers, snapshot[2]):
                 container._later = saved
             raise
@@ -303,35 +303,54 @@ class Rule:
         """
         return self._wildcard_state.effective(override)
 
-    def _placeholderize(self, container: DeclaredList, value, *, record=True):
+    def _placeholderize(
+        self, container: DeclaredList, value, *, record=True, name=None
+    ):
         """Infer a wildcard pattern for a concrete out-of-block *value*.
 
         Only the value's own list is searched, and only script-side wildcard
-        values take part; CLI overrides never affect inference.
+        values take part; CLI overrides never affect inference.  A named
+        input/params entry is an independent slot: when its capture would
+        contradict a declared value, the value is kept as a literal instead of
+        rejecting the assignment.  Positional entries and output/log stay
+        strict, because they define the list's wildcard space.
         """
         if not isinstance(value, str) or get_wildcard_names(value):
             return value
-        for _, declared in container._raw_items():
-            for pattern in _iter_str(declared):
+        lenient = name is not None and container._kind not in ("output", "log")
+        declared = self._declared_wildcards()
+        for _, stored in container._raw_items():
+            for pattern in _iter_str(stored):
                 captured = _match_wildcards(pattern, value)
-                if captured is not None:
+                if captured is None:
+                    continue
+                conflict = self._wildcard_state.conflict(captured)
+                if conflict:
+                    if lenient:
+                        continue
+                    key, captured_value = conflict
                     if record:
-                        self._wildcard_state.record(captured)
-                    return pattern
-        return _placeholderize(value, self._declared_wildcards())
+                        raise WorkflowError(
+                            f"wildcard {key!r} is {declared[key]!r},"
+                            f" not {captured_value!r}"
+                        )
+                if record:
+                    self._wildcard_state.inferred.update(captured)
+                return pattern
+        return _placeholderize(value, declared)
 
-    def _infer_value(self, container: DeclaredList, value, *, record=True):
+    def _infer_value(self, container: DeclaredList, value, *, record=True, name=None):
         """Infer patterns for an out-of-block declaration value."""
         if not container._is_path and isinstance(value, list):
             return [
                 (
-                    self._placeholderize(container, item, record=record)
+                    self._placeholderize(container, item, record=record, name=name)
                     if isinstance(item, str)
                     else item
                 )
                 for item in value
             ]
-        return self._placeholderize(container, value, record=record)
+        return self._placeholderize(container, value, record=record, name=name)
 
     def _check_resolve(self, value):
         """Reject an out-of-block value that the effective wildcards cannot resolve."""
@@ -350,10 +369,10 @@ class Rule:
         else:
             containers = [container]
         for current in containers:
-            for _, stored in current._later:
+            for name, stored in current._later:
                 if isinstance(stored, _StaticLambda):
                     continue
-                fresh = self._infer_value(current, stored, record=False)
+                fresh = self._infer_value(current, stored, record=False, name=name)
                 if fresh != stored:
                     raise WorkflowError(
                         f"{current._kind} value {stored!r} was declared before the "
@@ -366,7 +385,7 @@ class Rule:
         containers = (self._input, self._output, self._log, self._params)
         for container in containers:
             container._later = [
-                (name, self._infer_value(container, value))
+                (name, self._infer_value(container, value, name=name))
                 for name, value in container._later
             ]
         self._check_wildcards()
@@ -376,11 +395,11 @@ class Rule:
 
     def _add_out_of_block(self, container: DeclaredList, name: str | None, value):
         """Infer, validate, and only then commit an out-of-block declaration."""
-        if name == "document" and container._kind in ("output", "log"):
+        if name == "document" and container._kind not in ("input", "params"):
             raise WorkflowError("document can only be declared inside the rule block")
         snapshot = (dict(self._wildcard_state.inferred), list(container._later))
         try:
-            value = self._infer_value(container, value)
+            value = self._infer_value(container, value, name=name)
             is_new = (
                 container._new_kwarg(name, value)
                 if name is not None
@@ -436,7 +455,7 @@ class Rule:
         scope = (self._input, self._params) if containers is None else containers
         unknown = set()
         for container in scope:
-            if container._kind in ("input", "params"):
+            if container._kind not in ("output", "log"):
                 unknown |= container._all_wildcards()
         unknown -= defined
         if unknown:

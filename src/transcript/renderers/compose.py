@@ -47,7 +47,7 @@ _STYLE = """
 """
 
 
-def _panel_letter(index: int) -> str:
+def _panel_letter(index: int):
     """Return spreadsheet-style letters: 0 -> A, 25 -> Z, 26 -> AA."""
     name = ""
     index += 1
@@ -70,7 +70,7 @@ def _validate_config(config: Mapping):
     return {"ncol": ncol, "labels": labels}
 
 
-def compose(*panels, ncol: int = _DEFAULT_NCOL, labels: bool = True):
+def compose(*panels, ncol=_DEFAULT_NCOL, labels=True):
     """Arrange several outputs in a panel grid during HTML export.
 
     Each *panel* is a renderer output, usually a chart wrapped by

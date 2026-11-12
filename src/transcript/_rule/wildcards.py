@@ -34,15 +34,13 @@ class WildcardState:
             override = self.job
         return self.declared() | override
 
-    def record(self, captured: dict[str, str]) -> None:
-        """Remember captures, rejecting values that contradict declared ones."""
+    def conflict(self, captured: dict[str, str]):
+        """Return the first capture that contradicts a declared value, if any."""
         declared = self.declared()
         for name, value in captured.items():
             if name in declared and declared[name] != value:
-                raise WorkflowError(
-                    f"wildcard {name!r} is {declared[name]!r}, not {value!r}"
-                )
-        self.inferred.update(captured)
+                return name, value
+        return None
 
 
 def _matches(pattern, value):
