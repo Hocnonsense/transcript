@@ -97,7 +97,6 @@ if "transcript.md":
     The two forms are equivalent and may be mixed in one document.
     """
     value
-
 ```
 
 
