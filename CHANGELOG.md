@@ -1,0 +1,80 @@
+# Changelog
+
+## 0.1.0 (2026-11-12)
+
+
+### ⚠ BREAKING CHANGES
+
+* between opencode and codex
+* between codex and opencode
+
+### Features
+
+* _rule ([333b3fe](https://github.com/Hocnonsense/transcript/commit/333b3fe6f388f43ae91a88e5ef9f8003a89aae72))
+* allow box code ([3eebf0f](https://github.com/Hocnonsense/transcript/commit/3eebf0ff2230ef4f06254fb07b6b31517b83db42))
+* annot ([1236024](https://github.com/Hocnonsense/transcript/commit/1236024c22db73f95fac0ca5c7db70beb063681a))
+* auto default vegalite size ([36cdcd4](https://github.com/Hocnonsense/transcript/commit/36cdcd4b6d64b338c027eea9b876d8d2875181a2))
+* between codex and opencode ([ac00855](https://github.com/Hocnonsense/transcript/commit/ac0085503b48e9b57a6d94cf367c6da3c7ba3162))
+* between opencode and codex ([85caf9b](https://github.com/Hocnonsense/transcript/commit/85caf9b9955cc38180fd0b95f62724227338b8f9))
+* change to `with` method ([f7a7b35](https://github.com/Hocnonsense/transcript/commit/f7a7b355e46302b1c882aa3d21a33cf2646c8d9c))
+* clean markdown( ([342660e](https://github.com/Hocnonsense/transcript/commit/342660e76c59b106bbf1418ef494a0e4b907cd4b))
+* clear image renderer ([e302b8a](https://github.com/Hocnonsense/transcript/commit/e302b8ab014d686e50215aee373ed90620f2ce63))
+* codex and opencode ([cbfddf7](https://github.com/Hocnonsense/transcript/commit/cbfddf71de1963e70df7b6b6d04ab9fe42d48e6b))
+* doctest update ([599c1d3](https://github.com/Hocnonsense/transcript/commit/599c1d303d7dfcc106f1ffe1cdbe751afcee2f0f))
+* enable altair ([5961feb](https://github.com/Hocnonsense/transcript/commit/5961febb34f53c71f5787c912f66500b46b59de4))
+* export from html ([9e9e10c](https://github.com/Hocnonsense/transcript/commit/9e9e10c74788da76c1bb1f73fa4e7e946d829407))
+* history chain ([0affcb3](https://github.com/Hocnonsense/transcript/commit/0affcb3ca863604d24710259d37d89355045a2cc))
+* hover ([8cad4ca](https://github.com/Hocnonsense/transcript/commit/8cad4ca2a765cfadc65175638bd73512b4a40357))
+* html2snd ([c286641](https://github.com/Hocnonsense/transcript/commit/c28664124cb735d76a6948753936cef47d1c8106))
+* keep rendered markdown in source ([9421aab](https://github.com/Hocnonsense/transcript/commit/9421aab0bbf5fbf4c81d121634f5f0d66618e53d))
+* label ([ce625b9](https://github.com/Hocnonsense/transcript/commit/ce625b933771c1284edf68f157fe5662102667d1))
+* marks ([23db866](https://github.com/Hocnonsense/transcript/commit/23db866d90e155f2697e18592a5a085861847730))
+* new vegalites ([af46f78](https://github.com/Hocnonsense/transcript/commit/af46f78e8bd40b2253490ea25e09b22fb9b74702))
+* output html ([a6c690f](https://github.com/Hocnonsense/transcript/commit/a6c690f3ac21d2f96f9a0ca748cc2789c0d12c58))
+* renaming ([6a9bf6c](https://github.com/Hocnonsense/transcript/commit/6a9bf6cf4023f3839935b68348051efe5f202360))
+* render in browser ([987a7ea](https://github.com/Hocnonsense/transcript/commit/987a7ead55467535bc15a537c3c2b6f525d57bf8))
+* review exportable ([789bf1d](https://github.com/Hocnonsense/transcript/commit/789bf1d358eedd660577b53feaa97a579ac3767a))
+* review in python ([f9f957c](https://github.com/Hocnonsense/transcript/commit/f9f957c0050a97b4fedd8ca5cf5490004fef7896))
+* review in python ([3414dba](https://github.com/Hocnonsense/transcript/commit/3414dba68649e19f5586b695fe4a8cfe408df7f9))
+* review! ([a39c69e](https://github.com/Hocnonsense/transcript/commit/a39c69e139ef0165b17c0a73fdc152fd32399b45))
+* sidebar ([ea02783](https://github.com/Hocnonsense/transcript/commit/ea027837818198c6f6526da6e50a08c8cec77846))
+* simple compose ([ff19465](https://github.com/Hocnonsense/transcript/commit/ff194650a5fbfdd35cc85024abdfb0e065ccef4c))
+* store source ([dbbe38a](https://github.com/Hocnonsense/transcript/commit/dbbe38a24e2389c7470e6389071d526f56433fda))
+* table ([697f82e](https://github.com/Hocnonsense/transcript/commit/697f82eb44669d229a25881af1d8ba0772ab68e1))
+* update snakedone-output style ([3fac88b](https://github.com/Hocnonsense/transcript/commit/3fac88bcbe06198c3187199c3ec436061e1434d2))
+* vegalite ([e3bf0f8](https://github.com/Hocnonsense/transcript/commit/e3bf0f8b4462e85eeb07d688ef27f0914346797e))
+* with transcript.md ([f0750b1](https://github.com/Hocnonsense/transcript/commit/f0750b1c02d3fa5c9d098817abfae31cf3936e6b))
+
+
+### Bug Fixes
+
+* code ([8bf56ef](https://github.com/Hocnonsense/transcript/commit/8bf56efffe149ce44150d67882dc86ad39adce2a))
+* diable conditionals ([c963fea](https://github.com/Hocnonsense/transcript/commit/c963feac1b2c594d966673726256e0b8be09aa64))
+* document ([6576298](https://github.com/Hocnonsense/transcript/commit/6576298abe36e3519c43da7b82df0bcae91d0fa7))
+* documents ([5db8ee1](https://github.com/Hocnonsense/transcript/commit/5db8ee14c55247ceda97483132f063791b72c474))
+* dynamic style ([193a5da](https://github.com/Hocnonsense/transcript/commit/193a5dafcc00c0d26f5d360d9a39feadaddc7882))
+* label shift ([f215456](https://github.com/Hocnonsense/transcript/commit/f2154567917f180b7679aa2f8e04993bcc8827f7))
+* labeled object only render once ([cae0202](https://github.com/Hocnonsense/transcript/commit/cae02021934263c6a6a292eeaaf0698f9a45b8f8))
+* lint ([1a07cdf](https://github.com/Hocnonsense/transcript/commit/1a07cdf078fd0c53f4f5063a79591568ad3f3eb6))
+* name ([033f77f](https://github.com/Hocnonsense/transcript/commit/033f77f2160e7a8e5e099683f185080550c54e05))
+* no report-block ([c4746ad](https://github.com/Hocnonsense/transcript/commit/c4746ad371027b769eb8558f8e755cca3c7099f6))
+* parse all recards regardless codes ([aa8ce20](https://github.com/Hocnonsense/transcript/commit/aa8ce203256e499e28921bdd845aaa5fd39cbf53))
+* perf ([d735c0e](https://github.com/Hocnonsense/transcript/commit/d735c0e8610c78eff99c1a74a81c2c2cdd759509))
+* record style ([e6d0bc3](https://github.com/Hocnonsense/transcript/commit/e6d0bc3c41547f75368c1652b219ff9ccd960e74))
+* render statement with prefix ([54e04b7](https://github.com/Hocnonsense/transcript/commit/54e04b7abb25adf9c45b83964e1a41dcd4eebce5))
+* report op ([a65e2e8](https://github.com/Hocnonsense/transcript/commit/a65e2e834ecf74c615908db690bd14a5c8214abc))
+* review new line ([02052d4](https://github.com/Hocnonsense/transcript/commit/02052d4c298c62c8491d3bc9b71c9019f6297a90))
+* style ([c3cfb28](https://github.com/Hocnonsense/transcript/commit/c3cfb28ad8024bb9cde349ac5db07471913a82bb))
+* style ([97ee0ef](https://github.com/Hocnonsense/transcript/commit/97ee0ef61b85fda25effb7b4ac16ea1f2dd8efa5))
+* unnest ([916d6af](https://github.com/Hocnonsense/transcript/commit/916d6af7a31ed2cc385f219d502e5935bf4ddeb5))
+
+
+### Documentation
+
+* about table ([a378611](https://github.com/Hocnonsense/transcript/commit/a378611b16b3b7ea90807559936f343878361f99))
+* docs and demos ([1380fcb](https://github.com/Hocnonsense/transcript/commit/1380fcb5d8f222dde6d98a05541c0a843cb971ea))
+* examples ([ec8ea08](https://github.com/Hocnonsense/transcript/commit/ec8ea0894cca37e4f8ddf8824ffb81faa702a340))
+* update ([c6326e8](https://github.com/Hocnonsense/transcript/commit/c6326e89c0e18e1e428452f052897ed9869a74d7))
+* update demo ([7b4d262](https://github.com/Hocnonsense/transcript/commit/7b4d262e0eaf5feccf846d48ec7f10c0bb1d7f92))
+* update README ([6f4cb87](https://github.com/Hocnonsense/transcript/commit/6f4cb87b72682d0f827d24adaba8aa6d839e22af))
+* update README ([a699cec](https://github.com/Hocnonsense/transcript/commit/a699cec12b1ba84e75ec4197cf93b4990300a0d1))
