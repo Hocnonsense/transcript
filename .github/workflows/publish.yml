@@ -1,0 +1,79 @@
+name: Publish
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  release-please:
+    if: ${{ github.event_name == 'push' }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      # release-type "python" updates the version in pyproject.toml, writes
+      # CHANGELOG.md, and creates the release PR and the tag. Use a dedicated
+      # PAT instead of GITHUB_TOKEN if the release PR should itself trigger CI
+      # on main.
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          release-type: python
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  build:
+    needs: release-please
+    # A manual dispatch retries publishing the version already in
+    # pyproject.toml, e.g. after a failed PyPI upload.
+    if: ${{ always() && (github.event_name == 'workflow_dispatch' || needs.release-please.outputs.release_created) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Pixi
+        uses: prefix-dev/setup-pixi@v0.10.0
+        with:
+          cache: true
+
+      - name: Build sdist and wheel
+        run: pixi run build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/project/py-transcript/
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+      # Trusted Publishing (OIDC): no username/password; the PyPI side must
+      # have this repo + workflow (publish.yml) + environment "pypi"
+      # registered as a trusted publisher.
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

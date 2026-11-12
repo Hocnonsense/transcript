@@ -576,7 +576,8 @@ Use `pixi run format` to format the code.
 
 Browser sources live in `src/frontend` as TypeScript and CSS.
 `pixi run frontend-build` generates the `transcript.min.js` and `style.min.css` assets embedded by the Python package; tests and package builds run this automatically.
-Development and source builds require esbuild; installed wheels only use their packaged minified assets.
+Building the frontend (`pixi run frontend`, tests) and building sdists/wheels require esbuild.
+Editable installs import the assets from the source tree instead of building them, and installed wheels only use their packaged minified assets.
 
 ### Terminology
 

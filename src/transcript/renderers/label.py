@@ -154,9 +154,7 @@ class Label(Renderer):
     def to_html(cls, slot):
         """Render the wrapped output and place it inside a labelled figure."""
         id, caption, inner = cls.from_tmd(slot)
-        figure = (
-            f'<figure class="transcript-label" data-tmd-label="{id}">' + "{{0}}"
-        )
+        figure = f'<figure class="transcript-label" data-tmd-label="{id}">' + "{{0}}"
         if caption:
             figure += f"<figcaption>{escape(caption)}</figcaption>"
         figure += "</figure>"
