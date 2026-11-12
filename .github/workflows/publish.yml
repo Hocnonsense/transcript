@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: pypi
-      url: https://pypi.org/project/py-transcript/
+      url: https://pypi.org/project/transcript.md/
     permissions:
       id-token: write
       contents: read

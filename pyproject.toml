@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "py-transcript"
+name = "transcript.md"
 version = "0.0.2"
 description = "Executable Python documents with recorded outputs"
 requires-python = ">=3.11"
@@ -54,7 +54,7 @@ hatchling = "*"
 
 [tool.pixi.pypi-dependencies]
 snakemake = ">=9.20"
-py-transcript = { path = ".", editable = true, extras = [
+"transcript.md" = { path = ".", editable = true, extras = [
     "html",
     "datavzrd",
     "vegalite",
